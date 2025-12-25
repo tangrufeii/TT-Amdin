@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.tt</groupId>
+        <artifactId>tt-admin-backend</artifactId>
+        <version>1.0.0</version>
+    </parent>
+    <packaging>jar</packaging>
+    <artifactId>tt-admin-server</artifactId>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+    <dependencies>
+        <!--   公用类库     -->
+        <dependency>
+            <groupId>com.tt</groupId>
+            <artifactId>tt-admin-common</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <!--   依赖领域模块     -->
+        <dependency>
+            <groupId>com.tt</groupId>
+            <artifactId>tt-admin-domain</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <!--   依赖应用模块     -->
+        <dependency>
+            <groupId>com.tt</groupId>
+            <artifactId>tt-admin-application</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <!--   依赖接口模块     -->
+        <dependency>
+            <groupId>com.tt</groupId>
+            <artifactId>tt-admin-interfaces</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <!--   依赖基础设施模块     -->
+        <dependency>
+            <groupId>com.tt</groupId>
+            <artifactId>tt-admin-infrastructure</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*.yml</include>
+                    <include>**/*.yaml</include>
+                    <include>**/*.properties</include>
+                    <include>**/*.xml</include>
+                    <include>**/*.md</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/java</directory>
+                <includes>
+                    <include>**/*.xml</include>
+                </includes>
+            </resource>
+        </resources>
+    </build>
+
+</project>

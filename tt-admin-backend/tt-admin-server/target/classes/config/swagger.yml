@@ -1,0 +1,21 @@
+  # springdoc-openapi项目配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+# knife4j的增强配置，不需要增强可以不配
+knife4j:
+  enable: true
+  basic:
+    enable: false
+    username: admin
+    password: 123456
+  setting:
+    # 启用自定义主页
+    enable-home-custom: true
+    # 自定义主页文件路径
+    swagger-model-name: 实体列表 #默认为: Swagger Models
+    home-custom-path: classpath:markdown/home.md
