@@ -26,7 +26,7 @@ import java.util.Map;
  * @date 2025/12/17 05:43
  */
 @RestController
-@Tag(name = "认证管理")
+@Tag(name = "认证管理",description = "认证管理相关接口")
 @RequiredArgsConstructor
 @RequestMapping("/auth")
 @Log4j2
