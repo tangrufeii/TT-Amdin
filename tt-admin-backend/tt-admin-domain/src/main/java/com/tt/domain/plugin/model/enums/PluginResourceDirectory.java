@@ -19,7 +19,8 @@ public enum PluginResourceDirectory {
     SETTING_FILE("setting.json"),
     CLASSES_DIR("classes"),
     UI_DIR("ui"),
-    SQL_DIR("sql");
+    SQL_DIR("sql"),
+    FRONTEND_FILE("frontend.yaml");
     private String path;
     PluginResourceDirectory(String path) {
         this.path = path;

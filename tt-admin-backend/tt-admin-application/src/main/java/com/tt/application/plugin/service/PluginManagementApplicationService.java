@@ -5,25 +5,41 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.tt.application.plugin.command.*;
 import com.tt.application.plugin.dto.PluginManagementDTO;
 import com.tt.application.plugin.dto.PluginStatisticsDTO;
+import com.tt.application.plugin.dto.frontend.PluginFrontendMenuDTO;
+import com.tt.application.plugin.dto.frontend.PluginFrontendModuleDTO;
+import com.tt.application.plugin.dto.frontend.PluginFrontendRouteDTO;
+import com.tt.application.plugin.dto.frontend.PluginFrontendRouteMetaDTO;
 import com.tt.common.api.ResultCode;
 import com.tt.common.domain.DomainEventPublisher;
 import com.tt.common.domain.DomainException;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.aggregate.PluginManagement;
+import com.tt.domain.plugin.model.frontend.PluginFrontendDefinition;
+import com.tt.domain.plugin.model.frontend.PluginFrontendMenuDefinition;
+import com.tt.domain.plugin.model.frontend.PluginFrontendModuleDefinition;
+import com.tt.domain.plugin.model.frontend.PluginFrontendRouteDefinition;
+import com.tt.domain.plugin.model.frontend.PluginFrontendRouteMeta;
 import com.tt.domain.plugin.model.enums.PluginDirectory;
 import com.tt.domain.plugin.model.valobj.PluginManagementStatus;
+import com.tt.domain.plugin.repository.PluginFrontendDefinitionRepository;
 import com.tt.domain.plugin.repository.PluginManagementRepository;
 import com.tt.domain.plugin.service.PluginDomainService;
 import com.tt.domain.plugin.service.PluginManagementDomainService;
 import com.tt.domain.plugin.PluginManager;
+import com.tt.domain.plugin.event.PluginLifecycleEvent;
+import com.tt.domain.plugin.progress.PluginProgressContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -48,11 +64,20 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PluginManagementApplicationService {
 
+    private static final String ACTION_INSTALL = "INSTALL";
+    private static final String ACTION_ENABLE = "ENABLE";
+    private static final String ACTION_DISABLE = "DISABLE";
+    private static final String ACTION_UNINSTALL = "UNINSTALL";
+    private static final String STATUS_PROCESSING = "PROCESSING";
+    private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_FAILED = "FAILED";
+
     private final PluginManagementRepository pluginManagementRepository;
     private final PluginManagementDomainService pluginManagementDomainService;
     private final DomainEventPublisher domainEventPublisher;
     private final PluginDomainService pluginDomainService;
     private final PluginManager pluginManager;
+    private final PluginFrontendDefinitionRepository pluginFrontendDefinitionRepository;
 
     /**
      * 创建插件记录
@@ -110,12 +135,27 @@ public class PluginManagementApplicationService {
 
         pluginManagementDomainService.validatePluginCanBeUninstalled(plugin.getPluginId());
 
+        long startedAt = System.currentTimeMillis();
+        PluginProgressContext.setReporter(progress -> publishLifecycle(
+                progress.getPluginId(),
+                progress.getAction(),
+                STATUS_PROCESSING,
+                progress.getMessage(),
+                progress.getStage(),
+                progress.getProgress(),
+                startedAt,
+                System.currentTimeMillis() - startedAt
+        ));
         try {
+            publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_PROCESSING, "插件卸载中", "start", 0, startedAt, 0L);
             // 同步调用基础设施层卸载插件
             pluginManager.uninstallPlugin(plugin.getPluginId());
         } catch (Exception e) {
+            publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_FAILED, "插件卸载失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
             log.error("Failed to uninstall plugin: {}", plugin.getPluginId(), e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件卸载失败: " + e.getMessage());
+        } finally {
+            PluginProgressContext.clear();
         }
 
         plugin.uninstall();
@@ -124,6 +164,7 @@ public class PluginManagementApplicationService {
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
 
+        publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_SUCCESS, "插件已卸载", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
         log.info("Plugin deleted: pluginId={}, name={}", plugin.getPluginId(), plugin.getName());
     }
 
@@ -162,6 +203,17 @@ public class PluginManagementApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void installPlugin(PluginInstallCommand command) {
+        long startedAt = System.currentTimeMillis();
+        PluginProgressContext.setReporter(progress -> publishLifecycle(
+                progress.getPluginId(),
+                progress.getAction(),
+                STATUS_PROCESSING,
+                progress.getMessage(),
+                progress.getStage(),
+                progress.getProgress(),
+                startedAt,
+                System.currentTimeMillis() - startedAt
+        ));
         try {
             // 1. 保存上传文件到临时目录
             File tempDir = new File(PluginDirectory.TEMP_DIRECTORY.getPath());
@@ -170,6 +222,7 @@ public class PluginManagementApplicationService {
             }
             File pluginFile = new File(tempDir.getAbsolutePath() + File.separator + command.getFile().getOriginalFilename());
             command.getFile().transferTo(pluginFile);
+            publishLifecycle(null, ACTION_INSTALL, STATUS_PROCESSING, "插件准备中", "prepare", 5, startedAt, System.currentTimeMillis() - startedAt);
 
             // 2. 同步调用基础设施层安装插件
             PluginConfig pluginConfig = pluginManager.installPlugin(pluginFile);
@@ -177,11 +230,15 @@ public class PluginManagementApplicationService {
             // 3. 保存插件信息到数据库
             pluginDomainService.savePluginInfo(pluginConfig);
 
+            publishLifecycle(pluginConfig.getPlugin().getId(), ACTION_INSTALL, STATUS_SUCCESS, "插件安装成功", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
             log.info("Plugin installed successfully: {}", pluginConfig.getPlugin().getId());
 
         } catch (Exception e) {
+            publishLifecycle(null, ACTION_INSTALL, STATUS_FAILED, "插件安装失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
             log.error("Failed to install plugin", e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件安装失败: " + e.getMessage());
+        } finally {
+            PluginProgressContext.clear();
         }
     }
 
@@ -215,11 +272,26 @@ public class PluginManagementApplicationService {
         plugin.enable();
 
         // 同步调用基础设施层启动插件
+        long startedAt = System.currentTimeMillis();
+        PluginProgressContext.setReporter(progress -> publishLifecycle(
+                progress.getPluginId(),
+                progress.getAction(),
+                STATUS_PROCESSING,
+                progress.getMessage(),
+                progress.getStage(),
+                progress.getProgress(),
+                startedAt,
+                System.currentTimeMillis() - startedAt
+        ));
         try {
+            publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_PROCESSING, "插件启动中", "start", 0, startedAt, 0L);
             pluginManager.startPlugin(plugin.getPluginId());
         } catch (Exception e) {
+            publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_FAILED, "插件启动失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
             log.error("Failed to start plugin: {}", plugin.getPluginId(), e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件启动失败: " + e.getMessage());
+        } finally {
+            PluginProgressContext.clear();
         }
 
         pluginManagementRepository.save(plugin);
@@ -227,6 +299,7 @@ public class PluginManagementApplicationService {
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
 
+        publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_SUCCESS, "插件已启用", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
         log.info("Plugin enabled: pluginId={}", plugin.getPluginId());
         return convertToDTO(plugin);
     }
@@ -243,11 +316,26 @@ public class PluginManagementApplicationService {
         plugin.disable();
 
         // 同步调用基础设施层停止插件
+        long startedAt = System.currentTimeMillis();
+        PluginProgressContext.setReporter(progress -> publishLifecycle(
+                progress.getPluginId(),
+                progress.getAction(),
+                STATUS_PROCESSING,
+                progress.getMessage(),
+                progress.getStage(),
+                progress.getProgress(),
+                startedAt,
+                System.currentTimeMillis() - startedAt
+        ));
         try {
+            publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_PROCESSING, "插件停止中", "start", 0, startedAt, 0L);
             pluginManager.stopPlugin(plugin.getPluginId());
         } catch (Exception e) {
+            publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_FAILED, "插件停止失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
             log.error("Failed to stop plugin: {}", plugin.getPluginId(), e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件停止失败: " + e.getMessage());
+        } finally {
+            PluginProgressContext.clear();
         }
 
         pluginManagementRepository.save(plugin);
@@ -255,6 +343,7 @@ public class PluginManagementApplicationService {
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
 
+        publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_SUCCESS, "插件已禁用", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
         log.info("Plugin disabled: pluginId={}", plugin.getPluginId());
         return convertToDTO(plugin);
     }
@@ -281,6 +370,33 @@ public class PluginManagementApplicationService {
                 .enabledCount(stats[1])
                 .disabledCount(stats[2])
                 .build();
+    }
+
+    /**
+     * 获取前端插件模块描述
+     */
+    public List<PluginFrontendModuleDTO> listFrontendModules() {
+        List<PluginManagement> enabledPlugins = pluginManagementRepository.findByStatus(PluginManagementStatus.ENABLED.getCode());
+        if (CollectionUtils.isEmpty(enabledPlugins)) {
+            return Collections.emptyList();
+        }
+
+        List<PluginFrontendModuleDTO> modules = new ArrayList<>();
+        for (PluginManagement plugin : enabledPlugins) {
+            PluginFrontendDefinition definition = pluginFrontendDefinitionRepository
+                    .loadByPluginId(plugin.getPluginId())
+                    .orElse(null);
+            if (definition == null || CollectionUtils.isEmpty(definition.getModules())) {
+                continue;
+            }
+            for (PluginFrontendModuleDefinition moduleDefinition : definition.getModules()) {
+                PluginFrontendModuleDTO moduleDTO = convertFrontendModule(plugin, moduleDefinition, definition);
+                if (moduleDTO != null) {
+                    modules.add(moduleDTO);
+                }
+            }
+        }
+        return modules;
     }
 
     /**
@@ -316,5 +432,106 @@ public class PluginManagementApplicationService {
         }
 
         return dto;
+    }
+
+    private PluginFrontendModuleDTO convertFrontendModule(PluginManagement plugin,
+                                                          PluginFrontendModuleDefinition moduleDefinition,
+                                                          PluginFrontendDefinition definition) {
+        if (plugin == null || moduleDefinition == null || CollectionUtils.isEmpty(moduleDefinition.getRoutes())) {
+            return null;
+        }
+
+        List<PluginFrontendRouteDTO> routes = moduleDefinition.getRoutes().stream()
+                .map(this::convertFrontendRoute)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        if (routes.isEmpty()) {
+            return null;
+        }
+
+        PluginFrontendModuleDTO moduleDTO = new PluginFrontendModuleDTO();
+        moduleDTO.setModuleName(moduleDefinition.getModuleName());
+        moduleDTO.setPluginId(plugin.getPluginId());
+        moduleDTO.setPluginName(plugin.getName());
+        moduleDTO.setPluginIsDev(plugin.getPluginInfo() != null && Boolean.TRUE.equals(plugin.getPluginInfo().getIsDev()));
+        moduleDTO.setFrontDevAddress(plugin.getPluginInfo() != null ? plugin.getPluginInfo().getFrontDevAddress() : null);
+        moduleDTO.setRoutes(routes);
+        moduleDTO.setMenus(filterMenusForRoutes(definition != null ? definition.getMenus() : null, routes));
+        moduleDTO.setI18n(definition != null ? definition.getI18n() : null);
+        return moduleDTO;
+    }
+
+    private PluginFrontendRouteDTO convertFrontendRoute(PluginFrontendRouteDefinition routeDefinition) {
+        if (routeDefinition == null
+                || isBlank(routeDefinition.getName())
+                || isBlank(routeDefinition.getPath())
+                || isBlank(routeDefinition.getComponent())) {
+            return null;
+        }
+
+        PluginFrontendRouteDTO routeDTO = new PluginFrontendRouteDTO();
+        routeDTO.setName(routeDefinition.getName());
+        routeDTO.setPath(routeDefinition.getPath());
+        routeDTO.setComponent(routeDefinition.getComponent());
+        routeDTO.setComponentName(routeDefinition.getComponentName());
+        routeDTO.setMeta(convertRouteMeta(routeDefinition.getMeta(), routeDefinition.getName()));
+        return routeDTO;
+    }
+
+    private PluginFrontendRouteMetaDTO convertRouteMeta(PluginFrontendRouteMeta meta, String fallbackTitle) {
+        PluginFrontendRouteMetaDTO metaDTO = new PluginFrontendRouteMetaDTO();
+        if (meta != null) {
+            metaDTO.setTitle(isBlank(meta.getTitle()) ? fallbackTitle : meta.getTitle());
+            metaDTO.setI18nKey(meta.getI18nKey());
+            metaDTO.setIcon(meta.getIcon());
+            metaDTO.setOrder(meta.getOrder());
+            metaDTO.setHideInMenu(meta.getHideInMenu());
+            metaDTO.setKeepAlive(meta.getKeepAlive());
+            metaDTO.setConstant(meta.getConstant());
+            metaDTO.setActiveMenu(meta.getActiveMenu());
+            metaDTO.setLayout(meta.getLayout());
+        } else {
+            metaDTO.setTitle(fallbackTitle);
+        }
+        return metaDTO;
+    }
+
+    private List<PluginFrontendMenuDTO> filterMenusForRoutes(List<PluginFrontendMenuDefinition> menus,
+                                                             List<PluginFrontendRouteDTO> routes) {
+        if (CollectionUtils.isEmpty(menus) || CollectionUtils.isEmpty(routes)) {
+            return Collections.emptyList();
+        }
+        List<String> routeNames = routes.stream().map(PluginFrontendRouteDTO::getName).collect(Collectors.toList());
+        return menus.stream()
+                .filter(menu -> routeNames.contains(menu.getRouteName()))
+                .map(menu -> {
+                    PluginFrontendMenuDTO dto = new PluginFrontendMenuDTO();
+                    dto.setRouteName(menu.getRouteName());
+                    dto.setParent(menu.getParent());
+                    dto.setTitle(menu.getTitle());
+                    dto.setI18nKey(menu.getI18nKey());
+                    dto.setIcon(menu.getIcon());
+                    dto.setOrder(menu.getOrder());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private void publishLifecycle(String pluginId,
+                                  String action,
+                                  String status,
+                                  String message,
+                                  String stage,
+                                  Integer progress,
+                                  Long startedAt,
+                                  Long elapsedMs) {
+        domainEventPublisher.publishImmediately(
+                new PluginLifecycleEvent(pluginId, action, status, message, stage, progress, startedAt, elapsedMs)
+        );
     }
 }

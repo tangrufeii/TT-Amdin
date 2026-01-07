@@ -12,6 +12,8 @@ declare global {
     $message?: import('naive-ui').MessageProviderInst;
     /** Notification instance */
     $notification?: import('naive-ui').NotificationProviderInst;
+    /** Plugin API base url injected by host */
+    __TT_PLUGIN_API_BASE__?: string;
   }
 
   /** Build time of the project */

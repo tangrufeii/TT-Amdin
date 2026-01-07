@@ -91,7 +91,7 @@ public class PluginClassLoader extends URLClassLoader {
     public void addFile(File file) {
         try {
             // 添加lib目录下的所有JAR文件
-            File libFile = new File(file.getAbsolutePath() + File.separator + PluginResourceDirectory.LIB_DIR);
+            File libFile = new File(file.getAbsolutePath() + File.separator + PluginResourceDirectory.LIB_DIR.getPath());
             if (libFile.exists() && libFile.listFiles() != null) {
                 File[] files = libFile.listFiles();
                 if (files != null) {

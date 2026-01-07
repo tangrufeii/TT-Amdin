@@ -13,10 +13,12 @@ plugin:
   version: 1.0.3
   # 插件静态资源路径
   staticLocations: /ui/
+  # 前端模块列表（逗号分隔）
+#  modules: demo
   # 是否为开发环境(如果是插件前端通过node运行,需要开启dev且设置前端开发环境地址)
   isDev: false
   # 前端开发环境地址
-  frontDevAddress: http://127.0.0.1:4202
+  frontDevAddress: http://127.0.0.1:4203
   # 插件更新url
   updateUrl:
 author:

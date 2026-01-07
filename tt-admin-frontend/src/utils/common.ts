@@ -56,3 +56,9 @@ export function toggleHtmlClass(className: string) {
     remove
   };
 }
+
+export function transDeleteParams(ids: Array<number | string>): Api.Common.DeleteParams {
+  return {
+    ids
+  };
+}

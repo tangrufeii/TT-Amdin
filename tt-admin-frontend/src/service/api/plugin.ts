@@ -102,7 +102,8 @@ export function fetchPluginDelete(id: number) {
 export function fetchPluginEnable(id: number) {
   return request<Api.Plugin.PluginManagement>({
     url: `/plugin/management/${id}/enable`,
-    method: 'put'
+    method: 'put',
+    timeout: 120000
   });
 }
 
@@ -113,7 +114,8 @@ export function fetchPluginEnable(id: number) {
 export function fetchPluginDisable(id: number) {
   return request<Api.Plugin.PluginManagement>({
     url: `/plugin/management/${id}/disable`,
-    method: 'put'
+    method: 'put',
+    timeout: 120000
   });
 }
 
@@ -125,7 +127,8 @@ export function fetchPluginChangeStatus(data: Api.Plugin.PluginStatusChange) {
   return request<Api.Plugin.PluginManagement>({
     url: '/plugin/management/status',
     method: 'put',
-    data
+    data,
+    timeout: 120000
   });
 }
 
@@ -153,6 +156,17 @@ export function fetchPluginInstall(file: File) {
     data: formData,
     headers: {
       'Content-Type': 'multipart/form-data'
-    }
+    },
+    timeout: 120000
+  });
+}
+
+/**
+ * 获取已启用插件的前端模块描述
+ */
+export function fetchPluginFrontendModules() {
+  return request<Api.Plugin.PluginFrontendModule[]>({
+    url: '/plugin/management/frontend/modules',
+    method: 'get'
   });
 }

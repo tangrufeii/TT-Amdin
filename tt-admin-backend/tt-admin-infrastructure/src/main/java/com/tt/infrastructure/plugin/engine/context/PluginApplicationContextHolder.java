@@ -5,6 +5,7 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -27,6 +28,7 @@ public class PluginApplicationContextHolder {
      * </p>
      */
     private static final Map<String, AnnotationConfigApplicationContext> CONTEXT_REGISTRY = new ConcurrentHashMap<>();
+    private static final Set<String> REFRESHED_CONTEXT = ConcurrentHashMap.newKeySet();
 
     /**
      * 私有构造方法，防止实例化
@@ -55,10 +57,13 @@ public class PluginApplicationContextHolder {
     public static void removePluginApplicationContext(String pluginId) {
         AnnotationConfigApplicationContext context = CONTEXT_REGISTRY.get(pluginId);
         if (context != null) {
-            context.stop();
-            context.close();
+            if (context.isActive()) {
+                context.stop();
+                context.close();
+            }
         }
         CONTEXT_REGISTRY.remove(pluginId);
+        REFRESHED_CONTEXT.remove(pluginId);
     }
 
     /**
@@ -111,6 +116,34 @@ public class PluginApplicationContextHolder {
     }
 
     /**
+     * 标记插件上下文已刷新
+     *
+     * @param pluginId 插件ID
+     */
+    public static void markRefreshed(String pluginId) {
+        REFRESHED_CONTEXT.add(pluginId);
+    }
+
+    /**
+     * 取消插件上下文刷新标记
+     *
+     * @param pluginId 插件ID
+     */
+    public static void clearRefreshed(String pluginId) {
+        REFRESHED_CONTEXT.remove(pluginId);
+    }
+
+    /**
+     * 判断插件上下文是否已刷新
+     *
+     * @param pluginId 插件ID
+     * @return true-已刷新
+     */
+    public static boolean isRefreshed(String pluginId) {
+        return REFRESHED_CONTEXT.contains(pluginId);
+    }
+
+    /**
      * 清空所有插件上下文
      * <p>
      * 主要用于测试场景，会先关闭所有上下文
@@ -122,5 +155,6 @@ public class PluginApplicationContextHolder {
             context.close();
         });
         CONTEXT_REGISTRY.clear();
+        REFRESHED_CONTEXT.clear();
     }
 }

@@ -46,5 +46,10 @@ declare namespace Api {
       /** record status */
       status: EnableStatus | null;
     } & T;
+
+    /** common delete params */
+    type DeleteParams = {
+      ids: Array<number | string>;
+    };
   }
 }

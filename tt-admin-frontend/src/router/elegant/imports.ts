@@ -22,4 +22,11 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   login: () => import("@/views/_builtin/login/index.vue"),
   home: () => import("@/views/home/index.vue"),
   "plugin-management": () => import("@/views/plugin-management/index.vue"),
+  docs_plugin_dev: () => import("@/views/system/docs/docs-plugin-dev.vue"),
+  docs_project_intro: () => import("@/views/system/docs/docs-project-intro.vue"),
+  system_dict: () => import("@/views/system/dict/index.vue"),
+  system_menu: () => import("@/views/system/menu/index.vue"),
+  system_notice: () => import("@/views/system/notice/index.vue"),
+  system_role: () => import("@/views/system/role/index.vue"),
+  system_user: () => import("@/views/system/user/index.vue"),
 };

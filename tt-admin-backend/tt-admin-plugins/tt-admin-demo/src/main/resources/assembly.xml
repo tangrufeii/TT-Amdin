@@ -8,6 +8,13 @@
         <fileSet>
             <directory>${basedir}/src/main/resources</directory>
             <includes>
+                <include>frontend.yaml</include>
+            </includes>
+            <outputDirectory>/</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${basedir}/src/main/resources</directory>
+            <includes>
                 <include>*.yaml</include>
             </includes>
             <outputDirectory>/</outputDirectory>

@@ -221,6 +221,10 @@ declare namespace App {
       routePath: RoutePath;
       /** The menu icon */
       icon?: () => VNode;
+      /** Sorting order */
+      order?: number | null;
+      /** Optional parent key (used internally for plugin menus) */
+      parentKey?: string;
       /** The menu children */
       children?: Menu[];
     };

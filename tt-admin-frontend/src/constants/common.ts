@@ -6,3 +6,12 @@ export const yesOrNoRecord: Record<CommonType.YesOrNo, App.I18n.I18nKey> = {
 };
 
 export const yesOrNoOptions = transformRecordToOption(yesOrNoRecord);
+
+export const themeColorOptions: Array<CommonType.Option<NaiveUI.ThemeColor>> = [
+  { value: 'default', label: 'default' },
+  { value: 'primary', label: 'primary' },
+  { value: 'info', label: 'info' },
+  { value: 'success', label: 'success' },
+  { value: 'warning', label: 'warning' },
+  { value: 'error', label: 'error' }
+];

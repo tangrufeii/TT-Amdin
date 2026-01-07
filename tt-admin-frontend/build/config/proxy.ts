@@ -24,6 +24,17 @@ export function createViteProxy(env: Env.ImportMeta, enable: boolean) {
     Object.assign(proxy, createProxyItem(item, isEnableProxyLog));
   });
 
+  proxy['/plugin-dev'] = {
+    target: baseURL,
+    changeOrigin: true,
+    rewrite: path => path.replace(/^\/plugin-dev/, '')
+  };
+
+  proxy['/api/plugin-static'] = {
+    target: baseURL,
+    changeOrigin: true
+  };
+
   return proxy;
 }
 
@@ -33,6 +44,7 @@ function createProxyItem(item: App.Service.ServiceConfigItem, enableLog: boolean
   proxy[item.proxyPattern] = {
     target: item.baseURL,
     changeOrigin: true,
+    ws: true,
     configure: (_proxy, options) => {
       _proxy.on('proxyReq', (_proxyReq, req, _res) => {
         if (!enableLog) return;

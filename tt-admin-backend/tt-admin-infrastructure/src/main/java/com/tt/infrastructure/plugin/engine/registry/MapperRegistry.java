@@ -85,9 +85,13 @@ public class MapperRegistry implements BasePluginRegistryHandler {
                     new File(plugin.getPluginPath()),
                     plugin.getPluginConfig());
 
-            SqlSessionFactory sqlSessionFactory = PluginApplicationContextHolder
-                    .getApplicationContext(plugin.getPluginId())
-                    .getBean(SqlSessionFactory.class);
+            var pluginContext = PluginApplicationContextHolder.getApplicationContext(plugin.getPluginId());
+            if (pluginContext == null || !pluginContext.isActive()) {
+                log.debug("Plugin context not ready, skip mapper unregister: {}", plugin.getPluginId());
+                return;
+            }
+
+            SqlSessionFactory sqlSessionFactory = pluginContext.getBean(SqlSessionFactory.class);
             Configuration configuration = sqlSessionFactory.getConfiguration();
 
             // 清理MyBatis配置中的各种资源

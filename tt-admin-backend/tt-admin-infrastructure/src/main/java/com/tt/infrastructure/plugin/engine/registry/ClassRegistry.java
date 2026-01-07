@@ -14,9 +14,13 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.stereotype.Repository;
@@ -32,8 +36,8 @@ import java.util.List;
 /**
  * 插件类注册器
  * <p>
- * 负责将插件中带有特定注解的类注册到Spring容器中。
- * 首先注册Mapper接口，然后注册其他组件类。
+ * 负责将插件中的组件类注册到插件独立 Spring 容器中。
+ * 先注册 Mapper，再注册其他组件。
  * </p>
  *
  * @author trf
@@ -67,41 +71,84 @@ public class ClassRegistry implements BasePluginRegistryHandler {
     @Override
     public void registry(Plugin plugin) throws Exception {
         var pluginContext = PluginApplicationContextHolder.getApplicationContext(plugin.getPluginId());
+        if (pluginContext == null) {
+            return;
+        }
 
-        // 1. 先注册Mapper接口（MyBatis-Plus需要）
+        if (PluginApplicationContextHolder.isRefreshed(plugin.getPluginId())) {
+            log.debug("Plugin context already refreshed, skip class registry: {}", plugin.getPluginId());
+            return;
+        }
+
+        ensureTaskScheduler(pluginContext);
+
+        // 1. 先注册 Mapper 接口（MyBatis-Plus 需要）
         registerMapper(plugin);
 
-        // 2. 注册其他带注解的Bean
+        // 2. 注册其他带注解的 Bean
         List<Class<?>> annotatedClasses = findAnnotatedClasses(plugin);
         if (!annotatedClasses.isEmpty()) {
             pluginContext.register(annotatedClasses.toArray(new Class[0]));
         }
 
-        // 3. 只有首次启动时才刷新容器（GenericApplicationContext不支持多次refresh）
-        if (!pluginContext.isActive()) {
+        // 3. 只允许首次 refresh，后续重复启动不再 refresh
+        try {
             pluginContext.refresh();
+            PluginApplicationContextHolder.markRefreshed(plugin.getPluginId());
             log.debug("Plugin context refreshed and ready for plugin: {}", plugin.getPluginId());
+        } catch (IllegalStateException ex) {
+            PluginApplicationContextHolder.markRefreshed(plugin.getPluginId());
+            log.debug("Plugin context refresh skipped: {}", plugin.getPluginId(), ex);
         }
     }
 
     @Override
     public void unRegistry(Plugin plugin) throws Exception {
-        // 1. 移除所有Bean定义
+        // 1. 移除所有 Bean 定义
         removeAllBeanDefinitions(plugin);
 
-        // 2. 取消注册Mapper
+        // 2. 取消注册 Mapper
         unregisterMappers(plugin);
+
+        // 3. 允许下次重新刷新上下文
+        PluginApplicationContextHolder.clearRefreshed(plugin.getPluginId());
     }
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        // 无需保存ApplicationContext
+        // 无需保存 ApplicationContext
+    }
+
+    private void ensureTaskScheduler(AnnotationConfigApplicationContext pluginContext) {
+        if (pluginContext.getBeanFactory().containsSingleton("taskScheduler")) {
+            return;
+        }
+        if (pluginContext.containsBean("taskScheduler")) {
+            return;
+        }
+        TaskScheduler scheduler = null;
+        ApplicationContext parent = pluginContext.getParent();
+        if (parent != null) {
+            try {
+                scheduler = parent.getBean(TaskScheduler.class);
+            } catch (NoSuchBeanDefinitionException ignore) {
+                scheduler = null;
+            }
+        }
+
+        if (scheduler == null) {
+            ThreadPoolTaskScheduler taskScheduler = new ThreadPoolTaskScheduler();
+            taskScheduler.setPoolSize(2);
+            taskScheduler.setThreadNamePrefix("plugin-scheduler-");
+            taskScheduler.initialize();
+            scheduler = taskScheduler;
+        }
+
+        pluginContext.getBeanFactory().registerSingleton("taskScheduler", scheduler);
     }
 
     /**
-     * 注册Mapper接口
-     *
-     * @param plugin 插件对象
+     * 注册 Mapper 接口
      */
     private void registerMapper(Plugin plugin) {
         List<Class<?>> mapperClassList = getMapperList(plugin);
@@ -123,13 +170,9 @@ public class ClassRegistry implements BasePluginRegistryHandler {
     }
 
     /**
-     * 查找带注解的类（不包括Mapper和接口）
-     *
-     * @param plugin 插件对象
-     * @return 带注解的类列表
+     * 查找带注解的类（不包含 Mapper 和接口）
      */
     private List<Class<?>> findAnnotatedClasses(Plugin plugin) {
-        // 过滤掉接口
         List<Class<?>> pluginClassList = plugin.getClassList().stream()
                 .filter(clazz -> !clazz.isInterface())
                 .toList();
@@ -141,9 +184,14 @@ public class ClassRegistry implements BasePluginRegistryHandler {
         List<Class<?>> registryClassList = new ArrayList<>();
         for (Class<?> clazz : pluginClassList) {
             Annotation[] annotations = clazz.getAnnotations();
-            if (annotations.length > 0
-                    && Collections.disjoint(Arrays.asList(annotations), Arrays.asList(REGISTER_ANNOTATIONS))) {
-               log.info("loadClass -- > {}", clazz.getName());
+            if (annotations.length == 0) {
+                continue;
+            }
+            boolean shouldRegister = Arrays.stream(annotations)
+                    .map(Annotation::annotationType)
+                    .anyMatch(annotationType -> Arrays.asList(REGISTER_ANNOTATIONS).contains(annotationType));
+            if (shouldRegister) {
+                log.info("loadClass -- > {}", clazz.getName());
                 registryClassList.add(clazz);
             }
         }
@@ -152,10 +200,7 @@ public class ClassRegistry implements BasePluginRegistryHandler {
     }
 
     /**
-     * 获取所有Mapper接口
-     *
-     * @param plugin 插件对象
-     * @return Mapper接口列表
+     * 获取所有 Mapper 接口
      */
     private List<Class<?>> getMapperList(Plugin plugin) {
         List<Class<?>> mapperClassList = new ArrayList<>();
@@ -168,9 +213,7 @@ public class ClassRegistry implements BasePluginRegistryHandler {
     }
 
     /**
-     * 移除所有Bean定义
-     *
-     * @param plugin 插件对象
+     * 移除所有 Bean 定义
      */
     private void removeAllBeanDefinitions(Plugin plugin) {
         var pluginContext = PluginApplicationContextHolder.getApplicationContext(plugin.getPluginId());
@@ -182,9 +225,7 @@ public class ClassRegistry implements BasePluginRegistryHandler {
     }
 
     /**
-     * 取消注册Mapper
-     *
-     * @param plugin 插件对象
+     * 取消注册 Mapper
      */
     private void unregisterMappers(Plugin plugin) {
         SqlSessionFactory sqlSessionFactory = SpringBeanUtil.context.getBean(SqlSessionFactory.class);

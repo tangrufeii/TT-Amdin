@@ -1,5 +1,6 @@
 package com.tt.common.domain;
 
+import com.tt.common.api.ResultCode;
 import lombok.Getter;
 
 /**
@@ -10,14 +11,7 @@ import lombok.Getter;
  * 特点：
  * 1. 包含错误码，便于国际化
  * 2. 记录领域名称
- * 3. 继承自RuntimeException，避免受检异常的繁琐
- * <p>
- * 使用示例：
- * <pre>
- * {@code
- * throw new DomainException("USER_NOT_FOUND", "用户不存在", "UserDomain");
- * }
- * </pre>
+ * 3. 继承自 RuntimeException，避免受检异常的繁琐
  */
 @Getter
 public class DomainException extends RuntimeException {
@@ -25,12 +19,12 @@ public class DomainException extends RuntimeException {
     /**
      * 错误码
      */
-    private  String errorCode;
+    private String errorCode;
 
     /**
      * 领域名称
      */
-    private  String domainName;
+    private String domainName;
 
     /**
      * 创建领域异常
@@ -48,7 +42,7 @@ public class DomainException extends RuntimeException {
      * 创建领域异常
      *
      * @param errorCode 错误码
-     * @param message   错误��息
+     * @param message   错误消息
      * @param cause     原始异常
      */
     public DomainException(String errorCode, String message, Throwable cause) {
@@ -70,5 +64,14 @@ public class DomainException extends RuntimeException {
         this.domainName = domainName;
     }
 
-
+    /**
+     * 创建领域异常（默认错误码）
+     *
+     * @param message 错误消息
+     */
+    public DomainException(String message) {
+        super(message);
+        this.errorCode = ResultCode.INTERNAL_SERVER_ERROR.toString();
+        this.domainName = "Unknown";
+    }
 }

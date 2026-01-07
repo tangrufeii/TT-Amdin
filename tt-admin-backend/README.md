@@ -334,6 +334,11 @@ public class DemoPluginLifecycle implements BasePluginLifecycle {
 - 统一异常处理
 - 详细的方法注释
 
+
+### 5. 相关参考
+📚 参考
+SpringDoc Issue #631 [相关链接](https://github.com/springdoc/springdoc-openapi/issues/631)
+Spring MVC动态注册API [相关链接](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-requestmapping.html#mvc-ann-requestmapping-registration)
 ## 许可证
 
 MIT License

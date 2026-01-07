@@ -4,7 +4,11 @@ import { defineStore } from 'pinia';
 import { useBoolean } from '@sa/hooks';
 import type { CustomRoute, ElegantConstRoute, LastLevelRouteKey, RouteKey, RouteMap } from '@elegant-router/types';
 import { router } from '@/router';
-import { fetchGetConstantRoutes, fetchGetUserRoutes, fetchIsRouteExist } from '@/service/api';
+import { fetchGetConstantRoutes, fetchGetUserRoutes, fetchIsRouteExist, fetchPluginFrontendModules } from '@/service/api';
+import importPluginModule from '@/utils/plugin-import/_import';
+import BaseLayout from '@/layouts/base-layout/index.vue';
+import BlankLayout from '@/layouts/blank-layout/index.vue';
+import { mergeLocaleMessages } from '@/locales';
 import { SetupStoreId } from '@/enum';
 import { createStaticRoutes, getAuthVueRoutes } from '@/router/routes';
 import { ROOT_ROUTE } from '@/router/routes/builtin';
@@ -15,6 +19,7 @@ import {
   filterAuthRoutesByRoles,
   getBreadcrumbsByRoute,
   getCacheRouteNames,
+  getGlobalMenuByBaseRoute,
   getGlobalMenusByAuthRoutes,
   getSelectedMenuKeyPathByKey,
   isRouteExistByRouteName,
@@ -28,6 +33,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   const tabStore = useTabStore();
   const { bool: isInitConstantRoute, setBool: setIsInitConstantRoute } = useBoolean();
   const { bool: isInitAuthRoute, setBool: setIsInitAuthRoute } = useBoolean();
+  const { bool: isInitPluginRoute, setBool: setIsInitPluginRoute } = useBoolean();
 
   /**
    * Auth route mode
@@ -77,19 +83,35 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   }
 
   const removeRouteFns: (() => void)[] = [];
+  const pluginRouteRemoveFns: (() => void)[] = [];
+  const pluginLocaleLoaded = new Map<string, Set<string>>();
+  const pluginLayoutComponents = {
+    base: BaseLayout,
+    blank: BlankLayout
+  } as const;
+  type PluginLayoutKey = keyof typeof pluginLayoutComponents;
+  const DEFAULT_PLUGIN_LAYOUT: PluginLayoutKey = 'base';
 
   /** Global menus */
   const menus = ref<App.Global.Menu[]>([]);
+  const baseMenus = ref<App.Global.Menu[]>([]);
+  const pluginMenus = ref<App.Global.Menu[]>([]);
   const searchMenus = computed(() => transformMenuToSearchMenus(menus.value));
 
   /** Get global menus */
   function getGlobalMenus(routes: ElegantConstRoute[]) {
-    menus.value = getGlobalMenusByAuthRoutes(routes);
+    baseMenus.value = getGlobalMenusByAuthRoutes(routes);
+    syncMenus();
   }
 
   /** Update global menus by locale */
   function updateGlobalMenusByLocale() {
-    menus.value = updateLocaleOfGlobalMenus(menus.value);
+    syncMenus();
+  }
+
+  function syncMenus() {
+    const mergedMenus = mergeMenus(baseMenus.value, pluginMenus.value);
+    menus.value = updateLocaleOfGlobalMenus(mergedMenus);
   }
 
   /** Cache routes */
@@ -137,6 +159,11 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     routeStore.$reset();
 
     resetVueRoutes();
+    resetPluginRoutes();
+    baseMenus.value = [];
+    pluginMenus.value = [];
+    setIsInitPluginRoute(false);
+    syncMenus();
 
     // after reset store, need to re-init constant route
     await initConstantRoute();
@@ -146,6 +173,15 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   function resetVueRoutes() {
     removeRouteFns.forEach(fn => fn());
     removeRouteFns.length = 0;
+  }
+
+  function resetPluginRoutes() {
+    pluginRouteRemoveFns.forEach(fn => fn());
+    pluginRouteRemoveFns.length = 0;
+    pluginMenus.value = [];
+    cacheRoutes.value = cacheRoutes.value.filter(name => !String(name).startsWith('plugin-')) as RouteKey[];
+    pluginLocaleLoaded.clear();
+    syncMenus();
   }
 
   /** init constant route */
@@ -187,7 +223,28 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       await initDynamicAuthRoute();
     }
 
+    await initPluginRoutes();
+
     tabStore.initHomeTab();
+  }
+
+  /** Init plugin routes */
+  async function initPluginRoutes(forceReload = false) {
+    if (isInitPluginRoute.value && !forceReload) return;
+
+    const { data, error } = await fetchPluginFrontendModules();
+
+    if (!error) {
+      await applyPluginModules(data ?? []);
+    }
+
+    setIsInitPluginRoute(true);
+  }
+
+  /** Force refresh plugin routes and menus */
+  async function refreshPluginRoutes() {
+    setIsInitPluginRoute(false);
+    await initPluginRoutes(true);
   }
 
   /** Init static auth route */
@@ -325,6 +382,258 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     // some global init logic if it does not need to be logged in
   }
 
+  async function applyPluginModules(modules: Api.Plugin.PluginFrontendModule[]) {
+    resetPluginRoutes();
+
+    if (!modules.length) {
+      syncMenus();
+      return;
+    }
+
+    const pluginMenuList: App.Global.Menu[] = [];
+    const cacheNameSet = new Set<RouteKey>(cacheRoutes.value);
+
+    await Promise.all(
+      modules.map(async module => {
+        if (!module.moduleName) return;
+        const moduleInfo = {
+          moduleName: module.moduleName,
+          pluginId: module.pluginId,
+          pluginIsDev: module.pluginIsDev,
+          frontDevAddress: module.frontDevAddress
+        };
+        try {
+          await registerPluginLocales(moduleInfo, module.i18n);
+          const moduleLoader = await importPluginModule(moduleInfo, module.moduleName);
+          const moduleRouters = moduleLoader.router(module.routes || [], module.moduleName);
+          const routeMap = new Map<string, RouteRecordRaw>();
+
+          moduleRouters.forEach(routeRecord => {
+            const { wrapperRoute, viewRoute, fullPath } = buildPluginRoute(routeRecord);
+            const removeFn = router.addRoute(wrapperRoute);
+            pluginRouteRemoveFns.push(removeFn);
+
+            if (viewRoute?.name && viewRoute.meta?.keepAlive) {
+              cacheNameSet.add(viewRoute.name as RouteKey);
+            }
+
+            if (viewRoute?.name) {
+              const menuRoute: RouteRecordRaw = { ...viewRoute, path: fullPath };
+              routeMap.set(String(viewRoute.name), menuRoute);
+            }
+          });
+
+          module.menus?.forEach(menu => {
+            const matchedRoute = routeMap.get(menu.routeName);
+            const menuNode = createPluginMenuNode(matchedRoute, menu);
+            if (menuNode) {
+              pluginMenuList.push(menuNode);
+            }
+          });
+        } catch (error) {
+          console.error('[plugin] load module failed:', module.moduleName, error);
+        }
+      })
+    );
+
+    cacheRoutes.value = Array.from(cacheNameSet);
+    pluginMenus.value = pluginMenuList;
+    syncMenus();
+  }
+
+  let pluginRouteSequence = 0;
+
+  function buildPluginRoute(routeRecord: RouteRecordRaw) {
+    const baseName = typeof routeRecord.name === 'string' ? routeRecord.name : `plugin-route-${pluginRouteSequence++}`;
+    const layoutKey = (routeRecord.meta?.layout as PluginLayoutKey) || DEFAULT_PLUGIN_LAYOUT;
+    const layoutComponent = pluginLayoutComponents[layoutKey] ?? pluginLayoutComponents[DEFAULT_PLUGIN_LAYOUT];
+    const fullPath = routeRecord.path || `/${baseName}`;
+
+    const viewRoute: RouteRecordRaw = {
+      ...routeRecord,
+      path: '',
+      meta: {
+        ...routeRecord.meta,
+        layout: layoutKey
+      }
+    };
+
+    const wrapperRoute: RouteRecordRaw = {
+      path: fullPath,
+      name: `${baseName}__layout`,
+      component: layoutComponent,
+      meta: {
+        ...(routeRecord.meta || {}),
+        layout: layoutKey
+      },
+      children: [viewRoute]
+    };
+
+    return { wrapperRoute, viewRoute, fullPath };
+  }
+
+  function createPluginMenuNode(route: RouteRecordRaw | undefined, menuConfig: Api.Plugin.PluginFrontendMenu) {
+    if (!route?.name) {
+      return null;
+    }
+
+    const menu = getGlobalMenuByBaseRoute({
+      name: route.name as RouteKey,
+      path: route.path || '',
+      meta: route.meta ?? {}
+    } as ElegantConstRoute);
+
+    if (menuConfig?.title) {
+      menu.label = menuConfig.title;
+    }
+    if (menuConfig?.i18nKey) {
+      menu.i18nKey = menuConfig.i18nKey;
+    }
+    menu.order = menuConfig?.order ?? menu.order ?? 0;
+    const configuredParentKey = menuConfig?.parent?.trim();
+    menu.parentKey = configuredParentKey ? configuredParentKey : null;
+
+    return menu;
+  }
+
+  function mergeMenus(baseMenuList: App.Global.Menu[], pluginMenuList: App.Global.Menu[]) {
+    const clonedMenus = cloneMenus(baseMenuList);
+    pluginMenuList.forEach(menu => insertMenuNode(clonedMenus, menu));
+    return sortMenuTree(clonedMenus);
+  }
+
+  function cloneMenus(source: App.Global.Menu[]): App.Global.Menu[] {
+    return source.map(menu => ({
+      ...menu,
+      children: menu.children ? cloneMenus(menu.children) : undefined
+    }));
+  }
+
+  function insertMenuNode(tree: App.Global.Menu[], menuNode: App.Global.Menu) {
+    const node: App.Global.Menu = {
+      ...menuNode,
+      children: menuNode.children ? cloneMenus(menuNode.children) : undefined
+    };
+
+    if (!menuNode.parentKey) {
+      upsertMenuNode(tree, node);
+      return;
+    }
+
+    const parent = findMenuByKey(tree, menuNode.parentKey);
+    if (parent) {
+      parent.children = parent.children || [];
+      upsertMenuNode(parent.children, { ...node, parentKey: undefined });
+      return;
+    }
+
+    upsertMenuNode(tree, node);
+  }
+
+  function upsertMenuNode(tree: App.Global.Menu[], candidate: App.Global.Menu) {
+    const existing = tree.find(menu => menu.key === candidate.key);
+    if (existing) {
+      mergeMenuNode(existing, candidate);
+    } else {
+      tree.push(candidate);
+    }
+  }
+
+  function mergeMenuNode(target: App.Global.Menu, source: App.Global.Menu) {
+    target.label = source.label ?? target.label;
+    target.i18nKey = source.i18nKey ?? target.i18nKey;
+    target.icon = source.icon ?? target.icon;
+    target.order = source.order ?? target.order;
+    target.routeName = source.routeName ?? target.routeName;
+    if (source.children?.length) {
+      target.children = target.children || [];
+      source.children.forEach(child => insertMenuNode(target.children!, { ...child, parentKey: undefined }));
+    }
+  }
+
+  function findMenuByKey(tree: App.Global.Menu[], key: string) {
+    for (const menu of tree) {
+      if (menu.key === key) {
+        return menu;
+      }
+      if (menu.children?.length) {
+        const found = findMenuByKey(menu.children, key);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
+  }
+
+  function sortMenuTree(tree: App.Global.Menu[]) {
+    return tree
+      .slice()
+      .sort((next, prev) => (Number(next.order) || 0) - (Number(prev.order) || 0))
+      .map(menu => ({
+        ...menu,
+        children: menu.children ? sortMenuTree(menu.children) : undefined
+      }));
+  }
+
+
+  async function registerPluginLocales(
+    moduleInfo: {
+      pluginId?: string;
+      pluginIsDev?: boolean;
+      frontDevAddress?: string;
+    },
+    localeMap?: Record<string, string>
+  ) {
+    if (!moduleInfo.pluginId || !localeMap) return;
+    const entries = Object.entries(localeMap).filter(([, filePath]) => Boolean(filePath));
+    if (!entries.length) return;
+
+    const loadedLocales = pluginLocaleLoaded.get(moduleInfo.pluginId) ?? new Set<string>();
+
+    await Promise.all(
+      entries.map(async ([locale, filePath]) => {
+        if (loadedLocales.has(locale)) return;
+        try {
+          const url = resolvePluginAssetUrl(moduleInfo, filePath);
+          if (!url) return;
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const messages = await response.json();
+          mergeLocaleMessages(locale, messages);
+          loadedLocales.add(locale);
+        } catch (error) {
+          console.error('[plugin] load i18n failed:', moduleInfo.pluginId, locale, error);
+        }
+      })
+    );
+
+    pluginLocaleLoaded.set(moduleInfo.pluginId, loadedLocales);
+  }
+
+  function resolvePluginAssetUrl(
+    moduleInfo: {
+      pluginId?: string;
+      pluginIsDev?: boolean;
+      frontDevAddress?: string;
+    },
+    assetPath: string
+  ) {
+    if (!moduleInfo.pluginId || !assetPath) return '';
+    if (/^https?:\/\//i.test(assetPath)) {
+      return assetPath;
+    }
+    const sanitizedPath = assetPath.replace(/^\/+/, '');
+    if (moduleInfo.pluginIsDev && moduleInfo.frontDevAddress) {
+      const base = moduleInfo.frontDevAddress.replace(/\/$/, '');
+      return `${base}/plugin/${moduleInfo.pluginId}/${sanitizedPath}`;
+    }
+
+    return `/api/plugin-static/${moduleInfo.pluginId}/${sanitizedPath}`;
+  }
+
   return {
     resetStore,
     routeHome,
@@ -340,6 +649,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     initAuthRoute,
     isInitAuthRoute,
     setIsInitAuthRoute,
+    refreshPluginRoutes,
     getIsAuthRouteExist,
     getSelectedMenuKeyPath,
     onRouteSwitchWhenLoggedIn,

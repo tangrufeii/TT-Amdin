@@ -9,12 +9,15 @@ import com.tt.common.utils.CglibUtil;
 import com.tt.domain.auth.user.model.aggregate.User;
 import com.tt.domain.auth.user.repository.UserRepository;
 import com.tt.domain.auth.user.service.UserDomainService;
+import com.tt.domain.system.access.repository.SystemAccessRepository;
 import com.tt.common.domain.DomainEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 
 /**
@@ -34,6 +37,7 @@ public class AuthApplicationService {
     private final UserRepository userRepository;
     private final UserDomainService userDomainService;
     private final DomainEventPublisher domainEventPublisher;
+    private final SystemAccessRepository systemAccessRepository;
     @Qualifier("saTokenAuthService") // 显式指定
     private final AuthService authService; // 假设的Token服务
 
@@ -64,7 +68,9 @@ public class AuthApplicationService {
         user.clearEvents();
 
         // 6. 转换为DTO返回
-        return convertToDTO(user);
+        UserDTO dto = convertToDTO(user);
+        enrichUserAccess(dto);
+        return dto;
     }
 
     /**
@@ -82,11 +88,12 @@ public class AuthApplicationService {
         authService.login(user.getId()); // 只存储用户ID
         // 3. 将当前用户存入当前会话session
         UserDTO userDTO = convertToDTO(user);
+        enrichUserAccess(userDTO);
         authService.saveUserToSession(userDTO);
         // 4. 返回登录结果
         LoginResultDTO result = new LoginResultDTO();
         result.setToken(authService.getTokenValue());
-        result.setUser(convertToDTO(user));
+        result.setUser(userDTO);
         return result;
     }
 
@@ -107,6 +114,7 @@ public class AuthApplicationService {
     public UserDTO getCurrentUserInfo() {
         Object userInfoFromSession = authService.getUserInfoFromSession();
         UserDTO user = CglibUtil.convertObj(userInfoFromSession, UserDTO::new);
+        enrichUserAccess(user);
         return user;
     }
 
@@ -118,8 +126,8 @@ public class AuthApplicationService {
      */
     private UserDTO convertToDTO(User user) {
         UserDTO dto = new UserDTO();
-        dto.setId(user.getId());
-        dto.setUsername(user.getUsername());
+        dto.setUserId(user.getId());
+        dto.setUserName(user.getUsername());
         dto.setEmail(user.getProfile().getEmail());
         dto.setPhone(user.getProfile().getPhone());
         dto.setRealName(user.getProfile().getRealName());
@@ -128,5 +136,24 @@ public class AuthApplicationService {
         dto.setCreatedAt(user.getCreatedAt());
         dto.setUpdatedAt(user.getUpdatedAt());
         return dto;
+    }
+
+    private void enrichUserAccess(UserDTO dto) {
+        Long userId = parseUserId(dto.getUserId());
+        if (userId == null) {
+            dto.setRoles(List.of());
+            dto.setButtons(List.of());
+            return;
+        }
+        dto.setRoles(systemAccessRepository.findRoleCodesByUserId(userId));
+        dto.setButtons(systemAccessRepository.findUserPermissions(userId));
+    }
+
+    private Long parseUserId(String rawId) {
+        try {
+            return Long.parseLong(rawId);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

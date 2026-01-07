@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.tt.application.plugin.command.*;
 import com.tt.application.plugin.dto.PluginManagementDTO;
 import com.tt.application.plugin.dto.PluginStatisticsDTO;
+import com.tt.application.plugin.dto.frontend.PluginFrontendModuleDTO;
 import com.tt.application.plugin.service.PluginManagementApplicationService;
 import com.tt.common.api.Result;
 import com.tt.common.page.RPage;
+import com.tt.plugin.core.annotation.PermissionResource;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -57,6 +59,7 @@ public class PluginManagementController {
     }
     @PostMapping("/installPlugin")
     @Operation(summary = "插件安装")
+    @PermissionResource("plugin:install")
     public Result install(PluginInstallCommand command) {
         pluginManagementApplicationService.installPlugin(command);
         return Result.success();
@@ -171,6 +174,7 @@ public class PluginManagementController {
      */
     @PutMapping("/{id}/enable")
     @Operation(summary = "启用插件", description = "启用指定插件")
+    @PermissionResource("plugin:enable")
     public Result<PluginManagementDTO> enable(
             @Parameter(description = "插件主键ID")
             @PathVariable Long id) {
@@ -186,6 +190,7 @@ public class PluginManagementController {
      */
     @PutMapping("/{id}/disable")
     @Operation(summary = "禁用插件", description = "禁用指定插件")
+    @PermissionResource("plugin:disable")
     public Result<PluginManagementDTO> disable(
             @Parameter(description = "插件主键ID")
             @PathVariable Long id) {
@@ -216,5 +221,15 @@ public class PluginManagementController {
     public Result<PluginStatisticsDTO> getStatistics() {
         PluginStatisticsDTO statistics = pluginManagementApplicationService.getStatistics();
         return Result.data(statistics);
+    }
+
+    /**
+     * 鑾峰彇宸插紑鍚彃浠剁殑鍓嶇妯″潡鎺ュ彛
+     */
+    @GetMapping("/frontend/modules")
+    @Operation(summary = "鑾峰彇鍓嶇鎻掍欢妯″潡", description = "鑾峰彇宸茬粡鍚敤鎻掍欢鐨勫墠绔瓙妯″潡鍜屽彛鐩」缁撴灉")
+    public Result<List<PluginFrontendModuleDTO>> getFrontendModules() {
+        List<PluginFrontendModuleDTO> modules = pluginManagementApplicationService.listFrontendModules();
+        return Result.data(modules);
     }
 }
