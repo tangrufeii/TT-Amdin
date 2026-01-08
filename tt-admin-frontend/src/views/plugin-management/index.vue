@@ -357,6 +357,10 @@ async function handleDisable(row: any) {
 
 // 删除插件
 async function handleDelete(row: any) {
+  if (row.status === 1) {
+    window.$message?.warning('请先禁用插件再删除');
+    return;
+  }
   window.$dialog?.warning({
     title: $t('common.warning'),
     content: $t('page.pluginManagement.message.deleteConfirm'),

@@ -18,7 +18,7 @@
         "prev": "Previous",
         "cleanColumns": "Clean Columns",
         "syncColumns": "Sync Columns",
-        "generate": "Download Source"
+        "generate": "Download Source (Package before install)"
       },
       "step": {
         "base": "Base",

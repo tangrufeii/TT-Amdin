@@ -294,6 +294,7 @@ public class CodegenService {
         Map<String, String> files = new LinkedHashMap<>();
         String root = "tt-admin-" + context.moduleName;
 
+        addSourceReadme(files, root, context);
         files.put(root + "/pom.xml", renderTemplate("backend/pom.xml.ftl", modelMap));
         files.put(root + "/src/main/java/" + toPath(context.packageName) + "/controller/" + context.entityName + "Controller.java",
                 renderTemplate("backend/controller.java.ftl", modelMap));
@@ -342,6 +343,7 @@ public class CodegenService {
         Map<String, String> files = new LinkedHashMap<>();
         String root = "tt-admin-" + context.moduleName;
 
+        addSourceReadme(files, root, context);
         files.put(root + "/pom.xml", renderTemplate("backend/pom.xml.ftl", modelMap));
         files.put(root + "/src/main/java/" + toPath(context.packageName) + "/controller/" + context.entityName + "Controller.java",
                 renderTemplate("backend/controller.java.ftl", modelMap));
@@ -894,6 +896,29 @@ public class CodegenService {
             String detail = e.getMessage() == null ? "" : " (" + e.getMessage() + ")";
             throw new DomainException("CODEGEN", "渲染模板失败: " + templateName + detail, e);
         }
+    }
+
+    private void addSourceReadme(Map<String, String> files, String root, CodegenContext context) {
+        String moduleName = context == null || !StringUtils.hasText(context.moduleName) ? "module" : context.moduleName;
+        String pluginId = context == null || !StringUtils.hasText(context.pluginId) ? "tt-plugin-" + moduleName : context.pluginId;
+        String content = String.join("\n",
+                "# Codegen Source Package",
+                "",
+                "This archive contains generated source code, NOT an installable plugin package.",
+                "",
+                "How to build the installable plugin package:",
+                "1. Run: mvn clean package",
+                "2. Use the zip in target/ (assembly zip) to install the plugin.",
+                "",
+                "Notes:",
+                "- plugin.yaml is located at src/main/resources/plugin.yaml in this source package.",
+                "- The installable zip should have plugin.yaml at the archive root.",
+                "",
+                "Module: " + moduleName,
+                "PluginId: " + pluginId,
+                ""
+        );
+        files.put(root + "/README_CODEGEN.md", content);
     }
 
     private Map<String, Object> toTemplateMap(TemplateModel model) {
@@ -1525,5 +1550,4 @@ public class CodegenService {
         private String tsType;
     }
 }
-
 

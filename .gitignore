@@ -12,7 +12,7 @@ hs_err_pid*
 
 # Gradle
 **/.gradle/
-**/build/
+
 !**/src/**/build/
 
 # IDEs
