@@ -1,0 +1,25 @@
+﻿renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: backup
+    routes:
+      - name: plugin-backup
+        path: /system/backup
+        component: /view/BackupView
+        componentName: plugin-backup
+        meta:
+          title: Database Backup
+          i18nKey: plugin.backup.title
+          icon: mdi:database-arrow-down
+          order: 90
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-backup
+    parent: system
+    i18nKey: plugin.backup.menu
+    icon: mdi:database-arrow-down
+    order: 90

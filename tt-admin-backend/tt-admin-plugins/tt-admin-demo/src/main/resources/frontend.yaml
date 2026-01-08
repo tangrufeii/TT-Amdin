@@ -1,0 +1,21 @@
+renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: plugin-demo
+    routes:
+      - name: plugin-demo-index
+        path: /plugin-demo
+        component: /view/PluginDemoView
+        componentName: plugin-demo-index
+        meta:
+          title: 示例插件
+          i18nKey: plugin.demo.title
+          icon: mdi:puzzle
+          order: 1
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-demo-index

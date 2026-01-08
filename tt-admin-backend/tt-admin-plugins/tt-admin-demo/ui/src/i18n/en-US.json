@@ -1,0 +1,8 @@
+{
+  "plugin": {
+    "demo": {
+      "title": "Plugin Demo",
+      "description": "A sample page to verify plugin integration"
+    }
+  }
+}

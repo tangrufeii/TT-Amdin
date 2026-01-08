@@ -26,6 +26,9 @@ declare module "@elegant-router/types" {
     "plugin-management": "/plugin-management";
     "system": "/system";
     "system_dict": "/system/dict";
+    "system_docs": "/system/docs";
+    "system_docs_docs-plugin-dev": "/system/docs/docs-plugin-dev";
+    "system_docs_docs-project-intro": "/system/docs/docs-project-intro";
     "system_menu": "/system/menu";
     "system_notice": "/system/notice";
     "system_role": "/system/role";
@@ -93,6 +96,8 @@ declare module "@elegant-router/types" {
     | "home"
     | "plugin-management"
     | "system_dict"
+    | "system_docs_docs-plugin-dev"
+    | "system_docs_docs-project-intro"
     | "system_menu"
     | "system_notice"
     | "system_role"

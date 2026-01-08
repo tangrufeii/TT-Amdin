@@ -1,0 +1,14 @@
+﻿plugin:
+  id: tt-plugin-backup
+  name: Database Backup
+  description: Database backup and schedule management
+  minimalVersion: 2.2.0
+  version: 1.0.0
+  staticLocations: /ui/
+  isDev: false
+  frontDevAddress: http://127.0.0.1:4203
+  updateUrl:
+author:
+  name: tt
+  email: 1042731605@qq.com
+  webSite: http://localhost

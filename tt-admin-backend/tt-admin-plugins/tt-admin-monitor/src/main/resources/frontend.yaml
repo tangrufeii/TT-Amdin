@@ -1,0 +1,25 @@
+﻿renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: monitor
+    routes:
+      - name: plugin-monitor
+        path: /system/monitor
+        component: /view/MonitorView
+        componentName: plugin-monitor
+        meta:
+          title: System Monitor
+          i18nKey: plugin.monitor.title
+          icon: mdi:chart-areaspline
+          order: 91
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-monitor
+    parent: system
+    i18nKey: plugin.monitor.menu
+    icon: mdi:chart-areaspline
+    order: 91

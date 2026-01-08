@@ -1,0 +1,31 @@
+<#assign moduleName = (ctx.moduleName)!((ctx.pluginId?replace('tt-plugin-',''))!((ctx.tableName)!'plugin'))>
+<#assign pluginId = (ctx.pluginId)!("tt-plugin-" + moduleName)>
+<#assign version = (ctx.version)!'1.0.0'>
+{
+  "name": "${pluginId}-ui",
+  "version": "${version}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node ./build.mjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tt/plugin-sdk": "file:../../../../tt-admin-frontend/packages/plugin-sdk",
+    "naive-ui": "2.43.1",
+    "vue": "^3.5.12",
+    "vue-i18n": "11.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@vitejs/plugin-vue": "^5.1.2",
+    "js-yaml": "^4.1.0",
+    "typescript": "^5.4.2",
+    "vite": "^5.2.0",
+    "vite-plugin-css-injected-by-js": "^3.4.3",
+    "vite-plugin-externals": "^0.6.2",
+    "vite-plugin-progress": "^0.0.7",
+    "vue-tsc": "^2.0.6"
+  }
+}

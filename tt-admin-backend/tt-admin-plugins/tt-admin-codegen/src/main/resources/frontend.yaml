@@ -1,0 +1,21 @@
+renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: codegen
+    routes:
+      - name: plugin-codegen-index
+        path: /plugin-codegen
+        component: /view/CodegenView
+        componentName: plugin-codegen-index
+        meta:
+          title: Codegen
+          i18nKey: plugin.codegen.title
+          icon: mdi:code-tags
+          order: 10
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-codegen-index

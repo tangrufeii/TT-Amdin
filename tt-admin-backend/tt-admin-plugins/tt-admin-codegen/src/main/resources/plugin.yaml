@@ -1,0 +1,28 @@
+plugin:
+  # 插件id(必须唯一)
+  id: tt-plugin-codegen
+  # 插件名称
+  name: 代码生成器
+  # 插件mapperXml文件位置, 没有可不写
+  mapperLocation:
+  # 插件描述信息
+  description: 基于数据表生成插件源码包
+  # 插件最低支持版本
+  minimalVersion: 2.2.0
+  # 插件版本
+  version: 1.0.0
+  # 插件静态资源路径
+  staticLocations: /ui/
+  # 是否为开发环境(开发环境走前端node)
+  isDev: false
+  # 前端开发环境地址
+  frontDevAddress: http://127.0.0.1:4203
+  # 插件更新url
+  updateUrl:
+author:
+  # 作者名
+  name: tt
+  # 作者邮箱
+  email:
+  # 作者网站
+  webSite:

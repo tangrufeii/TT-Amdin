@@ -103,6 +103,34 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'system_docs',
+        path: '/system/docs',
+        meta: {
+          title: 'system_docs',
+          i18nKey: 'route.system_docs'
+        },
+        children: [
+          {
+            name: 'system_docs_docs-plugin-dev',
+            path: '/system/docs/docs-plugin-dev',
+            component: 'view.system_docs_docs-plugin-dev',
+            meta: {
+              title: 'system_docs_docs-plugin-dev',
+              i18nKey: 'route.system_docs_docs-plugin-dev'
+            }
+          },
+          {
+            name: 'system_docs_docs-project-intro',
+            path: '/system/docs/docs-project-intro',
+            component: 'view.system_docs_docs-project-intro',
+            meta: {
+              title: 'system_docs_docs-project-intro',
+              i18nKey: 'route.system_docs_docs-project-intro'
+            }
+          }
+        ]
+      },
+      {
         name: 'system_menu',
         path: '/system/menu',
         component: 'view.system_menu',
