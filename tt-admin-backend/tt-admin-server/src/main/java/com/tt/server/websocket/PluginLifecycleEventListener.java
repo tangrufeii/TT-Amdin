@@ -20,6 +20,16 @@ public class PluginLifecycleEventListener {
         try {
             PluginStatusMessage message = PluginStatusMessage.from(event);
             PluginStatusWebSocket.broadcast(objectMapper.writeValueAsString(message));
+            // Log progress for diagnostics and timeline analysis.
+            log.info("plugin progress: pluginId={}, action={}, status={}, stage={}, progress={}%, stageElapsedMs={}, elapsedMs={}, message={}",
+                    event.getPluginId(),
+                    event.getAction(),
+                    event.getStatus(),
+                    event.getStage(),
+                    event.getProgress(),
+                    event.getStageElapsedMs(),
+                    event.getElapsedMs(),
+                    event.getMessage());
         } catch (JsonProcessingException e) {
             log.warn("Failed to serialize plugin lifecycle event", e);
         }

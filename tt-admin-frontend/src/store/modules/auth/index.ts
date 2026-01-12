@@ -45,6 +45,9 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
     clearAuthStorage();
 
+    const dictStore = useDictStore();
+    dictStore.reset();
+
     authStore.$reset();
 
     if (!route.meta.constant) {

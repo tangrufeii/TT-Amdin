@@ -17,6 +17,8 @@ public class PluginFrontendModuleDTO {
 
     private String pluginName;
 
+    private String pluginVersion;
+
     private Boolean pluginIsDev;
 
     private String frontDevAddress;

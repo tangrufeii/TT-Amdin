@@ -47,6 +47,16 @@
             <artifactId>tt-admin-infrastructure</artifactId>
             <version>1.0.0</version>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.tt</groupId>-->
+<!--            <artifactId>tt-admin-plugins</artifactId>-->
+<!--            <version>1.0.0</version>-->
+<!--        </dependency>-->
+        <!-- Reactor Netty for Spring AI WebClient -->
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

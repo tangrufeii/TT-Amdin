@@ -5,6 +5,7 @@ import axios from 'axios';
 import * as VueUse from '@vueuse/core';
 import './plugins/assets';
 import { setupAppVersionNotification, setupDayjs, setupIconifyOffline, setupLoading, setupNProgress } from './plugins';
+import { setupPluginApi } from './plugins/plugin-api';
 import { setupPluginMessageBridge } from './plugins/plugin-message';
 import { setupStore } from './store';
 import { setupRouter } from './router';
@@ -50,6 +51,7 @@ async function setupApp() {
   const app = createApp(App);
 
   setupStore(app);
+  setupPluginApi();
 
   await setupRouter(app);
 

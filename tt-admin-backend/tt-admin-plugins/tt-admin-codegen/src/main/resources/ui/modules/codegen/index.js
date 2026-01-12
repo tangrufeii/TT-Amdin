@@ -1,4 +1,4 @@
-(function(){"use strict";try{if(typeof document<"u"){var e=document.createElement("style");e.appendChild(document.createTextNode(".codegen-table-scroll[data-v-b2167f5e]{overflow-x:auto}.plugin-codegen[data-v-b2167f5e]{padding:12px}.toolbar[data-v-b2167f5e]{margin:12px 0}.modal-card[data-v-b2167f5e]{width:90vw;max-width:1200px;height:80vh;overflow:hidden}")),document.head.appendChild(e)}}catch(d){console.error("vite-plugin-css-injected-by-js",d)}})();
+(function(){"use strict";try{if(typeof document<"u"){var e=document.createElement("style");e.appendChild(document.createTextNode(".toolbar[data-v-60bebf48]{margin:12px 0}")),document.head.appendChild(e)}}catch(t){console.error("vite-plugin-css-injected-by-js",t)}})();
 const r = /* @__PURE__ */ Object.assign({ "./view/CodegenView.vue": () => import("./lib/CodegenView.js") }), u = () => ({
   router: (a, p) => {
     const n = [];

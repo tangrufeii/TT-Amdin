@@ -25,6 +25,7 @@ public class MvcConfig implements WebMvcConfigurer {
     public void addViewControllers(ViewControllerRegistry registry) {
         // 如果前端放在后端容器运行
         registry.addViewController("/admin/**").setViewName("/static/admin/index.html");
+        registry.addViewController("/plugin/**").setViewName("/static/admin/index.html");
         registry.addViewController("/login").setViewName("/static/admin/index.html");
         registry.addViewController("/register").setViewName("/static/admin/index.html");
         registry.addViewController("/findPassword").setViewName("/static/admin/index.html");
@@ -59,6 +60,8 @@ public class MvcConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
         String pathPattern = "/api/plugin-static/**";
         ResourceHandlerRegistration resourceHandlerRegistration = registry.addResourceHandler(pathPattern);
+        resourceHandlerRegistration.setCachePeriod(0)
+                .setCacheControl(CacheControl.noCache().mustRevalidate());
         resourceHandlerRegistration.resourceChain(false).addResolver(new PluginResourceResolver());
         WebMvcConfigurer.super.addResourceHandlers(registry);
 

@@ -1,0 +1,20 @@
+﻿{
+  "option": {
+    "form": {
+      "inline": false,
+      "hideRequiredAsterisk": false,
+      "labelPosition": "right",
+      "size": "default",
+      "labelWidth": "120px"
+    },
+    "resetBtn": {
+      "show": false,
+      "innerText": "Reset"
+    },
+    "submitBtn": {
+      "show": true,
+      "innerText": "Save"
+    }
+  },
+  "rule": []
+}

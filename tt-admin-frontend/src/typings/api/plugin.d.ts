@@ -119,6 +119,47 @@ declare namespace Api {
     /**
      * 插件状态变更参数
      */
+    interface PluginFrontendRouteMeta {
+      title?: string;
+      i18nKey?: string;
+      icon?: string;
+      order?: number;
+      hideInMenu?: boolean;
+      keepAlive?: boolean;
+      constant?: boolean;
+      activeMenu?: string;
+      layout?: string;
+    }
+
+    interface PluginFrontendRoute {
+      name: string;
+      path: string;
+      component: string;
+      componentName?: string;
+      meta?: PluginFrontendRouteMeta;
+    }
+
+    interface PluginFrontendMenu {
+      routeName: string;
+      parent?: string;
+      title?: string;
+      i18nKey?: string;
+      icon?: string;
+      order?: number;
+    }
+
+    interface PluginFrontendModule {
+      moduleName: string;
+      pluginId: string;
+      pluginName?: string;
+      pluginVersion?: string;
+      pluginIsDev?: boolean;
+      frontDevAddress?: string;
+      routes?: PluginFrontendRoute[];
+      menus?: PluginFrontendMenu[];
+      i18n?: Record<string, string>;
+    }
+
     interface PluginStatusChange {
       /** 插件主键ID */
       id: number;

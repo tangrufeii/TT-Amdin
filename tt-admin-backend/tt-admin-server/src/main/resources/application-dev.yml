@@ -44,3 +44,12 @@ sa-token:
 # 将来考虑缓存切换Redis或者local(本地缓存)
 tt:
   cache: local
+  plugin:
+    progress:
+      scan-detail: false
+    install:
+      lazy-init: true
+    dev:
+      auto-register: true
+      prefer-source: true
+      source-dir: ../tt-admin-plugins

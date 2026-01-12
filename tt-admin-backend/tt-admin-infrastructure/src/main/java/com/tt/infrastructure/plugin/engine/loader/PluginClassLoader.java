@@ -100,9 +100,21 @@ public class PluginClassLoader extends URLClassLoader {
                     }
                 }
             }
-            // 添加code目录
+            // 添加code目录，优先加载 code 里的 jar
             File codeFile = new File(file.getAbsolutePath() + File.separator + PluginResourceDirectory.CODE_DIR.getPath());
-            addURL(codeFile.getCanonicalFile().toURI().toURL());
+            File[] codeFiles = codeFile.exists() ? codeFile.listFiles() : null;
+            boolean addedJar = false;
+            if (codeFiles != null) {
+                for (File codeEntry : codeFiles) {
+                    if (codeEntry.isFile() && codeEntry.getName().endsWith(".jar")) {
+                        addURL(codeEntry.getCanonicalFile().toURI().toURL());
+                        addedJar = true;
+                    }
+                }
+            }
+            if (!addedJar) {
+                addURL(codeFile.getCanonicalFile().toURI().toURL());
+            }
         } catch (IOException e) {
             LOGGER.error("PluginClassLoader addFile error for plugin: {}", pluginId, e);
             throw new RuntimeException(e);

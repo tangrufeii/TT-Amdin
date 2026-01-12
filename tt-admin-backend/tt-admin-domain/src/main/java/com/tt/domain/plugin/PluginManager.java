@@ -46,4 +46,12 @@ public interface PluginManager {
      * @throws Exception 卸载过程中发生错误时抛出
      */
     void uninstallPlugin(String pluginId) throws Exception;
+
+    /**
+     * 判断插件是否已完成启动并可用
+     *
+     * @param pluginId 插件ID
+     * @return true=已启动
+     */
+    boolean isPluginStarted(String pluginId);
 }

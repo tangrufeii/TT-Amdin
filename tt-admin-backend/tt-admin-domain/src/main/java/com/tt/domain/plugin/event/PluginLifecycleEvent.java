@@ -17,9 +17,13 @@ public class PluginLifecycleEvent extends DomainEvent {
     private final Integer progress;
     private final Long startedAt;
     private final Long elapsedMs;
+    /**
+     * Stage-level elapsed time in milliseconds, measured from first update of the stage.
+     */
+    private final Long stageElapsedMs;
 
     public PluginLifecycleEvent(String pluginId, String action, String status, String message) {
-        this(pluginId, action, status, message, null, null, null, null);
+        this(pluginId, action, status, message, null, null, null, null, null);
     }
 
     public PluginLifecycleEvent(String pluginId,
@@ -29,7 +33,8 @@ public class PluginLifecycleEvent extends DomainEvent {
                                 String stage,
                                 Integer progress,
                                 Long startedAt,
-                                Long elapsedMs) {
+                                Long elapsedMs,
+                                Long stageElapsedMs) {
         super(pluginId == null ? "unknown" : pluginId, "plugin");
         this.pluginId = pluginId;
         this.action = action;
@@ -39,5 +44,6 @@ public class PluginLifecycleEvent extends DomainEvent {
         this.progress = progress;
         this.startedAt = startedAt;
         this.elapsedMs = elapsedMs;
+        this.stageElapsedMs = stageElapsedMs;
     }
 }

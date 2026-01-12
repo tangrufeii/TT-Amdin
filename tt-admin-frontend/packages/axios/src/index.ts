@@ -145,12 +145,15 @@ export function createFlatRequest<ResponseData, ApiData, State extends Record<st
 ) {
   const { instance, opts, cancelAllRequest } = createCommonRequest<ResponseData, ApiData, State>(axiosConfig, options);
 
+  let lastResponse: AxiosResponse<ResponseData> | null = null;
+
   const flatRequest: FlatRequestInstance<ResponseData, ApiData, State> = async function flatRequest<
     T extends ApiData = ApiData,
     R extends ResponseType = 'json'
   >(config: CustomAxiosRequestConfig) {
     try {
       const response: AxiosResponse<ResponseData> = await instance(config);
+      lastResponse = response;
 
       const responseType = response.config?.responseType || 'json';
 
@@ -162,8 +165,8 @@ export function createFlatRequest<ResponseData, ApiData, State extends Record<st
       console.error('response', response);
       return { data: response.data as MappedType<R, T>, error: null, response };
     } catch (error) {
-      console.error('response', response);
-      return { data: null, error, response: (error as AxiosError<ResponseData>).response };
+      console.error('response', lastResponse);
+      return { data: null, error, response: (error as AxiosError<ResponseData>).response ?? lastResponse };
     }
   } as FlatRequestInstance<ResponseData, ApiData, State>;
 

@@ -1,0 +1,21 @@
+renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: test
+    routes:
+      - name: plugin-test-index
+        path: /test
+        component: /view/TestView
+        componentName: plugin-test-index
+        meta:
+          title: test
+          i18nKey: plugin.test.title
+          icon: mdi:code-tags
+          order: 10
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-test-index

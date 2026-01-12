@@ -7,8 +7,10 @@ export default (moduleInfo: PluginModuleInfo, name: string) => {
     );
   }
   if (moduleInfo.pluginId) {
+    const version = moduleInfo.pluginVersion ? encodeURIComponent(moduleInfo.pluginVersion) : '';
+    const suffix = version ? `?v=${version}` : '';
     return import(
-      /* @vite-ignore */ `/api/plugin-static/${moduleInfo.pluginId}/modules/${name}/index.js`
+      /* @vite-ignore */ `/api/plugin-static/${moduleInfo.pluginId}/modules/${name}/index.js${suffix}`
     );
   }
   return import(/* @vite-ignore */ `/modules/${name}/index.js`);

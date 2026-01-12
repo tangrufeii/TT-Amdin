@@ -3,7 +3,6 @@ package com.tt.infrastructure.plugin.engine.manager;
 import cn.hutool.core.io.FileUtil;
 import com.tt.common.utils.VersionUtil;
 import com.tt.domain.plugin.PluginManager;
-import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.constant.PluginConstant;
 import com.tt.domain.plugin.progress.PluginProgress;
@@ -25,16 +24,6 @@ import java.io.File;
 import java.sql.SQLException;
 import java.util.Optional;
 
-/**
- * 插件管理器实现
- * <p>
- * 提供插件的高级管理功能，包括插件的安装、卸载、启动、停止等操作。
- * 是插件系统对外的主要服务入口，负责协调各个组件完成插件的生命周期管理。
- * </p>
- *
- * @author trf
- * @date 2025/12/23
- */
 @Component("pluginManagerImpl")
 @Slf4j
 @RequiredArgsConstructor
@@ -44,97 +33,75 @@ public class PluginManagerImpl implements PluginManager {
     private static final String ACTION_ENABLE = "ENABLE";
     private static final String ACTION_DISABLE = "DISABLE";
     private static final String ACTION_UNINSTALL = "UNINSTALL";
+    private static final String INSTALL_PENDING_MARKER = ".install-pending";
 
-    /**
-     * 插件处理器
-     */
     private final PluginHandler pluginHandler;
 
-    /**
-     * 系统版本号
-     */
     @Value("${version}")
     private String systemVersion;
 
-    /**
-     * 安装插件
-     * <p>
-     * 处理流程：
-     * <ol>
-     *     <li>验证插件文件</li>
-     *     <li>解压插件包</li>
-     *     <li>读取插件配置</li>
-     *     <li>检查版本兼容性</li>
-     *     <li>判断是安装还是更新</li>
-     *     <li>拷贝文件到插件目录</li>
-     *     <li>调用 PluginHandler.installPlugin() 创建类加载器和上下文</li>
-     *     <li>执行SQL脚本</li>
-     *     <li>调用插件生命周期回调</li>
-     * </ol>
-     * </p>
-     *
-     * @param pluginFile 插件文件(ZIP格式)
-     * @return 插件配置对象
-     * @throws Exception 安装过程中发生错误时抛出
-     */
+    @Value("${tt.plugin.install.lazy-init:false}")
+    private boolean lazyInitOnInstall;
+
     @Override
     public PluginConfig installPlugin(File pluginFile) throws Exception {
-        // 1. 验证插件文件
         reportProgress(ACTION_INSTALL, null, "validate", 5, "Validating plugin file");
         if (pluginFile == null || !pluginFile.exists()) {
             throw new PluginException("Plugin file not found!");
         }
 
-        // 2. 解压插件包
         reportProgress(ACTION_INSTALL, null, "extract", 15, "Extracting plugin package");
         File pluginTempDir = PluginExtractor.extractZip(pluginFile);
         FileUtil.del(pluginFile);
 
-        // 3. 读取插件配置
         reportProgress(ACTION_INSTALL, null, "read_config", 25, "Reading plugin configuration");
         PluginConfig pluginConfig = PluginConfigReader.readConfig(pluginTempDir);
         if (pluginConfig == null) {
             FileUtil.del(pluginTempDir);
             throw new PluginException("Failed to parse plugin.yaml!");
         }
+        String pluginId = pluginConfig.getPlugin().getId();
+        reportProgress(ACTION_INSTALL, pluginId, "read_config", 28, "Plugin configuration loaded");
 
-        // 4. 检查版本兼容性
-        reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "check_version", 35, "Checking version compatibility");
+        reportProgress(ACTION_INSTALL, pluginId, "check_version", 35, "Checking version compatibility");
         checkVersionCompatibility(pluginConfig, pluginTempDir);
 
-        // 5. 判断是安装还是更新
         boolean isUpdate = isPluginUpdate(pluginConfig);
 
-        // 6. 如果是更新，先停止插件
-        if (isUpdate && PluginHolder.getPluginInfo(pluginConfig.getPlugin().getId()) != null) {
-            reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "stop_old", 45, "Stopping existing plugin");
-            pluginHandler.stopPlugin(pluginConfig.getPlugin().getId());
+        if (isUpdate && PluginHolder.getPluginInfo(pluginId) != null) {
+            reportProgress(ACTION_INSTALL, pluginId, "stop_old", 45, "Stopping existing plugin");
+            pluginHandler.stopPlugin(pluginId);
         }
 
         File pluginDir = null;
         try {
-            // 7. 拷贝文件到插件目录
-            reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "copy_files", 55, "Copying plugin files");
+            reportProgress(ACTION_INSTALL, pluginId, "copy_files", 55, "Copying plugin files");
             pluginDir = PluginFileCopier.copyTempToPlugin(pluginTempDir, pluginConfig);
             FileUtil.del(pluginTempDir);
 
-            // 8. 安装插件（创建类加载器和上下文）
-            reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "install_context", 70, "Installing plugin context");
-            pluginHandler.installPlugin(pluginDir);
+            boolean lazyInstall = lazyInitOnInstall && !isUpdate;
+            if (!lazyInstall) {
+                reportProgress(ACTION_INSTALL, pluginId, "install_context", 70, "Installing plugin context");
+                pluginHandler.installPlugin(pluginDir);
+            } else {
+                reportProgress(ACTION_INSTALL, pluginId, "defer_context", 70, "Deferring plugin context initialization");
+            }
 
-            // 9. 执行SQL和生命周期回调
             if (isUpdate) {
-                reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "execute_sql", 85, "Executing update SQL");
+                reportProgress(ACTION_INSTALL, pluginId, "execute_sql", 85, "Executing update SQL");
                 handleUpdate(pluginDir, pluginConfig);
             } else {
-                reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "execute_sql", 85, "Executing install SQL");
-                handleInstall(pluginDir, pluginConfig);
+                reportProgress(ACTION_INSTALL, pluginId, "execute_sql", 85, "Executing install SQL");
+                handleInstall(pluginDir, pluginConfig, !lazyInstall);
+                if (lazyInstall) {
+                    createInstallPendingMarker(pluginDir);
+                }
             }
         } catch (Exception ex) {
             try {
-                pluginHandler.uninstallPlugin(pluginConfig.getPlugin().getId());
+                pluginHandler.uninstallPlugin(pluginId);
             } catch (Exception e) {
-                log.warn("Failed to cleanup plugin context after install error: {}", pluginConfig.getPlugin().getId(), e);
+                log.warn("Failed to cleanup plugin context after install error: {}", pluginId, e);
             }
             if (!isUpdate && pluginDir != null) {
                 FileUtil.del(pluginDir);
@@ -145,15 +112,17 @@ public class PluginManagerImpl implements PluginManager {
         return pluginConfig;
     }
 
-    /**
-     * 启动插件
-     *
-     * @param pluginId 插件ID
-     */
     @Override
     public void startPlugin(String pluginId) {
         try {
             reportProgress(ACTION_ENABLE, pluginId, "start", 10, "Starting plugin");
+            if (!PluginHolder.containsPlugin(pluginId)) {
+                reportProgress(ACTION_ENABLE, pluginId, "install_context", 20, "Preparing plugin context");
+                File pluginDir = getPluginDirById(pluginId)
+                        .orElseThrow(() -> new PluginException("Plugin directory not found: " + pluginId));
+                pluginHandler.installPlugin(pluginDir);
+                runPendingInstallLifecycle(pluginId);
+            }
             pluginHandler.startPlugin(pluginId);
             reportProgress(ACTION_ENABLE, pluginId, "complete", 100, "Plugin started");
             log.info("Plugin started successfully: {}", pluginId);
@@ -163,11 +132,6 @@ public class PluginManagerImpl implements PluginManager {
         }
     }
 
-    /**
-     * 停止插件
-     *
-     * @param pluginId 插件ID
-     */
     @Override
     public void stopPlugin(String pluginId) {
         try {
@@ -180,21 +144,13 @@ public class PluginManagerImpl implements PluginManager {
         }
     }
 
-    /**
-     * 卸载插件
-     *
-     * @param pluginId 插件ID
-     * @throws Exception 卸载过程中发生错误时抛出
-     */
     @Override
     public void uninstallPlugin(String pluginId) throws Exception {
         Optional<File> pluginDir = getPluginDirById(pluginId);
 
-        // 调用 Handler 卸载插件（清理内存资源）
         reportProgress(ACTION_UNINSTALL, pluginId, "uninstall", 20, "Uninstalling plugin");
         pluginHandler.uninstallPlugin(pluginId);
 
-        // 执行卸载SQL并删除文件
         pluginDir.ifPresent(dir -> {
             try {
                 reportProgress(ACTION_UNINSTALL, pluginId, "execute_sql", 60, "Executing uninstall SQL");
@@ -209,13 +165,6 @@ public class PluginManagerImpl implements PluginManager {
         log.info("Plugin uninstalled successfully: {}", pluginId);
     }
 
-    /**
-     * 检查插件版本兼容性
-     *
-     * @param pluginConfig    插件配置
-     * @param pluginTempDir 临时插件目录
-     * @throws PluginException 版本不兼容时抛出
-     */
     private void checkVersionCompatibility(PluginConfig pluginConfig, File pluginTempDir) {
         String minimalVersion = pluginConfig.getPlugin().getMinimalVersion();
         if (VersionUtil.versionToLong(minimalVersion) > VersionUtil.versionToLong(systemVersion)) {
@@ -225,16 +174,8 @@ public class PluginManagerImpl implements PluginManager {
         }
     }
 
-    /**
-     * 判断是否为插件更新
-     *
-     * @param pluginConfig 插件配置
-     * @return 是更新返回true，否则返回false
-     * @throws PluginException 版本检查失败时抛出
-     */
     private boolean isPluginUpdate(PluginConfig pluginConfig) {
         PluginConfig installedConfig = PluginConfigReader.readInstalledConfig(pluginConfig.getPlugin().getId());
-
         if (installedConfig == null) {
             return false;
         }
@@ -253,35 +194,23 @@ public class PluginManagerImpl implements PluginManager {
         return true;
     }
 
-    /**
-     * 处理插件安装
-     *
-     * @param pluginDir    插件目录
-     * @param pluginConfig 插件配置
-     * @throws SQLException SQL执行失败时抛出
-     */
-    private void handleInstall(File pluginDir, PluginConfig pluginConfig) throws SQLException {
+    private void handleInstall(File pluginDir, PluginConfig pluginConfig, boolean runLifecycle) throws SQLException {
         PluginSqlExecutor.executeInstallSql(pluginDir);
 
-        // 调用插件的 onInstall 生命周期方法
-        reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "lifecycle", 95, "Running install lifecycle");
-        var lifecycleBean = PluginApplicationContextHolder.getPluginBean(
-                pluginConfig.getPlugin().getId(), com.tt.plugin.core.BasePluginLifecycle.class);
-        if (lifecycleBean != null) {
-            lifecycleBean.onInstall();
+        if (runLifecycle) {
+            reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "lifecycle", 95, "Running install lifecycle");
+            var lifecycleBean = PluginApplicationContextHolder.getPluginBean(
+                    pluginConfig.getPlugin().getId(), com.tt.plugin.core.BasePluginLifecycle.class);
+            if (lifecycleBean != null) {
+                lifecycleBean.onInstall();
+            }
+            clearInstallPendingMarker(pluginConfig.getPlugin().getId());
         }
 
         pluginConfig.setStatus(PluginConstant.PLUGIN_STATUS_DISABLE);
         log.info("Plugin installed: {}", pluginConfig.getPlugin().getId());
     }
 
-    /**
-     * 处理插件更新
-     *
-     * @param pluginDir    插件目录
-     * @param pluginConfig 插件配置
-     * @throws SQLException SQL执行失败时抛出
-     */
     private void handleUpdate(File pluginDir, PluginConfig pluginConfig) throws SQLException {
         PluginConfig installedConfig = PluginConfigReader.readInstalledConfig(pluginConfig.getPlugin().getId());
 
@@ -289,7 +218,6 @@ public class PluginManagerImpl implements PluginManager {
                 installedConfig.getPlugin().getVersion(),
                 pluginConfig.getPlugin().getVersion());
 
-        // 调用插件的 onUpdate 生命周期方法
         reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "lifecycle", 95, "Running update lifecycle");
         var lifecycleBean = PluginApplicationContextHolder.getPluginBean(
                 pluginConfig.getPlugin().getId(), com.tt.plugin.core.BasePluginLifecycle.class);
@@ -304,12 +232,6 @@ public class PluginManagerImpl implements PluginManager {
                 pluginConfig.getPlugin().getVersion());
     }
 
-    /**
-     * 根据插件ID获取插件目录
-     *
-     * @param pluginId 插件ID
-     * @return 插件目录的Optional包装
-     */
     private Optional<File> getPluginDirById(String pluginId) {
         File pluginDir = new File(
                 com.tt.domain.plugin.model.enums.PluginDirectory.PLUGIN_DIRECTORY.getPath()
@@ -319,7 +241,56 @@ public class PluginManagerImpl implements PluginManager {
         return Optional.of(pluginDir).filter(File::exists);
     }
 
+    private void createInstallPendingMarker(File pluginDir) {
+        if (pluginDir == null) {
+            return;
+        }
+        File marker = new File(pluginDir, INSTALL_PENDING_MARKER);
+        try {
+            if (!marker.exists()) {
+                FileUtil.touch(marker);
+            }
+        } catch (Exception e) {
+            log.debug("Failed to create install pending marker", e);
+        }
+    }
+
+    private boolean isInstallPending(String pluginId) {
+        return getPluginDirById(pluginId)
+                .map(dir -> new File(dir, INSTALL_PENDING_MARKER))
+                .map(File::exists)
+                .orElse(false);
+    }
+
+    private void clearInstallPendingMarker(String pluginId) {
+        getPluginDirById(pluginId)
+                .map(dir -> new File(dir, INSTALL_PENDING_MARKER))
+                .filter(File::exists)
+                .ifPresent(FileUtil::del);
+    }
+
+    private void runPendingInstallLifecycle(String pluginId) {
+        if (!isInstallPending(pluginId)) {
+            return;
+        }
+        reportProgress(ACTION_ENABLE, pluginId, "lifecycle_install", 35, "Running install lifecycle");
+        var lifecycleBean = PluginApplicationContextHolder.getPluginBean(
+                pluginId, com.tt.plugin.core.BasePluginLifecycle.class);
+        if (lifecycleBean != null) {
+            lifecycleBean.onInstall();
+        }
+        clearInstallPendingMarker(pluginId);
+    }
+
     private void reportProgress(String action, String pluginId, String stage, int progress, String message) {
         PluginProgressContext.report(new PluginProgress(pluginId, action, stage, progress, message));
+    }
+
+    @Override
+    public boolean isPluginStarted(String pluginId) {
+        if (pluginId == null || pluginId.isBlank()) {
+            return false;
+        }
+        return PluginHolder.containsPlugin(pluginId);
     }
 }

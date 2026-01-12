@@ -1,0 +1,15 @@
+﻿plugin:
+  id: tt-plugin-ai-chat
+  name: AI Chat
+  mapperLocation: mapper/*.xml
+  description: AI chat plugin
+  minimalVersion: 2.2.0
+  version: 1.0.0
+  staticLocations: /ui/
+  isDev: false
+  frontDevAddress: http://127.0.0.1:4203
+  updateUrl:
+author:
+  name: tt
+  email:
+  webSite:

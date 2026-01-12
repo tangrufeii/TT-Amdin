@@ -1,0 +1,21 @@
+﻿renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: ai-chat
+    routes:
+      - name: plugin-ai-chat-index
+        path: /ai-chat
+        component: /view/AiChatView
+        componentName: plugin-ai-chat-index
+        meta:
+          title: AI Chat
+          i18nKey: plugin.aiChat.title
+          icon: mdi:chat-processing
+          order: 2
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-ai-chat-index

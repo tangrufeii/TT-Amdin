@@ -18,7 +18,7 @@
         "prev": "上一步",
         "cleanColumns": "清空字段",
         "syncColumns": "同步字段",
-        "generate": "下载源码"
+        "generate": "下载源码（需打包后导入）"
       },
       "step": {
         "base": "基础配置",

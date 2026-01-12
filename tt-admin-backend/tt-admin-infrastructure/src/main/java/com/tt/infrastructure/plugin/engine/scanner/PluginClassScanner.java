@@ -2,11 +2,17 @@ package com.tt.infrastructure.plugin.engine.scanner;
 
 import cn.hutool.core.io.FileUtil;
 import com.tt.domain.plugin.model.enums.PluginResourceDirectory;
+import com.tt.domain.plugin.progress.PluginProgress;
+import com.tt.domain.plugin.progress.PluginProgressContext;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 /**
  * 插件类扫描器
@@ -62,6 +68,18 @@ public class PluginClassScanner {
      * @apiNote 类名转换规则：文件路径去除code目录前缀 -> 统一路径分隔符为点 -> 去除.class后缀
      */
     public static List<Class<?>> scanClasses(File pluginDir, ClassLoader classLoader) {
+        return scanClasses(pluginDir, classLoader, null, null, false);
+    }
+
+    public static List<Class<?>> scanClasses(File pluginDir, ClassLoader classLoader, String pluginId, String action) {
+        return scanClasses(pluginDir, classLoader, pluginId, action, false);
+    }
+
+    public static List<Class<?>> scanClasses(File pluginDir,
+                                             ClassLoader classLoader,
+                                             String pluginId,
+                                             String action,
+                                             boolean detailEnabled) {
         List<Class<?>> classList = new ArrayList<>();
 
         if (pluginDir == null || !pluginDir.exists()) {
@@ -77,13 +95,33 @@ public class PluginClassScanner {
 
         log.debug("Scanning classes in directory: {}", codeDir.getAbsolutePath());
 
-        List<File> files = FileUtil.loopFiles(codeDir);
-        for (File file : files) {
-            if (isClassFile(file)) {
+        List<File> classFiles = FileUtil.loopFiles(codeDir, PluginClassScanner::isClassFile);
+        if (!classFiles.isEmpty()) {
+            int total = classFiles.size();
+            int reportStep = calculateReportStep(total);
+            int index = 0;
+            for (File file : classFiles) {
                 Class<?> clazz = loadClassFromFile(file, codeDir, classLoader);
                 if (clazz != null) {
                     classList.add(clazz);
                 }
+                index++;
+                if (shouldReport(index, total, reportStep)) {
+                    reportScanProgress(pluginId, action, index, total, detailEnabled, clazz != null ? clazz.getName() : null);
+                }
+            }
+        } else {
+            List<File> jarFiles = FileUtil.loopFiles(codeDir, file -> file.isFile() && file.getName().endsWith(".jar"));
+            // When detailEnabled is true, skip pre-counting to avoid double jar scan latency.
+            int total = 0;
+            if (!detailEnabled) {
+                reportScanHint(pluginId, action, "Counting plugin classes");
+                total = countJarClasses(jarFiles, pluginId, action);
+            }
+            AtomicInteger index = new AtomicInteger(0);
+            for (File jarFile : jarFiles) {
+                reportScanHint(pluginId, action, "Scanning plugin jar: " + jarFile.getName());
+                scanClassesFromJar(jarFile, classLoader, classList, pluginId, action, detailEnabled, index, total);
             }
         }
 
@@ -176,5 +214,125 @@ public class PluginClassScanner {
         className = className.substring(0, className.length() - CLASS_EXTENSION.length());
 
         return className;
+    }
+
+    private static void scanClassesFromJar(File jarFile,
+                                           ClassLoader classLoader,
+                                           List<Class<?>> classList,
+                                           String pluginId,
+                                           String action,
+                                           boolean detailEnabled,
+                                           AtomicInteger index,
+                                           int total) {
+        log.debug("Scanning classes in jar: {}", jarFile.getAbsolutePath());
+        try (JarFile jar = new JarFile(jarFile)) {
+            Enumeration<JarEntry> entries = jar.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String name = entry.getName();
+                if (!name.endsWith(CLASS_EXTENSION)) {
+                    continue;
+                }
+                if (name.startsWith("META-INF/") || "module-info.class".equals(name)) {
+                    continue;
+                }
+                String className = name.substring(0, name.length() - CLASS_EXTENSION.length())
+                        .replace('/', '.');
+                try {
+                    Class<?> clazz = classLoader.loadClass(className);
+                    classList.add(clazz);
+                    int current = index.incrementAndGet();
+                    if (shouldReport(current, total, calculateReportStep(total))) {
+                        reportScanProgress(pluginId, action, current, total, detailEnabled, className);
+                    }
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException("Failed to load class: " + className, e);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to scan jar: " + jarFile.getAbsolutePath(), e);
+        }
+    }
+
+    private static int countJarClasses(List<File> jarFiles, String pluginId, String action) {
+        int total = 0;
+        int scanned = 0;
+        for (File jarFile : jarFiles) {
+            reportScanHint(pluginId, action, "Counting classes in jar: " + jarFile.getName());
+            try (JarFile jar = new JarFile(jarFile)) {
+                Enumeration<JarEntry> entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    if (entry.isDirectory()) {
+                        continue;
+                    }
+                    String name = entry.getName();
+                    if (!name.endsWith(CLASS_EXTENSION)) {
+                        continue;
+                    }
+                    if (name.startsWith("META-INF/") || "module-info.class".equals(name)) {
+                        continue;
+                    }
+                    total++;
+                    scanned++;
+                    if (scanned % 200 == 0) {
+                        reportScanHint(pluginId, action, "Counting plugin classes (" + scanned + ")");
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Failed to count classes in jar: {}", jarFile.getAbsolutePath(), e);
+            }
+        }
+        return total;
+    }
+
+    private static int calculateReportStep(int total) {
+        if (total <= 0) {
+            return 1;
+        }
+        if (total <= 50) {
+            return 1;
+        }
+        return Math.max(total / 20, 5);
+    }
+
+    private static boolean shouldReport(int index, int total, int step) {
+        if (total <= 0) {
+            return false;
+        }
+        return index == total || index % step == 0;
+    }
+
+    private static void reportScanProgress(String pluginId,
+                                           String action,
+                                           int current,
+                                           int total,
+                                           boolean detailEnabled,
+                                           String className) {
+        if (pluginId == null || action == null) {
+            return;
+        }
+        int progress = 75;
+        String message;
+        if (total > 0) {
+            progress = 75 + (int) Math.round((double) current / total * 2);
+            message = "Scanning plugin classes (" + current + "/" + total + ")";
+        } else {
+            message = "Scanning plugin classes (" + current + ")";
+        }
+        if (detailEnabled && className != null && !className.isBlank()) {
+            message += ": " + className;
+        }
+        PluginProgressContext.report(new PluginProgress(pluginId, action, "scan_classes", progress, message));
+    }
+
+    private static void reportScanHint(String pluginId, String action, String message) {
+        if (pluginId == null || action == null) {
+            return;
+        }
+        PluginProgressContext.report(new PluginProgress(pluginId, action, "scan_classes", 75, message));
     }
 }

@@ -80,7 +80,7 @@ public class PluginExtractor {
         File unzipDir = ZipUtil.unzip(pluginFile, tempDir);
 
         // 处理代码目录中的内嵌JAR文件
-        extractEmbeddedJars(unzipDir);
+        // 保留 code 里的 jar，避免解压导致耗时
 
         return unzipDir;
     }

@@ -136,6 +136,8 @@ public class PluginManagementApplicationService {
         pluginManagementDomainService.validatePluginCanBeUninstalled(plugin.getPluginId());
 
         long startedAt = System.currentTimeMillis();
+        // Track per-stage elapsed time for progress reporting.
+        StageTracker stageTracker = new StageTracker();
         PluginProgressContext.setReporter(progress -> publishLifecycle(
                 progress.getPluginId(),
                 progress.getAction(),
@@ -144,14 +146,15 @@ public class PluginManagementApplicationService {
                 progress.getStage(),
                 progress.getProgress(),
                 startedAt,
-                System.currentTimeMillis() - startedAt
+                System.currentTimeMillis() - startedAt,
+                stageTracker.elapsed(progress.getStage())
         ));
         try {
-            publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_PROCESSING, "插件卸载中", "start", 0, startedAt, 0L);
+            publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_PROCESSING, "插件卸载中", "start", 0, startedAt, 0L, null);
             // 同步调用基础设施层卸载插件
             pluginManager.uninstallPlugin(plugin.getPluginId());
         } catch (Exception e) {
-            publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_FAILED, "插件卸载失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
+            publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_FAILED, "插件卸载失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt, null);
             log.error("Failed to uninstall plugin: {}", plugin.getPluginId(), e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件卸载失败: " + e.getMessage());
         } finally {
@@ -164,7 +167,7 @@ public class PluginManagementApplicationService {
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
 
-        publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_SUCCESS, "插件已卸载", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
+        publishLifecycle(plugin.getPluginId(), ACTION_UNINSTALL, STATUS_SUCCESS, "插件已卸载", "complete", 100, startedAt, System.currentTimeMillis() - startedAt, null);
         log.info("Plugin deleted: pluginId={}, name={}", plugin.getPluginId(), plugin.getName());
     }
 
@@ -204,6 +207,7 @@ public class PluginManagementApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public void installPlugin(PluginInstallCommand command) {
         long startedAt = System.currentTimeMillis();
+        StageTracker stageTracker = new StageTracker();
         PluginProgressContext.setReporter(progress -> publishLifecycle(
                 progress.getPluginId(),
                 progress.getAction(),
@@ -212,7 +216,8 @@ public class PluginManagementApplicationService {
                 progress.getStage(),
                 progress.getProgress(),
                 startedAt,
-                System.currentTimeMillis() - startedAt
+                System.currentTimeMillis() - startedAt,
+                stageTracker.elapsed(progress.getStage())
         ));
         try {
             // 1. 保存上传文件到临时目录
@@ -222,7 +227,7 @@ public class PluginManagementApplicationService {
             }
             File pluginFile = new File(tempDir.getAbsolutePath() + File.separator + command.getFile().getOriginalFilename());
             command.getFile().transferTo(pluginFile);
-            publishLifecycle(null, ACTION_INSTALL, STATUS_PROCESSING, "插件准备中", "prepare", 5, startedAt, System.currentTimeMillis() - startedAt);
+            publishLifecycle(null, ACTION_INSTALL, STATUS_PROCESSING, "插件准备中", "prepare", 5, startedAt, System.currentTimeMillis() - startedAt, null);
 
             // 2. 同步调用基础设施层安装插件
             PluginConfig pluginConfig = pluginManager.installPlugin(pluginFile);
@@ -230,11 +235,11 @@ public class PluginManagementApplicationService {
             // 3. 保存插件信息到数据库
             pluginDomainService.savePluginInfo(pluginConfig);
 
-            publishLifecycle(pluginConfig.getPlugin().getId(), ACTION_INSTALL, STATUS_SUCCESS, "插件安装成功", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
+            publishLifecycle(pluginConfig.getPlugin().getId(), ACTION_INSTALL, STATUS_SUCCESS, "插件安装成功", "complete", 100, startedAt, System.currentTimeMillis() - startedAt, null);
             log.info("Plugin installed successfully: {}", pluginConfig.getPlugin().getId());
 
         } catch (Exception e) {
-            publishLifecycle(null, ACTION_INSTALL, STATUS_FAILED, "插件安装失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
+            publishLifecycle(null, ACTION_INSTALL, STATUS_FAILED, "插件安装失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt, null);
             log.error("Failed to install plugin", e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件安装失败: " + e.getMessage());
         } finally {
@@ -273,6 +278,7 @@ public class PluginManagementApplicationService {
 
         // 同步调用基础设施层启动插件
         long startedAt = System.currentTimeMillis();
+        StageTracker stageTracker = new StageTracker();
         PluginProgressContext.setReporter(progress -> publishLifecycle(
                 progress.getPluginId(),
                 progress.getAction(),
@@ -281,13 +287,14 @@ public class PluginManagementApplicationService {
                 progress.getStage(),
                 progress.getProgress(),
                 startedAt,
-                System.currentTimeMillis() - startedAt
+                System.currentTimeMillis() - startedAt,
+                stageTracker.elapsed(progress.getStage())
         ));
         try {
-            publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_PROCESSING, "插件启动中", "start", 0, startedAt, 0L);
+            publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_PROCESSING, "插件启动中", "start", 0, startedAt, 0L, null);
             pluginManager.startPlugin(plugin.getPluginId());
         } catch (Exception e) {
-            publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_FAILED, "插件启动失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
+            publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_FAILED, "插件启动失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt, null);
             log.error("Failed to start plugin: {}", plugin.getPluginId(), e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件启动失败: " + e.getMessage());
         } finally {
@@ -299,7 +306,7 @@ public class PluginManagementApplicationService {
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
 
-        publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_SUCCESS, "插件已启用", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
+        publishLifecycle(plugin.getPluginId(), ACTION_ENABLE, STATUS_SUCCESS, "插件已启用", "complete", 100, startedAt, System.currentTimeMillis() - startedAt, null);
         log.info("Plugin enabled: pluginId={}", plugin.getPluginId());
         return convertToDTO(plugin);
     }
@@ -317,6 +324,7 @@ public class PluginManagementApplicationService {
 
         // 同步调用基础设施层停止插件
         long startedAt = System.currentTimeMillis();
+        StageTracker stageTracker = new StageTracker();
         PluginProgressContext.setReporter(progress -> publishLifecycle(
                 progress.getPluginId(),
                 progress.getAction(),
@@ -325,13 +333,14 @@ public class PluginManagementApplicationService {
                 progress.getStage(),
                 progress.getProgress(),
                 startedAt,
-                System.currentTimeMillis() - startedAt
+                System.currentTimeMillis() - startedAt,
+                stageTracker.elapsed(progress.getStage())
         ));
         try {
-            publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_PROCESSING, "插件停止中", "start", 0, startedAt, 0L);
+            publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_PROCESSING, "插件停止中", "start", 0, startedAt, 0L, null);
             pluginManager.stopPlugin(plugin.getPluginId());
         } catch (Exception e) {
-            publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_FAILED, "插件停止失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt);
+            publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_FAILED, "插件停止失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt, null);
             log.error("Failed to stop plugin: {}", plugin.getPluginId(), e);
             throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件停止失败: " + e.getMessage());
         } finally {
@@ -343,7 +352,7 @@ public class PluginManagementApplicationService {
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
 
-        publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_SUCCESS, "插件已禁用", "complete", 100, startedAt, System.currentTimeMillis() - startedAt);
+        publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_SUCCESS, "插件已禁用", "complete", 100, startedAt, System.currentTimeMillis() - startedAt, null);
         log.info("Plugin disabled: pluginId={}", plugin.getPluginId());
         return convertToDTO(plugin);
     }
@@ -383,6 +392,10 @@ public class PluginManagementApplicationService {
 
         List<PluginFrontendModuleDTO> modules = new ArrayList<>();
         for (PluginManagement plugin : enabledPlugins) {
+            if (!pluginManager.isPluginStarted(plugin.getPluginId())) {
+                log.debug("Skip plugin frontend modules (not started): {}", plugin.getPluginId());
+                continue;
+            }
             PluginFrontendDefinition definition = pluginFrontendDefinitionRepository
                     .loadByPluginId(plugin.getPluginId())
                     .orElse(null);
@@ -454,6 +467,7 @@ public class PluginManagementApplicationService {
         moduleDTO.setModuleName(moduleDefinition.getModuleName());
         moduleDTO.setPluginId(plugin.getPluginId());
         moduleDTO.setPluginName(plugin.getName());
+        moduleDTO.setPluginVersion(plugin.getPluginInfo() != null ? plugin.getPluginInfo().getVersion() : null);
         moduleDTO.setPluginIsDev(plugin.getPluginInfo() != null && Boolean.TRUE.equals(plugin.getPluginInfo().getIsDev()));
         moduleDTO.setFrontDevAddress(plugin.getPluginInfo() != null ? plugin.getPluginInfo().getFrontDevAddress() : null);
         moduleDTO.setRoutes(routes);
@@ -529,9 +543,29 @@ public class PluginManagementApplicationService {
                                   String stage,
                                   Integer progress,
                                   Long startedAt,
-                                  Long elapsedMs) {
+                                  Long elapsedMs,
+                                  Long stageElapsedMs) {
         domainEventPublisher.publishImmediately(
-                new PluginLifecycleEvent(pluginId, action, status, message, stage, progress, startedAt, elapsedMs)
+                new PluginLifecycleEvent(pluginId, action, status, message, stage, progress, startedAt, elapsedMs, stageElapsedMs)
         );
+    }
+
+    // Keeps per-stage timestamps for progress reporting.
+    private static final class StageTracker {
+        private String currentStage;
+        private long stageStartedAt;
+
+        public Long elapsed(String stage) {
+            if (stage == null) {
+                return null;
+            }
+            long now = System.currentTimeMillis();
+            if (!stage.equals(currentStage)) {
+                currentStage = stage;
+                stageStartedAt = now;
+                return 0L;
+            }
+            return now - stageStartedAt;
+        }
     }
 }

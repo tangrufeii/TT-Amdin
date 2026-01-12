@@ -1,53 +1,74 @@
 <template>
-  <div class="plugin-codegen">
-    <n-space vertical size="large">
-      <n-card :title="t('plugin.codegen.title')" size="small" bordered>
-        <n-form :model="searchModel" label-width="80" label-placement="left">
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+      <n-card :title="t('plugin.codegen.title')" size="small" :bordered="false" class="card-wrapper">
+        <n-form :model="searchParams" label-width="80" label-placement="left">
           <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">
             <n-form-item-gi :label="t('plugin.codegen.search.tableName')" span="12">
-              <n-input v-model:value="searchModel.tableName" :placeholder="t('plugin.codegen.search.placeholder')" />
+              <n-input v-model:value="searchParams.tableName" :placeholder="t('plugin.codegen.search.placeholder')" />
             </n-form-item-gi>
             <n-form-item-gi span="12">
               <n-space justify="end" class="w-full">
-                <n-button type="primary" @click="loadTablePage">
+                <n-button type="primary" ghost @click="getDataByPage(1)">
+                  <template #icon>
+                    <icon-ic-round-search class="text-icon" />
+                  </template>
                   {{ t('plugin.codegen.actions.search') }}
                 </n-button>
-                <n-button @click="resetSearch">
+                <n-button quaternary @click="resetSearchParams">
+                  <template #icon>
+                    <icon-ic-round-refresh class="text-icon" />
+                  </template>
                   {{ t('plugin.codegen.actions.reset') }}
                 </n-button>
               </n-space>
             </n-form-item-gi>
           </n-grid>
         </n-form>
-        <n-space class="toolbar" justify="space-between">
+      </n-card>
+
+      <n-card :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
+        <component
+          :is="tableHeaderComponent"
+          v-if="tableHeaderComponent"
+          v-model:columns="columnChecks"
+          :loading="loading"
+          :disabled-delete="checkedRowKeys.length === 0"
+          @add="openCreate"
+          @delete="batchDelete"
+          @refresh="getData"
+        />
+        <div v-else class="toolbar">
           <n-space>
-            <n-button type="primary" @click="openCreate">
-              {{ t('plugin.codegen.actions.add') }}
+            <n-button size="small" ghost type="primary" @click="openCreate">
+              {{ t('common.add') }}
             </n-button>
-            <n-button type="error" :disabled="checkedRowKeys.length === 0" @click="batchDelete">
-              {{ t('plugin.codegen.actions.delete') }}
+            <n-button size="small" ghost type="error" :disabled="checkedRowKeys.length === 0" @click="batchDelete">
+              {{ t('common.batchDelete') }}
             </n-button>
           </n-space>
-          <n-button @click="loadTablePage">
-            {{ t('plugin.codegen.actions.refresh') }}
+          <n-button size="small" @click="getData">
+            {{ t('common.refresh') }}
           </n-button>
-        </n-space>
-        <div class="codegen-table-scroll">
-          <n-data-table
-            remote
-            size="small"
-            :loading="tableLoading"
-            :columns="tableColumns"
-            :data="tableData"
-            :pagination="tablePagination"
-            :row-key="row => row.id"
-            v-model:checked-row-keys="checkedRowKeys"
-          />
         </div>
+        <n-data-table
+          remote
+          striped
+          size="small"
+          class="sm:h-full"
+          :loading="loading"
+          :columns="columns"
+          :data="data"
+          :pagination="pagination"
+          :row-key="row => row.id"
+          v-model:checked-row-keys="checkedRowKeys"
+          :single-line="false"
+          :scroll-x="1200"
+          :flex-height="!isMobile"
+        />
       </n-card>
-    </n-space>
 
-    <n-modal v-model:show="modalVisible" preset="card" class="modal-card" :title="modalTitle">
+    <n-drawer v-model:show="modalVisible" placement="right" :width="900">
+      <n-drawer-content :title="modalTitle" closable>
       <n-tabs v-model:value="step" type="segment" size="small" animated>
         <n-tab-pane :name="1" :tab="t('plugin.codegen.step.base')" disabled>
           <n-form ref="formRef" :model="formModel" :rules="rules" label-placement="left" label-width="120">
@@ -144,39 +165,35 @@
         </n-tab-pane>
       </n-tabs>
 
-      <template #footer>
-        <n-space justify="end">
-          <n-button v-if="step > 1" @click="step -= 1">
-            {{ t('plugin.codegen.actions.prev') }}
-          </n-button>
-          <n-button v-if="step < 3" type="primary" :loading="saving" @click="nextStep">
-            {{ t('plugin.codegen.actions.next') }}
-          </n-button>
-        </n-space>
-      </template>
-    </n-modal>
+        <template #footer>
+          <n-space justify="end">
+            <n-button v-if="step > 1" @click="step -= 1">
+              {{ t('plugin.codegen.actions.prev') }}
+            </n-button>
+            <n-button v-if="step < 3" type="primary" :loading="saving" @click="nextStep">
+              {{ t('plugin.codegen.actions.next') }}
+            </n-button>
+          </n-space>
+        </template>
+      </n-drawer-content>
+    </n-drawer>
   </div>
 </template>
-
-<style scoped>
-.codegen-table-scroll {
-  overflow-x: auto;
-}
-</style>
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue';
+import { computed, getCurrentInstance, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { FormInst, FormRules, DataTableColumns } from 'naive-ui';
+import type { DataTableColumns, FormInst, FormRules } from 'naive-ui';
 import {
   NButton,
   NCard,
   NDataTable,
+  NDrawer,
+  NDrawerContent,
   NForm,
   NFormItemGi,
   NGrid,
   NInput,
   NInputNumber,
-  NModal,
   NResult,
   NSelect,
   NSpace,
@@ -187,6 +204,61 @@ import {
 } from 'naive-ui';
 
 const { t } = useI18n();
+const isMobile = ref(false);
+let mobileQuery: MediaQueryList | null = null;
+
+function updateMobile() {
+  if (mobileQuery) {
+    isMobile.value = mobileQuery.matches;
+    return;
+  }
+  if (typeof window !== 'undefined') {
+    isMobile.value = window.innerWidth <= 640;
+  }
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined') return;
+  mobileQuery = window.matchMedia('(max-width: 640px)');
+  updateMobile();
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', updateMobile);
+  } else if (mobileQuery.addListener) {
+    mobileQuery.addListener(updateMobile);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (!mobileQuery) return;
+  if (mobileQuery.removeEventListener) {
+    mobileQuery.removeEventListener('change', updateMobile);
+  } else if (mobileQuery.removeListener) {
+    mobileQuery.removeListener(updateMobile);
+  }
+  mobileQuery = null;
+});
+
+type PluginRequestConfig = {
+  url: string;
+  method?: string;
+  params?: Record<string, any>;
+  data?: any;
+};
+
+type PluginApi = {
+  request?: <T>(config: PluginRequestConfig) => Promise<{ data: T; error: any; response?: any }>;
+  useTable?: any;
+  useTableOperate?: any;
+  components?: {
+    TableHeaderOperation?: any;
+  };
+};
+
+const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
+
+const fallbackHooks = createFallbackTableHooks();
+const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
+const useTableOperateHook = pluginApi?.useTableOperate ?? fallbackHooks.useTableOperate;
 
 interface DataTableInfo {
   tableName: string;
@@ -255,34 +327,10 @@ interface DictOption {
   value: string;
 }
 
-const searchModel = reactive({
-  tableName: ''
-});
-
-const tableData = ref<CodegenTable[]>([]);
-const tableLoading = ref(false);
-const checkedRowKeys = ref<number[]>([]);
-
-const tablePagination = reactive({
-  page: 1,
-  pageSize: 20,
-  itemCount: 0,
-  onChange: (page: number) => {
-    tablePagination.page = page;
-    loadTablePage();
-  },
-  onUpdatePageSize: (pageSize: number) => {
-    tablePagination.pageSize = pageSize;
-    tablePagination.page = 1;
-    loadTablePage();
-  }
-});
-
 const modalVisible = ref(false);
 const step = ref(1);
 const saving = ref(false);
 const formRef = ref<FormInst | null>(null);
-const isEdit = ref(false);
 const dataTableOptions = ref<DataTableInfo[]>([]);
 const dictOptions = ref<DictOption[]>([]);
 const columnData = ref<CodegenColumn[]>([]);
@@ -337,7 +385,7 @@ const modalTitle = computed(() =>
   isEdit.value ? t('plugin.codegen.modal.edit') : t('plugin.codegen.modal.add')
 );
 
-const tableColumns: DataTableColumns<CodegenTable> = [
+const createTableColumns = (): DataTableColumns<CodegenTable> => [
   { type: 'selection', width: 48, align: 'center' },
   { title: t('plugin.codegen.fields.tableName'), key: 'tableName', width: 160, ellipsis: { tooltip: true } },
   { title: t('plugin.codegen.fields.tableComment'), key: 'tableComment', width: 120, ellipsis: { tooltip: true } },
@@ -375,6 +423,8 @@ const tableColumns: DataTableColumns<CodegenTable> = [
             NButton,
             {
               size: 'small',
+              type: 'primary',
+              quaternary: true,
               onClick: () => openEdit(row)
             },
             { default: () => t('plugin.codegen.actions.edit') }
@@ -384,6 +434,7 @@ const tableColumns: DataTableColumns<CodegenTable> = [
             {
               size: 'small',
               type: 'error',
+              quaternary: true,
               onClick: () => deleteRow(row)
             },
             { default: () => t('plugin.codegen.actions.delete') }
@@ -768,6 +819,53 @@ const columnColumns: DataTableColumns<CodegenColumn> = [
   }
 ];
 
+const baseSearchParams = {
+  page: 1,
+  pageSize: 20,
+  tableName: ''
+};
+
+async function fetchPage(params: Record<string, any>) {
+  return await requestParams<any>('/plugin/codegen/tables/page', params);
+}
+
+const { loading, data, columns, columnChecks, pagination, getData, getDataByPage, searchParams, resetSearchParams } = useTableHook({
+  apiFn: fetchPage,
+  apiParams: baseSearchParams,
+  columns: createTableColumns,
+  transformer: res => {
+    const { records = [], page = 1, pageSize = 20, total = 0 } = res?.data || {};
+    const dataWithIndex = records.map((item: any, index: number) => ({
+      ...item,
+      id: item.id ?? item.tableId ?? item.tableName,
+      index: (page - 1) * pageSize + index + 1
+    }));
+    return {
+      data: dataWithIndex,
+      pageNum: page,
+      pageSize,
+      total
+    };
+  }
+});
+
+const {
+  checkedRowKeys,
+  onBatchDeleted,
+  onDeleted,
+  onMessage,
+  operateType,
+  handleAdd,
+  handleEdit
+} = useTableOperateHook(data, getData);
+
+const isEdit = computed(() => operateType.value === 'edit');
+
+const tableHeaderComponent = computed(() => {
+  const instance = getCurrentInstance();
+  return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
+});
+
 function createDefaultModel(): CodegenTable {
   return {
     tableName: '',
@@ -799,7 +897,7 @@ function formatDateTime(value?: string) {
 }
 
 function getBaseApi() {
-  return '/proxy-default';
+  return (window as any).__TT_PLUGIN_API_BASE__ || '/proxy-default';
 }
 
 function resolveToken() {
@@ -815,7 +913,26 @@ function resolveToken() {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+function withQuery(url: string, params?: Record<string, any>) {
+  if (!params) return url;
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (Array.isArray(value)) {
+      value.forEach(item => {
+        if (item !== undefined && item !== null && item !== '') {
+          search.append(key, String(item));
+        }
+      });
+      return;
+    }
+    search.append(key, String(value));
+  });
+  const query = search.toString();
+  return query ? `${url}${url.includes('?') ? '&' : '?'}${query}` : url;
+}
+
+async function requestFallback<T>(config: PluginRequestConfig): Promise<{ data: T; error: any; response?: any }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
@@ -823,50 +940,49 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) {
     headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   }
-  const response = await fetch(`${getBaseApi()}${path}`, {
-    ...options,
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string> | undefined)
-    }
+  const url = withQuery(`${getBaseApi()}${config.url}`, config.params);
+  const response = await fetch(url, {
+    method: config.method || 'GET',
+    headers,
+    body: config.data ? JSON.stringify(config.data) : undefined
   });
-  const data = await response.json();
-  if (data && typeof data === 'object' && 'code' in data) {
-    if (data.code !== 200) {
-      const message = data.message || t('plugin.codegen.tips.requestFailed');
+  const payload = await response.json();
+  if (payload && typeof payload === 'object' && 'code' in payload) {
+    if (payload.code !== 200) {
+      const message = payload.message || t('plugin.codegen.tips.requestFailed');
       window.$message?.error(message);
-      throw new Error(message);
+      return { data: payload.data as T, error: message, response };
     }
-    return data.data ?? (data as T);
+    return { data: (payload.data ?? payload) as T, error: null, response };
   }
-  return data as T;
+  return { data: payload as T, error: null, response };
 }
 
-function resetSearch() {
-  searchModel.tableName = '';
-  tablePagination.page = 1;
-  loadTablePage();
+async function request<T>(config: PluginRequestConfig): Promise<{ data: T; error: any; response?: any }> {
+  if (pluginApi?.request) {
+    return pluginApi.request<T>(config);
+  }
+  return requestFallback<T>(config);
 }
 
-async function loadTablePage() {
-  tableLoading.value = true;
-  try {
-    const data = await request<any>(
-      `/plugin/codegen/tables/page?page=${tablePagination.page}&pageSize=${tablePagination.pageSize}&tableName=${searchModel.tableName || ''}`
-    );
-    tableData.value = data.records ?? [];
-    tablePagination.itemCount = data.total ?? 0;
-  } finally {
-    tableLoading.value = false;
+async function requestData<T>(config: PluginRequestConfig): Promise<T> {
+  const result = await request<T>(config);
+  if (result.error) {
+    throw new Error(result.error);
   }
+  return result.data;
+}
+
+async function requestParams<T>(path: string, params?: Record<string, any>) {
+  return await request<T>({ url: path, params });
 }
 
 async function loadDataTables() {
-  dataTableOptions.value = await request<DataTableInfo[]>('/plugin/codegen/data-tables');
+  dataTableOptions.value = await requestData<DataTableInfo[]>({ url: '/plugin/codegen/data-tables' });
 }
 
 async function loadDictOptions() {
-  dictOptions.value = await request<DictOption[]>('/plugin/codegen/dict/options');
+  dictOptions.value = await requestData<DictOption[]>({ url: '/plugin/codegen/dict/options' });
 }
 
 function getPrefix(tableName: string) {
@@ -898,7 +1014,7 @@ function handleTableSelect(value: string, option: DataTableInfo) {
 }
 
 function openCreate() {
-  isEdit.value = false;
+  handleAdd();
   step.value = 1;
   Object.assign(formModel, createDefaultModel());
   modalVisible.value = true;
@@ -908,11 +1024,11 @@ function openCreate() {
 }
 
 async function openEdit(row: CodegenTable) {
-  isEdit.value = true;
+  handleEdit(row.id);
   step.value = 1;
   modalVisible.value = true;
   loadDictOptions();
-  const data = await request<CodegenTable>(`/plugin/codegen/tables/${row.id}`);
+  const data = await requestData<CodegenTable>({ url: `/plugin/codegen/tables/${row.id}` });
   Object.assign(formModel, data);
   await loadColumns(row.id!);
 }
@@ -920,7 +1036,9 @@ async function openEdit(row: CodegenTable) {
 async function loadColumns(tableId: number) {
   columnLoading.value = true;
   try {
-    const data = await request<CodegenColumn[] | Record<string, unknown>>(`/plugin/codegen/tables/columns/${tableId}`);
+    const data = await requestData<CodegenColumn[] | Record<string, unknown>>({
+      url: `/plugin/codegen/tables/columns/${tableId}`
+    });
     columnData.value = Array.isArray(data) ? data : [];
   } finally {
     columnLoading.value = false;
@@ -941,10 +1059,7 @@ async function nextStep() {
     }
     saving.value = true;
     try {
-      await request('/plugin/codegen/tables/columns', {
-        method: 'PUT',
-        body: JSON.stringify(columnData.value)
-      });
+      await requestData({ url: '/plugin/codegen/tables/columns', method: 'PUT', data: columnData.value });
       step.value = 3;
     } finally {
       saving.value = false;
@@ -957,15 +1072,12 @@ async function saveBase() {
   saving.value = true;
   try {
     const method = isEdit.value ? 'PUT' : 'POST';
-    const data = await request<CodegenTable>('/plugin/codegen/tables', {
-      method,
-      body: JSON.stringify(formModel)
-    });
+    const data = await requestData<CodegenTable>({ url: '/plugin/codegen/tables', method, data: formModel });
     Object.assign(formModel, data);
     if (!isEdit.value) {
-      isEdit.value = true;
+      operateType.value = 'edit';
     }
-    await loadTablePage();
+    await onMessage();
   } finally {
     saving.value = false;
   }
@@ -974,22 +1086,15 @@ async function saveBase() {
 async function deleteRow(row: CodegenTable) {
   if (!row.id) return;
   if (!confirmAction(t('plugin.codegen.tips.deleteConfirm'))) return;
-  await request('/plugin/codegen/tables', {
-    method: 'DELETE',
-    body: JSON.stringify([row.id])
-  });
-  await loadTablePage();
+  await requestData({ url: '/plugin/codegen/tables', method: 'DELETE', data: [row.id] });
+  await onDeleted();
 }
 
 async function batchDelete() {
   if (checkedRowKeys.value.length === 0) return;
   if (!confirmAction(t('plugin.codegen.tips.batchDeleteConfirm'))) return;
-  await request('/plugin/codegen/tables', {
-    method: 'DELETE',
-    body: JSON.stringify(checkedRowKeys.value)
-  });
-  checkedRowKeys.value = [];
-  await loadTablePage();
+  await requestData({ url: '/plugin/codegen/tables', method: 'DELETE', data: checkedRowKeys.value });
+  await onBatchDeleted();
 }
 
 async function syncColumns() {
@@ -997,9 +1102,9 @@ async function syncColumns() {
   if (!confirmAction(t('plugin.codegen.tips.syncConfirm'))) return;
   columnLoading.value = true;
   try {
-    const data = await request<CodegenColumn[] | Record<string, unknown>>(
-      `/plugin/codegen/tables/columns/sync/${formModel.id}`
-    );
+    const data = await requestData<CodegenColumn[] | Record<string, unknown>>({
+      url: `/plugin/codegen/tables/columns/sync/${formModel.id}`
+    });
     columnData.value = Array.isArray(data) ? data : [];
   } finally {
     columnLoading.value = false;
@@ -1009,7 +1114,7 @@ async function syncColumns() {
 async function cleanColumns() {
   if (!formModel.id) return;
   if (!confirmAction(t('plugin.codegen.tips.cleanConfirm'))) return;
-  await request(`/plugin/codegen/tables/columns/clean/${formModel.id}`, { method: 'PUT' });
+  await requestData({ url: `/plugin/codegen/tables/columns/clean/${formModel.id}`, method: 'PUT' });
   columnData.value = [];
 }
 
@@ -1033,24 +1138,162 @@ function confirmAction(message: string) {
   return window.confirm(message);
 }
 
-onMounted(() => {
-  loadTablePage();
-});
+function createFallbackTableHooks() {
+  function getColumnChecks(cols: any[]) {
+    return cols.map(column => {
+      if (column.type === 'selection') {
+        return { key: '__selection__', title: t('common.check'), checked: true };
+      }
+      if (column.type === 'expand') {
+        return { key: '__expand__', title: t('common.expandColumn'), checked: true };
+      }
+      return {
+        key: column.key,
+        title: column.title,
+        checked: true
+      };
+    });
+  }
+
+  function buildColumns(cols: any[], checks: any[]) {
+    const columnMap = new Map();
+    cols.forEach(column => {
+      if (column.type === 'selection') {
+        columnMap.set('__selection__', column);
+        return;
+      }
+      if (column.type === 'expand') {
+        columnMap.set('__expand__', column);
+        return;
+      }
+      columnMap.set(column.key, column);
+    });
+    return checks.filter((item: any) => item.checked).map((item: any) => columnMap.get(item.key));
+  }
+
+  function useTable(config: any) {
+    const loading = ref(false);
+    const data = ref<any[]>([]);
+    const searchParams = reactive({ ...(config.apiParams || {}) });
+    const rawColumns = computed(() => config.columns());
+    const columnChecks = ref<any[]>([]);
+
+    const columns = computed(() => {
+      const cols = rawColumns.value || [];
+      if (columnChecks.value.length === 0) {
+        columnChecks.value = getColumnChecks(cols);
+      }
+      return buildColumns(cols, columnChecks.value);
+    });
+
+    const pagination = reactive({
+      page: searchParams.page ?? 1,
+      pageSize: searchParams.pageSize ?? 20,
+      itemCount: 0,
+      onChange: (page: number) => {
+        pagination.page = page;
+        searchParams.page = page;
+        getData();
+      },
+      onUpdatePageSize: (pageSize: number) => {
+        pagination.pageSize = pageSize;
+        pagination.page = 1;
+        searchParams.page = 1;
+        searchParams.pageSize = pageSize;
+        getData();
+      }
+    });
+
+    async function getData() {
+      loading.value = true;
+      try {
+        const response = await config.apiFn({ ...searchParams });
+        const transformed = config.transformer(response);
+        data.value = transformed.data || [];
+        pagination.page = transformed.pageNum;
+        pagination.pageSize = transformed.pageSize;
+        pagination.itemCount = transformed.total;
+      } finally {
+        loading.value = false;
+      }
+    }
+
+    async function getDataByPage(pageNum = 1) {
+      pagination.page = pageNum;
+      searchParams.page = pageNum;
+      searchParams.pageSize = pagination.pageSize;
+      await getData();
+    }
+
+    function resetSearchParams() {
+      Object.assign(searchParams, { ...(config.apiParams || {}) });
+      getData();
+    }
+
+    if (config.immediate !== false) {
+      getData();
+    }
+
+    return {
+      loading,
+      data,
+      columns,
+      columnChecks,
+      pagination,
+      getData,
+      getDataByPage,
+      searchParams,
+      resetSearchParams
+    };
+  }
+
+  function useTableOperate(data: any, getData: () => Promise<void>) {
+    const checkedRowKeys = ref<any[]>([]);
+    const operateType = ref('add');
+
+    function handleAdd() {
+      operateType.value = 'add';
+    }
+
+    function handleEdit(_id: any) {
+      operateType.value = 'edit';
+    }
+
+    async function onBatchDeleted() {
+      window.$message?.success(t('common.deleteSuccess'));
+      checkedRowKeys.value = [];
+      await getData();
+    }
+
+    async function onDeleted() {
+      window.$message?.success(t('common.deleteSuccess'));
+      await getData();
+    }
+
+    async function onMessage(message?: string) {
+      window.$message?.success(message || t('common.actionSuccess'));
+      checkedRowKeys.value = [];
+      await getData();
+    }
+
+    return {
+      checkedRowKeys,
+      operateType,
+      handleAdd,
+      handleEdit,
+      onBatchDeleted,
+      onDeleted,
+      onMessage
+    };
+  }
+
+  return { useTable, useTableOperate };
+}
 </script>
 
 <style scoped>
-.plugin-codegen {
-  padding: 12px;
-}
-
 .toolbar {
   margin: 12px 0;
 }
 
-.modal-card {
-  width: 90vw;
-  max-width: 1200px;
-  height: 80vh;
-  overflow: hidden;
-}
 </style>

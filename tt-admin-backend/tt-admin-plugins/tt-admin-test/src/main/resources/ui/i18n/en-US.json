@@ -1,0 +1,23 @@
+{
+  "plugin": {
+    "test": {
+      "title": "test",
+      "name": "姓名",
+      "sex": "性别",
+      "age": "年龄",
+      "id": "id"
+    }
+  },
+  "common": {
+    "search": "Search",
+    "reset": "Reset",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "action": "Action",
+    "saveSuccess": "Saved",
+    "deleteConfirm": "Confirm delete?"
+  }
+}

@@ -1,7 +1,6 @@
 ﻿<template>
-  <div class="plugin-backup">
-    <n-space vertical size="large">
-      <n-card :title="t('plugin.backup.config')" size="small" bordered>
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+      <n-card :title="t('plugin.backup.config')" size="small" :bordered="false" class="card-wrapper">
         <n-form label-placement="left" label-width="120" :model="config" size="small">
           <n-grid cols="2" x-gap="16" y-gap="8" responsive="screen">
             <n-form-item-gi :label="t('plugin.backup.enabled')">
@@ -45,23 +44,53 @@
         </n-space>
       </n-card>
 
-      <n-card :title="t('plugin.backup.records')" size="small" bordered>
+      <n-card :title="t('plugin.backup.records')" size="small" :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
+        <component
+          :is="tableHeaderComponent"
+          v-if="tableHeaderComponent"
+          v-model:columns="columnChecks"
+          :loading="loading"
+          :disabled-add="true"
+          :disabled-delete="true"
+          @refresh="getData"
+        />
         <n-data-table
+          remote
+          size="small"
+          class="sm:h-full"
           :columns="columns"
-          :data="records"
-          :loading="recordsLoading"
+          :data="data"
+          :loading="loading"
           :pagination="pagination"
           :row-key="row => row.id"
+          :single-line="false"
+          :flex-height="!isMobile"
         />
       </n-card>
-    </n-space>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue';
+import { computed, getCurrentInstance, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { NButton, NCard, NDataTable, NForm, NFormItemGi, NGrid, NInput, NInputNumber, NSelect, NSpace, NSwitch, NTag } from 'naive-ui';
+
+type PluginRequestConfig = {
+  url: string;
+  method?: string;
+  params?: Record<string, any>;
+  data?: any;
+};
+
+type PluginApi = {
+  request?: <T>(config: PluginRequestConfig) => Promise<{ data: T; error: any; response?: any }>;
+  useTable?: any;
+  components?: {
+    TableHeaderOperation?: any;
+  };
+};
+
+const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
 
 interface BackupConfig {
   id?: number;
@@ -88,6 +117,39 @@ interface BackupRecord {
 }
 
 const { t } = useI18n();
+const isMobile = ref(false);
+let mobileQuery: MediaQueryList | null = null;
+
+function updateMobile() {
+  if (mobileQuery) {
+    isMobile.value = mobileQuery.matches;
+    return;
+  }
+  if (typeof window !== 'undefined') {
+    isMobile.value = window.innerWidth <= 640;
+  }
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined') return;
+  mobileQuery = window.matchMedia('(max-width: 640px)');
+  updateMobile();
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', updateMobile);
+  } else if (mobileQuery.addListener) {
+    mobileQuery.addListener(updateMobile);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (!mobileQuery) return;
+  if (mobileQuery.removeEventListener) {
+    mobileQuery.removeEventListener('change', updateMobile);
+  } else if (mobileQuery.removeListener) {
+    mobileQuery.removeListener(updateMobile);
+  }
+  mobileQuery = null;
+});
 
 const config = reactive<BackupConfig>({
   dbType: 'auto',
@@ -110,27 +172,10 @@ const backupTypeOptions = [
   { label: 'Custom Command', value: 'custom' }
 ];
 
-const records = ref<BackupRecord[]>([]);
-const recordsLoading = ref(false);
 const saving = ref(false);
 const running = ref(false);
 
-const pagination = reactive({
-  page: 1,
-  pageSize: 10,
-  itemCount: 0,
-  onChange: (page: number) => {
-    pagination.page = page;
-    loadRecords();
-  },
-  onUpdatePageSize: (pageSize: number) => {
-    pagination.pageSize = pageSize;
-    pagination.page = 1;
-    loadRecords();
-  }
-});
-
-const columns = computed(() => [
+const createColumns = () => [
   { title: t('plugin.backup.fileName'), key: 'fileName', ellipsis: { tooltip: true } },
   {
     title: t('plugin.backup.status'),
@@ -144,11 +189,15 @@ const columns = computed(() => [
   { title: t('plugin.backup.startTime'), key: 'startTime' },
   { title: t('plugin.backup.endTime'), key: 'endTime' },
   { title: t('plugin.backup.message'), key: 'message', ellipsis: { tooltip: true } }
-]);
+];
+
+const baseSearchParams = {
+  page: 1,
+  pageSize: 10
+};
 
 function getBaseApi() {
-
-  return  '/proxy-default' ;
+  return (window as any).__TT_PLUGIN_API_BASE__ || '/proxy-default';
 }
 
 function resolveToken() {
@@ -164,7 +213,26 @@ function resolveToken() {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+function withQuery(url: string, params?: Record<string, any>) {
+  if (!params) return url;
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (Array.isArray(value)) {
+      value.forEach(item => {
+        if (item !== undefined && item !== null && item !== '') {
+          search.append(key, String(item));
+        }
+      });
+      return;
+    }
+    search.append(key, String(value));
+  });
+  const query = search.toString();
+  return query ? `${url}${url.includes('?') ? '&' : '?'}${query}` : url;
+}
+
+async function requestFallback<T>(config: PluginRequestConfig): Promise<{ data: T; error: any; response?: any }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
@@ -173,29 +241,56 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   }
 
-  const response = await fetch(`${getBaseApi()}${path}`, {
-    ...options,
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string> | undefined)
-    }
+  const url = withQuery(`${getBaseApi()}${config.url}`, config.params);
+  const response = await fetch(url, {
+    method: config.method || 'GET',
+    headers,
+    body: config.data ? JSON.stringify(config.data) : undefined
   });
-  const data = await response.json();
-  return data.data ?? data;
+  const payload = await response.json();
+  if (payload && typeof payload === 'object' && 'code' in payload) {
+    if (payload.code !== 200) {
+      const message = payload.message || t('common.error');
+      window.$message?.error(message);
+      return { data: payload.data as T, error: message, response };
+    }
+    return { data: (payload.data ?? payload) as T, error: null, response };
+  }
+  return { data: payload as T, error: null, response };
+}
+
+async function request<T>(config: PluginRequestConfig): Promise<{ data: T; error: any; response?: any }> {
+  if (pluginApi?.request) {
+    return pluginApi.request<T>(config);
+  }
+  return requestFallback<T>(config);
+}
+
+async function requestData<T>(config: PluginRequestConfig): Promise<T> {
+  const result = await request<T>(config);
+  if (result.error) {
+    throw new Error(result.error);
+  }
+  return result.data;
+}
+
+async function fetchRecords(params: Record<string, any>) {
+  return await request<{ records: BackupRecord[]; total: number; page?: number; pageSize?: number }>({
+    url: '/plugin/backup/records/page',
+    method: 'POST',
+    data: params
+  });
 }
 
 async function loadConfig() {
-  const data = await request<BackupConfig>('/plugin/backup/config');
+  const data = await requestData<BackupConfig>({ url: '/plugin/backup/config' });
   Object.assign(config, data);
 }
 
 async function saveConfig(silent = false) {
   saving.value = true;
   try {
-    const data = await request<BackupConfig>('/plugin/backup/config', {
-      method: 'PUT',
-      body: JSON.stringify(config)
-    });
+    const data = await requestData<BackupConfig>({ url: '/plugin/backup/config', method: 'PUT', data: config });
     Object.assign(config, data);
     if (!silent) {
       window.$message?.success(t('common.saveSuccess'));
@@ -209,31 +304,38 @@ async function runBackup() {
   running.value = true;
   try {
     await saveConfig(true);
-    await request('/plugin/backup/run', { method: 'POST' });
+    await requestData({ url: '/plugin/backup/run', method: 'POST' });
     window.$message?.success(t('plugin.backup.run'));
-    await loadRecords();
+    await getData();
     await loadConfig();
   } finally {
     running.value = false;
   }
 }
 
-async function loadRecords() {
-  recordsLoading.value = true;
-  try {
-    const data = await request<{ records: BackupRecord[]; total: number }>(
-      '/plugin/backup/records/page',
-      {
-        method: 'POST',
-        body: JSON.stringify({ page: pagination.page, pageSize: pagination.pageSize })
-      }
-    );
-    records.value = data.records || [];
-    pagination.itemCount = data.total || 0;
-  } finally {
-    recordsLoading.value = false;
+const fallbackHooks = createFallbackTableHooks();
+const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
+
+const { loading, data, columns, columnChecks, pagination, getData, getDataByPage } = useTableHook({
+  apiFn: fetchRecords,
+  apiParams: baseSearchParams,
+  columns: createColumns,
+  transformer: res => {
+    const payload = res?.data || {};
+    const { records = [], page = 1, pageSize = 10, total = 0 } = payload;
+    return {
+      data: records,
+      pageNum: page,
+      pageSize,
+      total
+    };
   }
-}
+});
+
+const tableHeaderComponent = computed(() => {
+  const instance = getCurrentInstance();
+  return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
+});
 
 function formatBytes(size?: number) {
   if (!size) return '0 B';
@@ -251,9 +353,114 @@ function formatDateTime(value?: string) {
   return value || '--';
 }
 
+function createFallbackTableHooks() {
+  function getColumnChecks(cols: any[]) {
+    return cols.map(column => {
+      if (column.type === 'selection') {
+        return { key: '__selection__', title: t('common.check'), checked: true };
+      }
+      if (column.type === 'expand') {
+        return { key: '__expand__', title: t('common.expandColumn'), checked: true };
+      }
+      return {
+        key: column.key,
+        title: column.title,
+        checked: true
+      };
+    });
+  }
+
+  function buildColumns(cols: any[], checks: any[]) {
+    const columnMap = new Map();
+    cols.forEach(column => {
+      if (column.type === 'selection') {
+        columnMap.set('__selection__', column);
+        return;
+      }
+      if (column.type === 'expand') {
+        columnMap.set('__expand__', column);
+        return;
+      }
+      columnMap.set(column.key, column);
+    });
+    return checks.filter((item: any) => item.checked).map((item: any) => columnMap.get(item.key));
+  }
+
+  function useTable(config: any) {
+    const loading = ref(false);
+    const data = ref<any[]>([]);
+    const searchParams = reactive({ ...(config.apiParams || {}) });
+    const rawColumns = computed(() => config.columns());
+    const columnChecks = ref<any[]>([]);
+
+    const columns = computed(() => {
+      const cols = rawColumns.value || [];
+      if (columnChecks.value.length === 0) {
+        columnChecks.value = getColumnChecks(cols);
+      }
+      return buildColumns(cols, columnChecks.value);
+    });
+
+    const pagination = reactive({
+      page: searchParams.page ?? 1,
+      pageSize: searchParams.pageSize ?? 10,
+      itemCount: 0,
+      onChange: (page: number) => {
+        pagination.page = page;
+        searchParams.page = page;
+        getData();
+      },
+      onUpdatePageSize: (pageSize: number) => {
+        pagination.pageSize = pageSize;
+        pagination.page = 1;
+        searchParams.page = 1;
+        searchParams.pageSize = pageSize;
+        getData();
+      }
+    });
+
+    async function getData() {
+      loading.value = true;
+      try {
+        const response = await config.apiFn({ ...searchParams });
+        const transformed = config.transformer(response);
+        data.value = transformed.data || [];
+        pagination.page = transformed.pageNum;
+        pagination.pageSize = transformed.pageSize;
+        pagination.itemCount = transformed.total;
+      } finally {
+        loading.value = false;
+      }
+    }
+
+    async function getDataByPage(pageNum = 1) {
+      pagination.page = pageNum;
+      searchParams.page = pageNum;
+      searchParams.pageSize = pagination.pageSize;
+      await getData();
+    }
+
+    if (config.immediate !== false) {
+      getData();
+    }
+
+    return {
+      loading,
+      data,
+      columns,
+      columnChecks,
+      pagination,
+      getData,
+      getDataByPage
+    };
+  }
+
+  return { useTable };
+}
+
 onMounted(async () => {
   await loadConfig();
-  await loadRecords();
+  await getDataByPage(1);
 });
 </script>
 

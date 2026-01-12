@@ -14,6 +14,7 @@ import { createStaticRoutes, getAuthVueRoutes } from '@/router/routes';
 import { ROOT_ROUTE } from '@/router/routes/builtin';
 import { getRouteName, getRoutePath } from '@/router/elegant/transform';
 import { useAuthStore } from '../auth';
+import { useDictStore } from '../dict';
 import { useTabStore } from '../tab';
 import {
   filterAuthRoutesByRoles,
@@ -85,6 +86,11 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   const removeRouteFns: (() => void)[] = [];
   const pluginRouteRemoveFns: (() => void)[] = [];
   const pluginLocaleLoaded = new Map<string, Set<string>>();
+  let pluginRouteRetryCount = 0;
+  let pluginRouteRetryTimer: number | null = null;
+  let pluginStatusWs: WebSocket | null = null;
+  let pluginStatusReconnectTimer: number | null = null;
+  let pluginStatusInited = false;
   const pluginLayoutComponents = {
     base: BaseLayout,
     blank: BlankLayout
@@ -158,6 +164,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
 
     routeStore.$reset();
 
+    stopPluginStatusWatcher();
     resetVueRoutes();
     resetPluginRoutes();
     baseMenus.value = [];
@@ -182,6 +189,71 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     cacheRoutes.value = cacheRoutes.value.filter(name => !String(name).startsWith('plugin-')) as RouteKey[];
     pluginLocaleLoaded.clear();
     syncMenus();
+  }
+
+  function buildPluginStatusWsUrl() {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const proxyPrefix = import.meta.env.DEV ? '/proxy-default' : '';
+    return `${protocol}://${window.location.host}${proxyPrefix}/ws/plugin/status`;
+  }
+
+  function initPluginStatusWatcher() {
+    if (pluginStatusInited) return;
+    pluginStatusInited = true;
+    connectPluginStatusWs();
+  }
+
+  function connectPluginStatusWs() {
+    if (pluginStatusWs) {
+      pluginStatusWs.close();
+    }
+    const ws = new WebSocket(buildPluginStatusWsUrl());
+    pluginStatusWs = ws;
+    ws.onopen = async () => {
+      if (!authStore.userInfo.userId) {
+        return;
+      }
+      const dictStore = useDictStore();
+      await dictStore.init(true);
+      await refreshPluginRoutes();
+    };
+    ws.onmessage = async event => {
+      try {
+        const payload = JSON.parse(event.data);
+        const status = String(payload?.status || '').toUpperCase();
+        const action = String(payload?.action || '').toUpperCase();
+        if (action === 'SYSTEM_READY' && status === 'SUCCESS') {
+          const dictStore = useDictStore();
+          await dictStore.init(true);
+          await refreshPluginRoutes();
+          return;
+        }
+        if (status === 'SUCCESS') {
+          await refreshPluginRoutes();
+        }
+      } catch (error) {
+        console.error('[plugin] websocket message parse failed:', error);
+      }
+    };
+    ws.onclose = () => {
+      if (pluginStatusReconnectTimer) window.clearTimeout(pluginStatusReconnectTimer);
+      pluginStatusReconnectTimer = window.setTimeout(connectPluginStatusWs, 2000);
+    };
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
+
+  function stopPluginStatusWatcher() {
+    if (pluginStatusReconnectTimer) {
+      window.clearTimeout(pluginStatusReconnectTimer);
+      pluginStatusReconnectTimer = null;
+    }
+    if (pluginStatusWs) {
+      pluginStatusWs.close();
+      pluginStatusWs = null;
+    }
+    pluginStatusInited = false;
   }
 
   /** init constant route */
@@ -216,6 +288,9 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     if (!authStore.userInfo.userId) {
       await authStore.initUserInfo();
     }
+    if (!authStore.userInfo.userId) {
+      return;
+    }
 
     if (authRouteMode.value === 'static') {
       initStaticAuthRoute();
@@ -224,6 +299,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     }
 
     await initPluginRoutes();
+    initPluginStatusWatcher();
 
     tabStore.initHomeTab();
   }
@@ -234,11 +310,41 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
 
     const { data, error } = await fetchPluginFrontendModules();
 
-    if (!error) {
-      await applyPluginModules(data ?? []);
+    if (error) {
+      setIsInitPluginRoute(false);
+      schedulePluginRouteRetry();
+      return;
     }
 
+    const modules = data ?? [];
+    if (!modules.length && pluginRouteRetryCount < 5) {
+      setIsInitPluginRoute(false);
+      schedulePluginRouteRetry();
+      return;
+    }
+
+    await applyPluginModules(modules);
     setIsInitPluginRoute(true);
+    resetPluginRouteRetry();
+  }
+
+  function schedulePluginRouteRetry() {
+    if (pluginRouteRetryCount >= 5 || pluginRouteRetryTimer !== null) {
+      return;
+    }
+    pluginRouteRetryCount += 1;
+    pluginRouteRetryTimer = window.setTimeout(async () => {
+      pluginRouteRetryTimer = null;
+      await initPluginRoutes(true);
+    }, 1500);
+  }
+
+  function resetPluginRouteRetry() {
+    pluginRouteRetryCount = 0;
+    if (pluginRouteRetryTimer !== null) {
+      window.clearTimeout(pluginRouteRetryTimer);
+      pluginRouteRetryTimer = null;
+    }
   }
 
   /** Force refresh plugin routes and menus */
@@ -399,6 +505,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         const moduleInfo = {
           moduleName: module.moduleName,
           pluginId: module.pluginId,
+          pluginVersion: module.pluginVersion,
           pluginIsDev: module.pluginIsDev,
           frontDevAddress: module.frontDevAddress
         };
@@ -580,6 +687,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   async function registerPluginLocales(
     moduleInfo: {
       pluginId?: string;
+      pluginVersion?: string;
       pluginIsDev?: boolean;
       frontDevAddress?: string;
     },
@@ -631,7 +739,9 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       return `${base}/plugin/${moduleInfo.pluginId}/${sanitizedPath}`;
     }
 
-    return `/api/plugin-static/${moduleInfo.pluginId}/${sanitizedPath}`;
+    const version = moduleInfo.pluginVersion ? encodeURIComponent(moduleInfo.pluginVersion) : '';
+    const suffix = version ? `?v=${version}` : '';
+    return `/api/plugin-static/${moduleInfo.pluginId}/${sanitizedPath}${suffix}`;
   }
 
   return {

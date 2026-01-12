@@ -16,6 +16,7 @@ public class PluginStatusMessage {
     private Integer progress;
     private Long startedAt;
     private Long elapsedMs;
+    private Long stageElapsedMs;
     private LocalDateTime occurredOn;
 
     public static PluginStatusMessage from(PluginLifecycleEvent event) {
@@ -28,6 +29,7 @@ public class PluginStatusMessage {
         message.setProgress(event.getProgress());
         message.setStartedAt(event.getStartedAt());
         message.setElapsedMs(event.getElapsedMs());
+        message.setStageElapsedMs(event.getStageElapsedMs());
         message.setOccurredOn(event.getOccurredOn());
         return message;
     }

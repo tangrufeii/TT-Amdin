@@ -388,7 +388,14 @@ const local: App.I18n.Schema = {
         enableConfirm: 'Enabling the plugin will load its functions. Confirm to enable?',
         selectFile: 'Please select plugin file',
         fileFormat: 'Only .jar format plugin files are supported',
-        elapsed: 'Elapsed {seconds}s'
+        elapsed: 'Elapsed {seconds}s',
+        stageElapsed: 'Stage elapsed {seconds}s'
+      },
+      action: {
+        install: 'Install',
+        enable: 'Enable',
+        disable: 'Disable',
+        uninstall: 'Uninstall'
       },
       stage: {
         start: 'Start',
@@ -407,6 +414,10 @@ const local: App.I18n.Schema = {
         execute_sql: 'Execute SQL',
         lifecycle: 'Lifecycle',
         registry: 'Register components',
+        registry_class: 'Register classes',
+        registry_mapper: 'Register mappers',
+        registry_controller: 'Register controllers',
+        registry_websocket: 'Register web sockets',
         lifecycle_start: 'Start lifecycle',
         lifecycle_stop: 'Stop lifecycle',
         unregistry: 'Unregister components',
@@ -414,6 +425,8 @@ const local: App.I18n.Schema = {
         remove_context: 'Remove context',
         close_classloader: 'Close classloader',
         cleanup: 'Cleanup',
+        defer_context: 'Defer context initialization',
+        lifecycle_install: 'Install lifecycle',
         uninstall: 'Uninstall',
         stop: 'Stop',
         complete: 'Complete'

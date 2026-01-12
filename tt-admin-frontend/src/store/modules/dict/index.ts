@@ -30,6 +30,11 @@ export const useDictStore = defineStore(SetupStoreId.Dict, () => {
     }
   }
 
+  function reset() {
+    dictItemMap.value = new Map<string, Api.SystemManage.DictOptions[]>();
+    initialized.value = false;
+  }
+
   function options(code: string) {
     return dictItemMap.value.get(code) || [];
   }
@@ -44,6 +49,7 @@ export const useDictStore = defineStore(SetupStoreId.Dict, () => {
 
   return {
     init,
+    reset,
     options,
     map,
     type

@@ -385,7 +385,14 @@ const local: App.I18n.Schema = {
         enableConfirm: '启用插件会加载其功能，确认启用吗？',
         selectFile: '请选择插件文件',
         fileFormat: '仅支持 .jar 格式的插件文件',
-        elapsed: '已耗时 {seconds}s'
+        elapsed: '已耗时 {seconds}s',
+        stageElapsed: '阶段耗时 {seconds}s'
+      },
+      action: {
+        install: '安装',
+        enable: '启用',
+        disable: '禁用',
+        uninstall: '卸载'
       },
       stage: {
         start: '开始',
@@ -404,6 +411,10 @@ const local: App.I18n.Schema = {
         execute_sql: '执行脚本',
         lifecycle: '执行生命周期',
         registry: '注册组件',
+        registry_class: '注册类',
+        registry_mapper: '注册 Mapper',
+        registry_controller: '注册 Controller',
+        registry_websocket: '注册 WebSocket',
         lifecycle_start: '启动回调',
         lifecycle_stop: '停止回调',
         unregistry: '注销组件',
@@ -411,6 +422,8 @@ const local: App.I18n.Schema = {
         remove_context: '移除容器',
         close_classloader: '关闭类加载器',
         cleanup: '清理资源',
+        defer_context: '延迟容器初始化',
+        lifecycle_install: '安装回调',
         uninstall: '卸载',
         stop: '停止',
         complete: '完成'

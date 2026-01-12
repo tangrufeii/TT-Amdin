@@ -10,9 +10,14 @@ import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolde
 import com.tt.infrastructure.plugin.engine.holder.PluginHolder;
 import com.tt.infrastructure.plugin.engine.loader.PluginClassLoader;
 import com.tt.infrastructure.plugin.engine.scanner.PluginClassScanner;
+import com.tt.infrastructure.plugin.engine.registry.ClassRegistry;
+import com.tt.infrastructure.plugin.engine.registry.ControllerRegistry;
+import com.tt.infrastructure.plugin.engine.registry.MapperRegistry;
+import com.tt.infrastructure.plugin.engine.registry.WebSocketRegistry;
 import com.tt.plugin.core.BasePluginLifecycle;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -64,6 +69,10 @@ public class PluginHandler implements ApplicationContextAware {
      */
     private final Map<String, BasePluginRegistryHandler> registryHandlers;
 
+    // Controls whether class scan progress includes class names.
+    @Value("${tt.plugin.progress.scan-detail:false}")
+    private boolean scanDetailEnabled;
+
     /**
      * 构造插件处理器
      *
@@ -105,7 +114,13 @@ public class PluginHandler implements ApplicationContextAware {
 
         // 扫描插件类
         reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "scan_classes", 75, "Scanning plugin classes");
-        List<Class<?>> classList = PluginClassScanner.scanClasses(pluginDir, pluginClassLoader);
+        List<Class<?>> classList = PluginClassScanner.scanClasses(
+                pluginDir,
+                pluginClassLoader,
+                config.getPlugin().getId(),
+                ACTION_INSTALL,
+                scanDetailEnabled
+        );
 
         // 构建插件运行时对象
         Plugin plugin = Plugin.builder()
@@ -168,15 +183,18 @@ public class PluginHandler implements ApplicationContextAware {
         PluginApplicationContextHolder.clearRefreshed(pluginId);
 
         // 执行插件组件注册
-        reportProgress(ACTION_ENABLE, pluginId, "registry", 10, "Registering plugin components");
         int registryTotal = registryHandlers.size();
         int registryIndex = 0;
         for (Map.Entry<String, BasePluginRegistryHandler> entry : registryHandlers.entrySet()) {
             try {
+                int startProgress = 10 + (int) Math.round((double) registryIndex / Math.max(registryTotal, 1) * 70);
+                String stage = resolveRegistryStage(entry.getValue());
+                String message = resolveRegistryMessage(entry.getValue());
+                reportProgress(ACTION_ENABLE, pluginId, stage, startProgress, message);
                 entry.getValue().registry(plugin);
                 registryIndex++;
                 int progress = 10 + (int) Math.round((double) registryIndex / Math.max(registryTotal, 1) * 70);
-                reportProgress(ACTION_ENABLE, pluginId, "registry", progress, "Registering plugin components");
+                reportProgress(ACTION_ENABLE, pluginId, stage, progress, message);
                 log.trace("Executed registry handler: {}", entry.getKey());
             } catch (Exception e) {
                 log.error("Failed to execute registry handler: {}", entry.getKey(), e);
@@ -326,6 +344,38 @@ public class PluginHandler implements ApplicationContextAware {
      */
     public Map<String, BasePluginRegistryHandler> getAllHandler() {
         return registryHandlers;
+    }
+
+    private String resolveRegistryStage(BasePluginRegistryHandler handler) {
+        if (handler instanceof ClassRegistry) {
+            return "registry_class";
+        }
+        if (handler instanceof MapperRegistry) {
+            return "registry_mapper";
+        }
+        if (handler instanceof ControllerRegistry) {
+            return "registry_controller";
+        }
+        if (handler instanceof WebSocketRegistry) {
+            return "registry_websocket";
+        }
+        return "registry";
+    }
+
+    private String resolveRegistryMessage(BasePluginRegistryHandler handler) {
+        if (handler instanceof ClassRegistry) {
+            return "Registering plugin classes";
+        }
+        if (handler instanceof MapperRegistry) {
+            return "Registering plugin mappers";
+        }
+        if (handler instanceof ControllerRegistry) {
+            return "Registering plugin controllers";
+        }
+        if (handler instanceof WebSocketRegistry) {
+            return "Registering plugin web sockets";
+        }
+        return "Registering plugin components";
     }
 
     private void reportProgress(String action, String pluginId, String stage, int progress, String message) {

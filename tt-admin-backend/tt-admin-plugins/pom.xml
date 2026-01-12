@@ -16,6 +16,8 @@
         <module>tt-admin-backup</module>
         <module>tt-admin-monitor</module>
         <module>tt-admin-codegen</module>
+        <module>tt-admin-ai-chat</module>
+        <module>tt-admin-test</module>
     </modules>
     <dependencies>
         <!-- Knife4j -->
@@ -36,12 +38,10 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
-
     </dependencies>
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
-
 </project>
