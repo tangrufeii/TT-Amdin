@@ -104,6 +104,7 @@ import {
   NSpace
 } from 'naive-ui';
 import type { FormRules } from 'naive-ui';
+import { request, requestData } from '@tt/plugin-sdk';
 const { t } = useI18n();
 const isMobile = ref(false);
 let mobileQuery: MediaQueryList | null = null;
@@ -138,14 +139,7 @@ onBeforeUnmount(() => {
   }
   mobileQuery = null;
 });
-type PluginRequestConfig = {
-  url: string;
-  method?: string;
-  params?: Record<string, any>;
-  data?: any;
-};
 type PluginApi = {
-  request?: <T>(config: PluginRequestConfig) => Promise<{ data: T; error: any; response?: any }>;
   useTable?: any;
   useTableOperate?: any;
   components?: {
@@ -221,77 +215,6 @@ const tableHeaderComponent = computed(() => {
   const instance = getCurrentInstance();
   return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
 });
-function getBaseApi() {
-  return (window as any).__TT_PLUGIN_API_BASE__ || '/proxy-default';
-}
-function resolveToken() {
-  const keys = Object.keys(localStorage);
-  const tokenKey = keys.find(key => /token$/i.test(key) && !/refresh/i.test(key));
-  if (!tokenKey) return null;
-  const raw = localStorage.getItem(tokenKey);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-function withQuery(url: string, params?: Record<string, any>) {
-  if (!params) return url;
-  const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return;
-    if (Array.isArray(value)) {
-      value.forEach(item => {
-        if (item !== undefined && item !== null && item !== '') {
-          search.append(key, String(item));
-        }
-      });
-      return;
-    }
-    search.append(key, String(value));
-  });
-  const query = search.toString();
-  return query ? ${url} : url;
-}
-async function requestFallback<T>(config: PluginRequestConfig): Promise<{ data: T; error: any; response?: any }> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  };
-  const token = resolveToken();
-  if (token) {
-    headers.Authorization = token.startsWith('Bearer ') ? token : Bearer ;
-  }
-  const url = withQuery(${getBaseApi()}, config.params);
-  const response = await fetch(url, {
-    method: config.method || 'GET',
-    headers,
-    body: config.data ? JSON.stringify(config.data) : undefined
-  });
-  const payload = await response.json();
-  if (payload && typeof payload === 'object' && 'code' in payload) {
-    if (payload.code !== 200) {
-      const message = payload.message || t('common.error');
-      window..error(message);
-      return { data: payload.data as T, error: message, response };
-    }
-    return { data: (payload.data ?? payload) as T, error: null, response };
-  }
-  return { data: payload as T, error: null, response };
-}
-async function request<T>(config: PluginRequestConfig): Promise<{ data: T; error: any; response?: any }> {
-  if (pluginApi?.request) {
-    return pluginApi.request<T>(config);
-  }
-  return requestFallback<T>(config);
-}
-async function requestData<T>(config: PluginRequestConfig): Promise<T> {
-  const result = await request<T>(config);
-  if (result.error) {
-    throw new Error(result.error);
-  }
-  return result.data;
-}
 async function fetchPage(params: Record<string, any>) {
   return await request({ url: '/plugin/test/page', method: 'POST', data: params });
 }
@@ -447,16 +370,16 @@ function createFallbackTableHooks() {
       openDrawer();
     }
     async function onBatchDeleted() {
-      window..success(t('common.deleteSuccess'));
+      window.$message?.success(t('common.deleteSuccess'));
       checkedRowKeys.value = [];
       await getData();
     }
     async function onDeleted() {
-      window..success(t('common.deleteSuccess'));
+      window.$message?.success(t('common.deleteSuccess'));
       await getData();
     }
     async function onMessage(message?: string) {
-      window..success(message || t('common.actionSuccess'));
+      window.$message?.success(message || t('common.actionSuccess'));
       checkedRowKeys.value = [];
       await getData();
     }

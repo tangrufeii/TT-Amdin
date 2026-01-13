@@ -104,6 +104,7 @@ import {
   NSwitch,
   NTag
 } from 'naive-ui';
+import { requestData } from '@tt/plugin-sdk';
 
 interface MonitorConfig {
   id?: number;
@@ -164,58 +165,18 @@ const diskColumns = computed(() => [
   { title: 'Total', key: 'total', render: (row: DiskUsage) => formatBytes(row.total) }
 ]);
 
-function getBaseApi() {
-  const globalWindow = window as unknown as { __TT_PLUGIN_API_BASE__?: string };
-  if (typeof window !== 'undefined' && globalWindow.__TT_PLUGIN_API_BASE__ != null) {
-    return globalWindow.__TT_PLUGIN_API_BASE__ || '';
-  }
-  return import.meta.env.DEV ? '/proxy-default' : '';
-}
-
-function resolveToken() {
-  const keys = Object.keys(localStorage);
-  const tokenKey = keys.find(key => /token$/i.test(key) && !/refresh/i.test(key));
-  if (!tokenKey) return null;
-  const raw = localStorage.getItem(tokenKey);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  };
-  const token = resolveToken();
-  if (token) {
-    headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${getBaseApi()}${path}`, {
-    ...options,
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string> | undefined)
-    }
-  });
-  const data = await response.json();
-  return data.data ?? data;
-}
-
 async function loadConfig() {
-  const data = await request<MonitorConfig>('/plugin/monitor/config');
+  const data = await requestData<MonitorConfig>({ url: '/plugin/monitor/config' });
   Object.assign(config, data);
 }
 
 async function saveConfig() {
   saving.value = true;
   try {
-    const data = await request<MonitorConfig>('/plugin/monitor/config', {
+    const data = await requestData<MonitorConfig>({
+      url: '/plugin/monitor/config',
       method: 'PUT',
-      body: JSON.stringify(config)
+      data: config
     });
     Object.assign(config, data);
     window.$message?.success(t('common.saveSuccess'));
@@ -227,7 +188,7 @@ async function saveConfig() {
 async function fetchMetrics() {
   metricsLoading.value = true;
   try {
-    const data = await request<MonitorMetrics>('/plugin/monitor/metrics');
+    const data = await requestData<MonitorMetrics>({ url: '/plugin/monitor/metrics' });
     Object.assign(metrics, data);
     lastUpdate.value = new Date(metrics.timestamp || Date.now()).toLocaleString();
   } finally {

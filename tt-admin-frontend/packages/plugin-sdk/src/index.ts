@@ -1,4 +1,5 @@
 import type { Component } from 'vue';
+import { BACKEND_ERROR_CODE, createAlovaRequest } from '@sa/alova';
 
 export interface PluginModuleHooks {
   onLoad?: () => void | Promise<void>;
@@ -37,4 +38,196 @@ export function postHostMessage<T = unknown>(message: HostMessage<T>) {
   if (window.top && window.top !== parentWindow) {
     window.top.postMessage(message, '*');
   }
+}
+
+export type PluginRequestConfig = {
+  url: string;
+  method?: string;
+  params?: Record<string, any>;
+  data?: any;
+  headers?: Record<string, any>;
+  credentials?: RequestCredentials;
+};
+
+export type PluginRequestResult<T> = { data: T; error: any; response?: Response };
+
+export type PluginApi = {
+  request?: <T>(config: PluginRequestConfig) => Promise<PluginRequestResult<T>>;
+};
+
+type PluginWindow = typeof window & {
+  __TT_PLUGIN_API__?: PluginApi;
+  __TT_PLUGIN_API_BASE__?: string;
+};
+
+const jsonCache = new WeakMap<Response, any>();
+
+export function getPluginApi() {
+  if (typeof window === 'undefined') return undefined;
+  return (window as PluginWindow).__TT_PLUGIN_API__;
+}
+
+async function readJson(response: Response) {
+  if (jsonCache.has(response)) {
+    return jsonCache.get(response);
+  }
+  let payload: any = null;
+  try {
+    payload = await response.clone().json();
+  } catch {
+    payload = null;
+  }
+  jsonCache.set(response, payload);
+  return payload;
+}
+
+export function getPluginBaseURL() {
+  if (typeof window !== 'undefined') {
+    const globalBase = (window as PluginWindow).__TT_PLUGIN_API_BASE__;
+    if (globalBase !== undefined && globalBase !== null) {
+      return globalBase;
+    }
+  }
+  const env = import.meta.env as unknown as {
+    DEV?: boolean;
+    VITE_HTTP_PROXY?: string;
+    VITE_SERVICE_BASE_URL?: string;
+    VITE_API_BASE?: string;
+  };
+  if (env.VITE_SERVICE_BASE_URL) {
+    return env.VITE_SERVICE_BASE_URL;
+  }
+  if (env.VITE_API_BASE) {
+    return env.VITE_API_BASE;
+  }
+  const useProxy = Boolean(env.DEV) && env.VITE_HTTP_PROXY === 'Y';
+  return useProxy ? '/proxy-default' : '';
+}
+
+export function resolveToken() {
+  if (typeof window === 'undefined') return null;
+  const keys = Object.keys(localStorage);
+  const tokenKey = keys.find(key => /token$/i.test(key) && !/refresh/i.test(key));
+  if (!tokenKey) return null;
+  const raw = localStorage.getItem(tokenKey);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+export function withQuery(url: string, params?: Record<string, any>) {
+  if (!params) return url;
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (Array.isArray(value)) {
+      value.forEach(item => {
+        if (item !== undefined && item !== null && item !== '') {
+          search.append(key, String(item));
+        }
+      });
+      return;
+    }
+    search.append(key, String(value));
+  });
+  const query = search.toString();
+  return query ? `${url}${url.includes('?') ? '&' : '?'}${query}` : url;
+}
+
+let localRequest: (<T>(config: PluginRequestConfig) => Promise<PluginRequestResult<T>>) | null = null;
+
+function createLocalRequest() {
+  const baseURL = getPluginBaseURL();
+  const successCode = (import.meta.env as any).VITE_SERVICE_SUCCESS_CODE || '200';
+
+  const alova = createAlovaRequest(
+    {
+      baseURL
+    },
+    {
+      onRequest: method => {
+        const token = resolveToken();
+        method.config = method.config || {};
+        method.config.headers = {
+          ...(method.config.headers || {}),
+          ...(token ? { Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` } : {})
+        };
+      },
+      isBackendSuccess: async response => {
+        const payload = await readJson(response);
+        return String(payload?.code) === String(successCode);
+      },
+      transformBackendResponse: async response => {
+        const payload = await readJson(response);
+        return payload?.data ?? payload;
+      },
+      onError: async (error, response) => {
+        if (error?.code === BACKEND_ERROR_CODE && response) {
+          const payload = await readJson(response);
+          const message = payload?.message || payload?.msg || error?.message || 'request failed';
+          if (typeof window !== 'undefined') {
+            (window as any).$message?.error(message);
+          }
+          return;
+        }
+        const message = error?.message || 'request failed';
+        if (typeof window !== 'undefined') {
+          (window as any).$message?.error(message);
+        }
+      }
+    }
+  );
+
+  return async function localRequest<T>(config: PluginRequestConfig): Promise<PluginRequestResult<T>> {
+    const method = (config.method || 'GET').toString().toUpperCase();
+    const url = config.url || '';
+    const params = config.params;
+    const headers = config.headers as Record<string, any> | undefined;
+    const credentials = config.credentials ?? 'include';
+    const options = { params, headers, credentials } as any;
+
+    let alovaMethod: any;
+    if (method === 'POST') {
+      alovaMethod = alova.Post(url, config.data ?? {}, options);
+    } else if (method === 'PUT') {
+      alovaMethod = alova.Put(url, config.data ?? {}, options);
+    } else if (method === 'DELETE') {
+      alovaMethod = alova.Delete(url, config.data ?? {}, options);
+    } else {
+      alovaMethod = alova.Get(url, options);
+    }
+
+    try {
+      const payload = await alovaMethod.send();
+      return { data: payload as T, error: null, response: null };
+    } catch (err) {
+      return { data: null as T, error: err, response: null };
+    }
+  };
+}
+
+export async function requestFallback<T>(config: PluginRequestConfig): Promise<PluginRequestResult<T>> {
+  if (!localRequest) {
+    localRequest = createLocalRequest();
+  }
+  return localRequest<T>(config);
+}
+
+export async function request<T>(config: PluginRequestConfig): Promise<PluginRequestResult<T>> {
+  const pluginApi = getPluginApi();
+  if (pluginApi?.request) {
+    return pluginApi.request<T>(config);
+  }
+  return requestFallback<T>(config);
+}
+
+export async function requestData<T>(config: PluginRequestConfig): Promise<T> {
+  const result = await request<T>(config);
+  if (result?.error) {
+    throw result.error;
+  }
+  return result.data;
 }

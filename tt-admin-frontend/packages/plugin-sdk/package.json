@@ -1,6 +1,9 @@
 {
   "name": "@tt/plugin-sdk",
   "version": "0.1.0",
+  "dependencies": {
+    "@sa/alova": "file:../alova"
+  },
   "exports": {
     ".": "./src/index.ts"
   },

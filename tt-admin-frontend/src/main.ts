@@ -33,7 +33,8 @@ function exposePluginGlobals() {
   if (!globalWindow.axios) globalWindow.axios = axios;
   if (!globalWindow.VueUse) globalWindow.VueUse = VueUse;
   if (!globalWindow.__TT_PLUGIN_API_BASE__) {
-    globalWindow.__TT_PLUGIN_API_BASE__ = import.meta.env.DEV ? '/proxy-default' : '';
+    const useProxy = import.meta.env.DEV && import.meta.env.VITE_HTTP_PROXY === 'Y';
+    globalWindow.__TT_PLUGIN_API_BASE__ = useProxy ? '/proxy-default' : import.meta.env.VITE_SERVICE_BASE_URL || '';
   }
 }
 
