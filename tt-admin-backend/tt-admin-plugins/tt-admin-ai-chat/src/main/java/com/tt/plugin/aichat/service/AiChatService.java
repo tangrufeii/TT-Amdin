@@ -24,6 +24,7 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -31,15 +32,13 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -189,62 +188,23 @@ public class AiChatService {
         return response;
     }
 
-    public SseEmitter streamMessage(AiChatSendRequest request) {
+    public Flux<String> streamMessage(AiChatSendRequest request) {
         AiChatContext context = prepareContext(request);
-        SseEmitter emitter = new SseEmitter(0L);
-        CompletableFuture.runAsync(() -> streamChat(context, emitter));
-        return emitter;
-    }
-
-    private void streamChat(AiChatContext context, SseEmitter emitter) {
         StringBuilder assistant = new StringBuilder();
-        try {
-            emitter.send(SseEmitter.event()
-                    .name("meta")
-                    .data("{\"sessionId\":" + context.sessionId + "}", MediaType.APPLICATION_JSON));
-            Prompt prompt = buildPrompt(context);
-            Flux<ChatResponse> flux = streamPrompt(context.chatModel, prompt)
-                    .publishOn(Schedulers.boundedElastic());
-            flux.doOnNext(response -> {
-                        String content = safeContent(response);
-                        if (isBlank(content)) {
-                            return;
-                        }
-                        assistant.append(content);
-                        try {
-                            emitter.send(SseEmitter.event().name("message").data(content));
-                        } catch (Exception ex) {
-                            throw new RuntimeException(ex);
-                        }
-                    })
-                    .doOnError(error -> {
-                        log.error("ai chat stream failed", error);
-                        logWebClientError(error);
-                        try {
-                            emitter.send(SseEmitter.event().name("message").data("stream failed: " + error.getMessage()));
-                            emitter.send(SseEmitter.event().name("done").data("[DONE]"));
-                        } catch (Exception ex) {
-                            log.warn("sse error send failed", ex);
-                        }
-                        emitter.complete();
-                    })
-                    .doOnComplete(() -> {
-                        CompletableFuture.runAsync(() -> {
-                            saveAssistantMessage(context.sessionId, context.userId, assistant.toString(), context);
-                            try {
-                                emitter.send(SseEmitter.event().name("done").data("[DONE]"));
-                            } catch (Exception ex) {
-                                log.warn("sse done send failed", ex);
-                            }
-                            emitter.complete();
-                        });
-                    })
-                    .subscribe();
-        } catch (Exception ex) {
-            log.error("ai chat stream failed", ex);
-            logWebClientError(ex);
-            emitter.completeWithError(ex);
-        }
+        Prompt prompt = buildPrompt(context);
+        return ChatClient.create(context.chatModel)
+                .prompt(prompt)
+                .stream()
+                .content()
+                .delayElements(Duration.ofMillis(200)) // 控制输出速度，优化打字机效果
+                .doOnNext(assistant::append)
+                .doOnComplete(() -> CompletableFuture.runAsync(() ->
+                        saveAssistantMessage(context.sessionId, context.userId, assistant.toString(), context)))
+                .onErrorResume(error -> {
+                    log.error("ai chat stream failed", error);
+                    logWebClientError(error);
+                    return Flux.just("stream failed: " + safeErrorMessage(error));
+                });
     }
 
     private AiChatContext prepareContext(AiChatSendRequest request) {
@@ -567,13 +527,6 @@ public class AiChatService {
         return value == null ? fallback : value;
     }
 
-    private Flux<ChatResponse> streamPrompt(ChatModel model, Prompt prompt) {
-        if (model instanceof OpenAiChatModel openAi) {
-            return openAi.stream(prompt);
-        }
-        throw new DomainException("AI_CHAT", "streaming not supported by provider");
-    }
-
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
@@ -616,6 +569,13 @@ public class AiChatService {
         }
         String body = responseException.getResponseBodyAsString();
         log.error("ai chat http error: status={}, responseBody={}", responseException.getStatusCode(), body);
+    }
+
+    private String safeErrorMessage(Throwable error) {
+        if (error == null || error.getMessage() == null || error.getMessage().isBlank()) {
+            return "unknown error";
+        }
+        return error.getMessage();
     }
 
     private record AiChatContext(Long userId, Long sessionId, AiChatConfigPO config, ChatModel chatModel) {

@@ -35,11 +35,9 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <plugin.copyDependencies.includeScope>runtime</plugin.copyDependencies.includeScope>
-        <plugin.copyDependencies.includeGroupIds></plugin.copyDependencies.includeGroupIds>
-        <plugin.copyDependencies.excludeGroupIds>org.junit,org.mockito,org.assertj,org.hamcrest,org.skyscreamer,org.xmlunit,org.awaitility,io.rest-assured,net.bytebuddy,org.apiguardian,org.opentest4j,org.objenesis,org.hdrhistogram,org.latencyutils,com.jayway.jsonpath,net.minidev</plugin.copyDependencies.excludeGroupIds>
+        <plugin.copyDependencies.excludeScope>provided</plugin.copyDependencies.excludeScope>
+        <plugin.copyDependencies.excludeGroupIds>org.junit,org.mockito,org.assertj,org.hamcrest,org.skyscreamer,org.xmlunit,org.awaitility,io.rest-assured,net.bytebuddy,org.apiguardian,org.opentest4j,org.objenesis,org.hdrhistogram,org.latencyutils,com.jayway.jsonpath,net.minidev,org.springframework.boot,org.slf4j,ch.qos.logback,org.apache.logging.log4j,io.micrometer,io.projectreactor,org.reactivestreams</plugin.copyDependencies.excludeGroupIds>
         <plugin.copyDependencies.excludeArtifactIds>spring-boot-starter-test,spring-boot-test,spring-boot-test-autoconfigure,spring-test,junit-jupiter,junit-jupiter-api,junit-jupiter-engine,junit-jupiter-params,junit-platform-commons,junit-platform-engine,mockito-core,mockito-junit-jupiter,assertj-core,awaitility,hamcrest,jsonassert,json-path,rest-assured-common,apiguardian-api,opentest4j,byte-buddy,byte-buddy-agent,objenesis,HdrHistogram,LatencyUtils,xmlunit-core</plugin.copyDependencies.excludeArtifactIds>
-        <plugin.sharedLibDir>${project.parent.parent.basedir}/tt-admin-server/target/shared-lib</plugin.sharedLibDir>
     </properties>
 
     <build>
@@ -51,30 +49,13 @@
                 <executions>
                     <execution>
                         <id>clean-plugin-lib</id>
-                        <phase>generate-sources</phase>
+                        <phase>process-sources</phase>
                         <goals>
                             <goal>run</goal>
                         </goals>
                         <configuration>
                             <target>
                                 <delete dir="${project.build.directory}/lib" />
-                                <delete dir="${project.build.directory}/lib-raw" />
-                            </target>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>strip-shared-libs</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <copy todir="${project.build.directory}/lib">
-                                    <fileset dir="${project.build.directory}/lib-raw" erroronmissingdir="false">
-                                        <present present="srconly" targetdir="${plugin.sharedLibDir}" />
-                                    </fileset>
-                                </copy>
                             </target>
                         </configuration>
                     </execution>
@@ -92,9 +73,8 @@
                             <goal>copy-dependencies</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>${project.build.directory}/lib-raw</outputDirectory>
-                            <includeScope>${plugin.copyDependencies.includeScope}</includeScope>
-                            <includeGroupIds>${plugin.copyDependencies.includeGroupIds}</includeGroupIds>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <excludeScope>${plugin.copyDependencies.excludeScope}</excludeScope>
                             <excludeGroupIds>${plugin.copyDependencies.excludeGroupIds}</excludeGroupIds>
                             <excludeArtifactIds>${plugin.copyDependencies.excludeArtifactIds}</excludeArtifactIds>
                         </configuration>

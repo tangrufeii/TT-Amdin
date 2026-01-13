@@ -14,12 +14,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/plugin/ai-chat")
@@ -69,7 +68,7 @@ public class AiChatController {
 
     @PostMapping("/message")
     @Operation(summary = "Send chat message")
-    public Result<AiChatSendResponse> sendMessage( @RequestBody AiChatSendRequest request) {
+    public Result<AiChatSendResponse> sendMessage(@RequestBody AiChatSendRequest request) {
         return Result.data(aiChatService.sendMessage(request));
     }
 
@@ -86,36 +85,29 @@ public class AiChatController {
         return payload;
     }
 
-    @PostMapping(value = "/message/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/message/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Stream chat message")
-    public SseEmitter streamMessage(@RequestBody AiChatSendRequest request) {
+    public Flux<String> streamMessage(@RequestParam(required = false) Long sessionId,
+                                      @RequestParam("message") String message) {
+        AiChatSendRequest request = new AiChatSendRequest();
+        request.setSessionId(sessionId);
+        request.setMessage(message);
         try {
             if (request == null || request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-                return buildErrorEmitter("message is required");
+                return buildErrorStream("message is required");
             }
             return aiChatService.streamMessage(request);
         } catch (Exception ex) {
-            String message = ex.getMessage();
-            if (message == null || message.isBlank()) {
-                message = "stream request failed";
+            String errMessage = ex.getMessage();
+            if (errMessage == null || errMessage.isBlank()) {
+                errMessage = "stream request failed";
             }
-            return buildErrorEmitter(message);
+            return buildErrorStream(errMessage);
         }
     }
 
-    private SseEmitter buildErrorEmitter(String message) {
-        SseEmitter emitter = new SseEmitter(0L);
+    private Flux<String> buildErrorStream(String message) {
         String safeMessage = message == null ? "stream request failed" : message;
-        CompletableFuture.runAsync(() -> {
-            try {
-                emitter.send(SseEmitter.event().name("message").data(safeMessage));
-                emitter.send(SseEmitter.event().name("done").data("[DONE]"));
-            } catch (Exception ex) {
-                emitter.completeWithError(ex);
-                return;
-            }
-            emitter.complete();
-        });
-        return emitter;
+        return Flux.just(safeMessage);
     }
 }

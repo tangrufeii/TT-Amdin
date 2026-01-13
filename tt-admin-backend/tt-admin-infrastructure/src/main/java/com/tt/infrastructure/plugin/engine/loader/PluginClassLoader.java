@@ -12,6 +12,11 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 插件类加载器
@@ -47,6 +52,8 @@ public class PluginClassLoader extends URLClassLoader {
      */
     private final String pluginId;
 
+    private final Set<String> hostJarNames;
+
     /**
      * 构造插件类加载器
      *
@@ -59,6 +66,7 @@ public class PluginClassLoader extends URLClassLoader {
         this.pluginId = pluginId;
         this.parentClassLoader = parent;
         this.systemClassLoader = system;
+        this.hostJarNames = Collections.unmodifiableSet(loadHostJarNames(parent, system));
     }
 
     @Override
@@ -96,6 +104,10 @@ public class PluginClassLoader extends URLClassLoader {
                 File[] files = libFile.listFiles();
                 if (files != null) {
                     for (File jarFile : files) {
+                        if (shouldSkipJar(jarFile)) {
+                            LOGGER.debug("Skip plugin jar already in host classpath: {} ({})", jarFile.getName(), pluginId);
+                            continue;
+                        }
                         addURL(jarFile.getCanonicalFile().toURI().toURL());
                     }
                 }
@@ -119,6 +131,43 @@ public class PluginClassLoader extends URLClassLoader {
             LOGGER.error("PluginClassLoader addFile error for plugin: {}", pluginId, e);
             throw new RuntimeException(e);
         }
+    }
+
+    private boolean shouldSkipJar(File jarFile) {
+        if (jarFile == null) {
+            return false;
+        }
+        return hostJarNames.contains(jarFile.getName());
+    }
+
+    private Set<String> loadHostJarNames(ClassLoader parent, ClassLoader system) {
+        Set<String> names = new HashSet<>();
+        String classPath = System.getProperty("java.class.path", "");
+        if (!classPath.isBlank()) {
+            String separator = System.getProperty("path.separator", ";");
+            names.addAll(Arrays.stream(classPath.split(separator))
+                    .map(String::trim)
+                    .filter(item -> !item.isBlank())
+                    .map(File::new)
+                    .map(File::getName)
+                    .filter(name -> name.endsWith(".jar"))
+                    .collect(Collectors.toSet()));
+        }
+        names.addAll(extractJarNamesFromLoader(parent));
+        if (system != parent) {
+            names.addAll(extractJarNamesFromLoader(system));
+        }
+        return names;
+    }
+
+    private Set<String> extractJarNamesFromLoader(ClassLoader loader) {
+        if (!(loader instanceof URLClassLoader urlClassLoader)) {
+            return Set.of();
+        }
+        return Arrays.stream(urlClassLoader.getURLs())
+                .map(url -> new File(url.getPath()).getName())
+                .filter(name -> name.endsWith(".jar"))
+                .collect(Collectors.toSet());
     }
 
     @Override
