@@ -9,6 +9,7 @@ import {
   NGi,
   NGrid,
   NInput,
+  NPopconfirm,
   NSelect,
   NSpace,
   NStatistic,
@@ -24,6 +25,7 @@ import { formatDateTime } from '@/utils/date';
 import {useTable, useTableOperate} from '@/hooks/common/table';
 import {useAppStore} from '@/store/modules/app';
 import {useRouteStore} from '@/store/modules/route';
+import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 
 import {
   fetchPluginDelete,
@@ -42,7 +44,7 @@ defineOptions({
 const appStore = useAppStore();
 const routeStore = useRouteStore();
 
-const { columns, data, loading, getData, mobilePagination, searchParams, resetSearchParams } = useTable({
+const { columns, data, loading, getData, mobilePagination, searchParams, resetSearchParams, columnChecks } = useTable({
   apiFn: fetchPluginPage,
   apiParams: {
     page: 1,
@@ -153,7 +155,7 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
     }
   ]
 });
-const { checkedRowKeys } = useTableOperate(data, getData);
+const { checkedRowKeys, onBatchDeleted } = useTableOperate(data, getData);
 // 插件统计信息
 interface PluginStatistics {
   total: number;
@@ -539,6 +541,42 @@ async function handleDelete(row: any) {
 }
 
 // 搜索
+async function handleBatchDelete() {
+  if (!checkedRowKeys.value.length) return;
+  const selected = data.value.filter(row => checkedRowKeys.value.includes(row.id));
+  const hasEnabled = selected.some(row => row.status === 1);
+  if (hasEnabled) {
+    window.$message?.warning($t('page.pluginManagement.message.disableFirst'));
+    return;
+  }
+  const hasProcessing = selected.some(row => isProcessing(row.pluginId));
+  if (hasProcessing) {
+    window.$message?.warning($t('page.pluginManagement.message.operationInProgress'));
+    return;
+  }
+  window.$dialog?.warning({
+    title: $t('common.warning'),
+    content: $t('page.pluginManagement.message.deleteConfirm'),
+    positiveText: $t('common.confirm'),
+    negativeText: $t('common.cancel'),
+    onPositiveClick: async () => {
+      for (const row of selected) {
+        setProcessingInfo(row.pluginId, { action: 'UNINSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
+        const { error } = await fetchPluginDelete(row.id);
+        if (error) {
+          clearProcessingInfo(row.pluginId, 'UNINSTALL');
+          return;
+        }
+        clearProcessingByPluginId(row.pluginId);
+      }
+      window.$message?.success($t('page.pluginManagement.message.deleteSuccess'));
+      await onBatchDeleted();
+      await getStatistics();
+      await routeStore.refreshPluginRoutes();
+    }
+  });
+}
+
 const searchName = ref('');
 
 function handleSearch() {
@@ -660,9 +698,6 @@ onBeforeUnmount(() => {
               <NButton @click="handleReset">
                 {{ $t('common.reset') }}
               </NButton>
-              <NButton type="success" @click="handleImportButtonClick">
-                {{ $t('page.pluginManagement.table.install') }}
-              </NButton>
             </NSpace>
           </NGi>
         </NGrid>
@@ -671,6 +706,29 @@ onBeforeUnmount(() => {
 
     <!-- 数据表格 -->
     <NCard :bordered="false" class="flex-1-hidden card-wrapper">
+      <TableHeaderOperation v-model:columns="columnChecks" :checked-row-keys="checkedRowKeys" :loading="loading" @refresh="getData">
+        <template #prefix>
+          <NButton type="success" ghost size="small" :disabled="uploadLoading" @click="handleImportButtonClick">
+            <template #icon>
+              <icon-ic-round-plus class="text-icon" />
+            </template>
+            {{ $t('page.pluginManagement.table.install') }}
+          </NButton>
+        </template>
+        <template #suffix>
+          <NPopconfirm @positive-click="handleBatchDelete">
+            <template #trigger>
+              <NButton size="small" ghost type="error" :disabled="checkedRowKeys.length === 0">
+                <template #icon>
+                  <icon-ic-round-delete class="text-icon" />
+                </template>
+                {{ $t('common.batchDelete') }}
+              </NButton>
+            </template>
+            {{ $t('common.confirmDelete') }}
+          </NPopconfirm>
+        </template>
+      </TableHeaderOperation>
       <NDataTable
         v-model:checked-row-keys="checkedRowKeys"
         remote

@@ -248,8 +248,20 @@ export function getNaiveTheme(colors: App.Theme.ThemeColor, settings: App.Theme.
       ...getNaiveThemeColors(colors, settings.recommendColor),
       borderRadius: `${settings.themeRadius}px`
     },
+    Card: {
+      paddingSmall: '12px'
+    },
+    Button: {
+      paddingSmall: '0 8px'
+    },
     LoadingBar: {
       colorLoading
+    },
+    Dialog: {
+      padding: '12px',
+      closeMargin: '12px 12px 0 0',
+      actionSpace: '12px',
+      iconSize: '18px'
     },
     Tag: {
       borderRadius: `${settings.themeRadius}px`

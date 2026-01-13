@@ -1,6 +1,6 @@
 <template>
   <div class="flex overflow-hidden">
-    <NGrid :x-gap="8" :y-gap="8" item-responsive responsive="screen" cols="1 s:1 m:5 l:5 xl:5 2xl:5">
+    <NGrid class="h-full" :x-gap="8" :y-gap="8" item-responsive responsive="screen" cols="1 s:1 m:5 l:5 xl:5 2xl:5">
       <NGridItem span="1" class="h-full-hidden">
         <NCard :title="$t('page.manage.dict.title')" :bordered="false" size="small" class="h-full sm:flex-1-hidden" content-class="h-full-hidden">
           <template #header-extra>

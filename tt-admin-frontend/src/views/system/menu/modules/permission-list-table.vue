@@ -9,6 +9,7 @@ import { useDict } from '@/hooks/business/dict';
 import { fetchDeletePermission, fetchGetPermissionPage } from '@/service/api';
 import { transDeleteParams } from '@/utils/common';
 import { $t } from '@/locales';
+import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 import PermissionOperateModal from './permission-operate-modal.vue';
 
 defineOptions({
@@ -27,7 +28,7 @@ const { dictTag } = useDict();
 
 const { bool: modalVisible, setTrue: openModalVisible } = useBoolean();
 
-const { columns, data, loading, mobilePagination, searchParams, getData, getDataByPage } = useTable({
+const { columns, data, loading, mobilePagination, searchParams, getData, getDataByPage, columnChecks } = useTable({
   apiFn: fetchGetPermissionPage,
   apiParams: {
     page: 1,
@@ -38,6 +39,11 @@ const { columns, data, loading, mobilePagination, searchParams, getData, getData
     status: null
   },
   columns: () => [
+    {
+      type: 'selection',
+      width: 48,
+      align: 'center'
+    },
     {
       key: 'name',
       title: $t('page.manage.permission.name'),
@@ -104,7 +110,7 @@ const { columns, data, loading, mobilePagination, searchParams, getData, getData
   ]
 });
 
-const { operateType, handleData, onDeleted, editingData } = useTableOperate(data, getData);
+const { operateType, handleData, onDeleted, onBatchDeleted, editingData, checkedRowKeys } = useTableOperate(data, getData);
 
 function handleAddButton() {
   operateType.value = 'add';
@@ -124,6 +130,14 @@ async function handleDeleteButton(id: string) {
   }
 }
 
+async function handleBatchDelete() {
+  if (!checkedRowKeys.value.length) return;
+  const { error, data: result } = await fetchDeletePermission(transDeleteParams(checkedRowKeys.value));
+  if (!error && result) {
+    onBatchDeleted();
+  }
+}
+
 watch(
   () => props.showData.id,
   () => {
@@ -136,12 +150,18 @@ watch(
 <template>
   <div class="flex flex-grow">
     <NCard v-if="showData.type === '2'" :title="$t('page.manage.permission.title')" :bordered="false" size="small">
-      <template #header-extra>
-        <NButton v-if="hasAuth('sys:permission:add')" type="primary" ghost size="small" @click="handleAddButton">
-          {{ $t('common.add') }}
-        </NButton>
-      </template>
+      <TableHeaderOperation
+        v-model:columns="columnChecks"
+        :checked-row-keys="checkedRowKeys"
+        :loading="loading"
+        add-auth="sys:permission:add"
+        delete-auth="sys:permission:delete"
+        @add="handleAddButton"
+        @delete="handleBatchDelete"
+        @refresh="getData"
+      />
       <NDataTable
+        v-model:checked-row-keys="checkedRowKeys"
         remote
         striped
         size="small"

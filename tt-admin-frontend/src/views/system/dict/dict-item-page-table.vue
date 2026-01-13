@@ -159,18 +159,19 @@ watch(dictId, () => {
         v-model:columns="columnChecks"
         :checked-row-keys="checkedRowKeys"
         :loading="loading"
-        :disabled-delete="!canDelete || !checkedRowKeys.length"
         @add="handleAdd"
         @delete="handleBatchDelete"
         @refresh="getData"
       >
-        <template #default>
+        <template #prefix>
           <NButton v-if="canAdd" size="small" ghost type="primary" @click="handleAdd">
             <template #icon>
               <icon-ic-round-plus class="text-icon" />
             </template>
             {{ $t('common.add') }}
           </NButton>
+        </template>
+        <template #suffix>
           <NPopconfirm v-if="canDelete" @positive-click="handleBatchDelete">
             <template #trigger>
               <NButton size="small" ghost type="error" :disabled="!checkedRowKeys.length">
