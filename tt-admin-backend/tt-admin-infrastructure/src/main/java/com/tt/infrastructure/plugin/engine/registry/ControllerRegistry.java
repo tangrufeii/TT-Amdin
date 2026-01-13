@@ -6,6 +6,8 @@ import com.github.xiaoymin.knife4j.spring.extension.OpenApiExtensionResolver;
 import com.tt.domain.plugin.BasePluginRegistryHandler;
 import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolder;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadata;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadataCache;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.tags.Tag;
@@ -40,14 +42,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 插件Controller注册器
- * <p>
- * 负责将插件中的Controller类注册到Spring MVC的RequestMappingHandlerMapping中。
- * 支持Controller和RestController注解的类。
- * </p>
- *
- * @author trf
- * @date 2025/12/23
+ * Registers plugin controllers into Spring MVC mappings.
  */
 @Service
 @Order(3)
@@ -96,7 +91,7 @@ public class ControllerRegistry implements BasePluginRegistryHandler {
 //
 //        // 4. 清空缓存
 //        cacheMap.clear();
-        for (Class<?> clazz : plugin.getClassList()) {
+        for (Class<?> clazz : resolveControllerClasses(plugin)) {
             Controller controller = clazz.getAnnotation(Controller.class);
             RestController restController = clazz.getAnnotation(RestController.class);
 
@@ -144,7 +139,7 @@ public class ControllerRegistry implements BasePluginRegistryHandler {
 
     @Override
     public void unRegistry(Plugin plugin) throws Exception {
-        for (Class<?> clazz : plugin.getClassList()) {
+        for (Class<?> clazz : resolveControllerClasses(plugin)) {
             Controller controller = clazz.getAnnotation(Controller.class);
             RestController restController = clazz.getAnnotation(RestController.class);
 
@@ -213,6 +208,37 @@ public class ControllerRegistry implements BasePluginRegistryHandler {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Set<Class<?>> resolveControllerClasses(Plugin plugin) {
+        PluginClassMetadata metadata = PluginClassMetadataCache.get(plugin.getPluginId());
+        if (metadata != null && !metadata.getControllerClassNames().isEmpty()) {
+            return loadClasses(plugin, metadata.getControllerClassNames());
+        }
+        return new HashSet<>(resolveAllClasses(plugin));
+    }
+
+    private Set<Class<?>> loadClasses(Plugin plugin, java.util.Collection<String> classNames) {
+        Set<Class<?>> classes = new HashSet<>();
+        ClassLoader classLoader = plugin.getPluginClassLoader();
+        for (String className : classNames) {
+            try {
+                classes.add(classLoader.loadClass(className));
+            } catch (ClassNotFoundException e) {
+                log.debug("Failed to load plugin class: {}", className, e);
+            }
+        }
+        return classes;
+    }
+
+    private Set<Class<?>> resolveAllClasses(Plugin plugin) {
+        if (plugin.getClassList() != null && !plugin.getClassList().isEmpty()) {
+            return new HashSet<>(plugin.getClassList());
+        }
+        if (plugin.getClassNameList() != null && !plugin.getClassNameList().isEmpty()) {
+            return loadClasses(plugin, plugin.getClassNameList());
+        }
+        return new HashSet<>();
     }
 
 }

@@ -6,6 +6,7 @@ import com.tt.application.plugin.dto.PluginManagementDTO;
 import com.tt.application.plugin.dto.PluginStatisticsDTO;
 import com.tt.application.plugin.dto.frontend.PluginFrontendModuleDTO;
 import com.tt.application.plugin.service.PluginManagementApplicationService;
+import com.tt.application.plugin.progress.PluginStatusSnapshotStore;
 import com.tt.common.api.Result;
 import com.tt.common.page.RPage;
 import com.tt.plugin.core.annotation.PermissionResource;
@@ -16,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -232,4 +234,13 @@ public class PluginManagementController {
         List<PluginFrontendModuleDTO> modules = pluginManagementApplicationService.listFrontendModules();
         return Result.data(modules);
     }
+    /**
+     * 获取当前插件进度快照（WS 断线兜底）
+     */
+    @GetMapping("/progress/snapshots")
+    @Operation(summary = "插件进度快照", description = "获取当前插件进度快照列表")
+    public Result<Collection<String>> getProgressSnapshots() {
+        return Result.data(PluginStatusSnapshotStore.values());
+    }
+
 }

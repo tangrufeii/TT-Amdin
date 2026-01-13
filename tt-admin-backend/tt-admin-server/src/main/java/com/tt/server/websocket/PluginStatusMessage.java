@@ -4,6 +4,7 @@ import com.tt.domain.plugin.event.PluginLifecycleEvent;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Data
 public class PluginStatusMessage {
@@ -18,6 +19,7 @@ public class PluginStatusMessage {
     private Long elapsedMs;
     private Long stageElapsedMs;
     private LocalDateTime occurredOn;
+    private Long occurredAt;
 
     public static PluginStatusMessage from(PluginLifecycleEvent event) {
         PluginStatusMessage message = new PluginStatusMessage();
@@ -31,6 +33,14 @@ public class PluginStatusMessage {
         message.setElapsedMs(event.getElapsedMs());
         message.setStageElapsedMs(event.getStageElapsedMs());
         message.setOccurredOn(event.getOccurredOn());
+        message.setOccurredAt(resolveOccurredAt(event.getOccurredOn()));
         return message;
+    }
+
+    private static Long resolveOccurredAt(LocalDateTime occurredOn) {
+        if (occurredOn == null) {
+            return null;
+        }
+        return occurredOn.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 }

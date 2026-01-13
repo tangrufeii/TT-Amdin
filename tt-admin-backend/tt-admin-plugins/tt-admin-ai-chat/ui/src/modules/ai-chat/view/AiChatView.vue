@@ -2,7 +2,7 @@
   <n-layout class="ai-layout" has-sider>
     <n-layout-sider class="ai-sider" width="280" bordered>
       <div class="ai-sider-header">
-        <div class="ai-brand">ChatGPT</div>
+        <div class="ai-brand">AI 助手</div>
         <n-space size="small">
           <n-button size="small" secondary @click="openConfig">设置</n-button>
           <n-button size="small" type="primary" @click="createSession">新建</n-button>
@@ -35,7 +35,7 @@
       <div class="ai-content-header">
         <div>
           <div class="ai-title">{{ activeSessionTitle }}</div>
-          <div class="ai-subtitle">{{ activeSessionId ? '会话隔离已启用' : '请先创建会话' }}</div>
+          <div class="ai-subtitle">{{ activeSessionId ? '会话持续中' : '请先创建会话' }}</div>
         </div>
         <n-space size="small" align="center">
           <n-checkbox v-model:checked="streaming">流式输出</n-checkbox>
@@ -44,7 +44,7 @@
         </n-space>
       </div>
 
-      <n-scrollbar class="ai-messages" ref="messagesRef">
+      <n-scrollbar class="ai-messages" ref="messagesRef" @click="handleCodeCopy">
         <div v-if="!configForm.hasApiKey" class="ai-config-tip">
           API Key 未配置，请点击右上角“设置”完成初始化。
           <n-button size="tiny" secondary @click="openConfig">去配置</n-button>
@@ -57,7 +57,12 @@
           :class="`ai-message-row--${msg.role}`"
         >
           <div class="ai-message-avatar">{{ msg.role === 'user' ? '你' : 'AI' }}</div>
-          <div class="ai-message-bubble" v-html="renderMarkdown(msg.displayContent ?? msg.content)"></div>
+          <div class="ai-message-bubble">
+            <div class="ai-message-toolbar" v-if="msg.role === 'assistant' && msg.displayContent">
+              <n-button text size="tiny" @click="copyMessage(msg)">复制</n-button>
+            </div>
+            <div v-html="renderMarkdown(msg.displayContent ?? msg.content)"></div>
+          </div>
         </div>
       </n-scrollbar>
 
@@ -258,6 +263,17 @@ renderer.link = (href, title, text) => {
   const safeHref = href || '';
   const safeTitle = title ? ` title="${title}"` : '';
   return `<a href="${safeHref}"${safeTitle} target="_blank" rel="noreferrer">${text}</a>`;
+};
+renderer.code = (code, lang) => {
+  const language = lang && hljs.getLanguage(lang) ? lang : '';
+  const highlighted = language ? hljs.highlight(code, { language }).value : hljs.highlightAuto(code).value;
+  const safeCode = encodeURIComponent(code);
+  return `
+    <pre class="ai-code-block">
+      <button class="ai-code-copy" data-code="${safeCode}">复制</button>
+      <code class="hljs ${language}">${highlighted}</code>
+    </pre>
+  `;
 };
 
 marked.setOptions({
@@ -622,7 +638,7 @@ function startTypewriter(message: ChatMessage, fullText: string) {
     message.displayContent += chars[index];
     index += 1;
     scrollToBottom();
-  }, 14);
+  }, 12);
 }
 
 function stopTypewriter() {
@@ -653,7 +669,7 @@ function startStreamTypewriter(message: ChatMessage) {
     streamBuffer = streamBuffer.slice(1);
     message.displayContent += nextChar;
     scrollToBottom();
-  }, 14);
+  }, 12);
 }
 
 function finalizeStreamTyping(message: ChatMessage) {
@@ -674,6 +690,34 @@ function stopStreamTypewriter(reset: boolean) {
   }
 }
 
+function copyMessage(message: ChatMessage) {
+  const text = message.content || message.displayContent || '';
+  copyToClipboard(text);
+}
+
+function handleCodeCopy(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (!target || !target.classList.contains('ai-code-copy')) return;
+  const code = target.getAttribute('data-code') || '';
+  copyToClipboard(decodeURIComponent(code));
+}
+
+function copyToClipboard(text: string) {
+  if (!text) return;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
+}
+
 watch(
   () => configForm.provider,
   value => {
@@ -686,3 +730,40 @@ onMounted(() => {
   loadSessions();
 });
 </script>
+
+<style scoped>
+.ai-message-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.ai-code-block {
+  position: relative;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #0b1224;
+  color: #e2e8f0;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ai-code-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ai-code-copy:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+</style>

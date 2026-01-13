@@ -1,5 +1,6 @@
 package com.tt.server.websocket;
 
+import com.tt.application.plugin.progress.PluginStatusSnapshotStore;
 import jakarta.websocket.OnClose;
 import jakarta.websocket.OnError;
 import jakarta.websocket.OnOpen;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -23,6 +25,7 @@ public class PluginStatusWebSocket {
     public void onOpen(Session session) {
         SESSIONS.add(session);
         log.debug("Plugin status websocket connected: {}", session.getId());
+        PluginStatusWebSocket.sendTo(session, PluginStatusSnapshotStore.values());
     }
 
     @OnClose
@@ -47,6 +50,26 @@ public class PluginStatusWebSocket {
             } catch (IOException e) {
                 log.warn("Failed to send plugin status message: {}", session.getId(), e);
             }
+        }
+    }
+
+    public static void sendTo(Session session, String message) {
+        if (session == null || !session.isOpen()) {
+            return;
+        }
+        try {
+            session.getBasicRemote().sendText(message);
+        } catch (IOException e) {
+            log.warn("Failed to send plugin status message: {}", session.getId(), e);
+        }
+    }
+
+    public static void sendTo(Session session, Collection<String> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        for (String message : messages) {
+            sendTo(session, message);
         }
     }
 }

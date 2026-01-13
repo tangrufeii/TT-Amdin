@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="60 seconds">
+    <springProperty scope="context" name="LOG_FILE" source="logging.file.name" defaultValue="logs/tt-admin.log"/>
+    <springProperty scope="context" name="LOG_LEVEL_ROOT" source="logging.level.root" defaultValue="INFO"/>
+    <springProperty scope="context" name="LOG_LEVEL_PLUGIN" source="logging.level.com.tt.infrastructure.plugin" defaultValue="INFO"/>
+    <springProperty scope="context" name="LOG_MAX_HISTORY" source="logging.logback.rolling-policy.max-history" defaultValue="30"/>
+    <springProperty scope="context" name="LOG_MAX_SIZE" source="logging.logback.rolling-policy.max-file-size" defaultValue="50MB"/>
+
+    <property name="CONSOLE_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+    <property name="FILE_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxHistory>${LOG_MAX_HISTORY}</maxHistory>
+            <maxFileSize>${LOG_MAX_SIZE}</maxFileSize>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="PLUGIN_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}.plugin</file>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE}.plugin.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxHistory>${LOG_MAX_HISTORY}</maxHistory>
+            <maxFileSize>${LOG_MAX_SIZE}</maxFileSize>
+        </rollingPolicy>
+    </appender>
+
+    <springProfile name="dev">
+        <logger name="com.tt.infrastructure.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <logger name="com.tt.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <logger name="com.tt.server.websocket" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <root level="${LOG_LEVEL_ROOT}">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="APP_FILE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="prod">
+        <logger name="com.tt.infrastructure.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <logger name="com.tt.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <logger name="com.tt.server.websocket" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <root level="${LOG_LEVEL_ROOT}">
+            <appender-ref ref="APP_FILE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!dev &amp; !prod">
+        <logger name="com.tt.infrastructure.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <logger name="com.tt.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <logger name="com.tt.server.websocket" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="PLUGIN_FILE"/>
+        </logger>
+        <root level="${LOG_LEVEL_ROOT}">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="APP_FILE"/>
+        </root>
+    </springProfile>
+</configuration>

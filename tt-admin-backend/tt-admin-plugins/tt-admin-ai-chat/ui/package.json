@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@tt/plugin-sdk": "file:../../../../tt-admin-frontend/packages/plugin-sdk",
+    "ai-suspended-ball-chat": "^0.2.25",
     "dompurify": "^3.0.11",
     "highlight.js": "^11.10.0",
     "marked": "^12.0.2",

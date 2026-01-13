@@ -11,28 +11,33 @@ import java.util.List;
 @Data
 @Builder
 public class Plugin extends AggregateRoot<String> {
- /**
-  * 插件ID
-  */
- private String pluginId;
-
- /**
-  *  插件内Class集合
+  /**
+   * Plugin ID.
    */
- private List<Class<?>> classList;
+  private String pluginId;
 
- /**
-  *  插件安装路径
-  */
- private String pluginPath;
+  /**
+   * Loaded plugin classes.
+   */
+  private List<Class<?>> classList;
 
- /**
-  * 插件配置信息
-  */
- private PluginConfig pluginConfig;
- /**
-  *
-  */
- private URLClassLoader pluginClassLoader;
+  /**
+   * Plugin class names.
+   */
+  private List<String> classNameList;
 
+  /**
+   * Plugin directory path.
+   */
+  private String pluginPath;
+
+  /**
+   * Plugin config.
+   */
+  private PluginConfig pluginConfig;
+
+  /**
+   * Plugin class loader.
+   */
+  private URLClassLoader pluginClassLoader;
 }

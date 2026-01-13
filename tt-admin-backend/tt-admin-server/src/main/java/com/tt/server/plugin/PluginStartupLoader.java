@@ -32,14 +32,7 @@ import java.util.Optional;
 import java.util.Properties;
 
 /**
- * 插件启动加载器
- * <p>
- * 目标：后端重启时自动恢复插件运行状态，避免前端插件失效。
- * 规则：
- * 1) 读取数据库中全部插件记录
- * 2) 目录存在 -> 先安装（仅注册上下文与类加载器）
- * 3) 状态=启用 -> 再启动（注册路由/菜单/能力）
- * 4) 目录缺失 -> 自动禁用（仅对启用状态执行），保持状态一致
+ * Loads plugins on application startup.
  */
 @Slf4j
 @Component
@@ -511,7 +504,7 @@ public class PluginStartupLoader {
                     pluginId,
                     ACTION_ENABLE,
                     STATUS_SUCCESS,
-                    "插件已启用",
+                    "Plugin started",
                     "complete",
                     100,
                     startedAt,

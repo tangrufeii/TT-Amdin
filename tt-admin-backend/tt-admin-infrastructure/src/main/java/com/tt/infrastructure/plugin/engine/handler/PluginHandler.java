@@ -10,6 +10,7 @@ import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolde
 import com.tt.infrastructure.plugin.engine.holder.PluginHolder;
 import com.tt.infrastructure.plugin.engine.loader.PluginClassLoader;
 import com.tt.infrastructure.plugin.engine.scanner.PluginClassScanner;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadataCache;
 import com.tt.infrastructure.plugin.engine.registry.ClassRegistry;
 import com.tt.infrastructure.plugin.engine.registry.ControllerRegistry;
 import com.tt.infrastructure.plugin.engine.registry.MapperRegistry;
@@ -29,22 +30,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 插件处理器
- * <p>
- * 负责插件的安装、启动、停止、卸载等核心操作。
- * 协调各个注册处理器完成插件组件的注册和注销。
- * </p>
- *
- * <h3>操作说明</h3>
- * <ul>
- *     <li><b>install</b> - 安装插件，创建类加载器和应用上下文</li>
- *     <li><b>start</b> - 启动插件，注册组件并调用 onStart</li>
- *     <li><b>stop</b> - 停止插件，注销组件并调用 onStop（保留元数据，可重新启动）</li>
- *     <li><b>uninstall</b> - 卸载插件，彻底清理所有资源</li>
- * </ul>
- *
- * @author trf
- * @date 2025/12/25
+ * Plugin lifecycle handler.
+ * Handles install/start/stop/uninstall and coordinates registry handlers.
  */
 @Service
 @Slf4j
@@ -56,15 +43,15 @@ public class PluginHandler implements ApplicationContextAware {
     private static final String ACTION_UNINSTALL = "UNINSTALL";
 
     /**
-     * 主程序ApplicationContext
+     * 涓荤▼搴廇pplicationContext
      */
     private ApplicationContext applicationContext;
 
     /**
-     * 插件注册处理器映射表
+     * 鎻掍欢娉ㄥ唽澶勭悊鍣ㄦ槧灏勮〃
      * <p>
-     * Key: Bean名称
-     * Value: 注册处理器实例
+     * Key: Bean鍚嶇О
+     * Value: 娉ㄥ唽澶勭悊鍣ㄥ疄渚?
      * </p>
      */
     private final Map<String, BasePluginRegistryHandler> registryHandlers;
@@ -73,10 +60,16 @@ public class PluginHandler implements ApplicationContextAware {
     @Value("${tt.plugin.progress.scan-detail:false}")
     private boolean scanDetailEnabled;
 
+    @Value("${tt.plugin.scan.index-enabled:true}")
+    private boolean scanIndexEnabled;
+
+    @Value("${tt.plugin.scan.index-trust:true}")
+    private boolean scanIndexTrustEnabled;
+
     /**
-     * 构造插件处理器
+     * 鏋勯€犳彃浠跺鐞嗗櫒
      *
-     * @param registryHandlers 所有插件注册处理器
+     * @param registryHandlers 鎵€鏈夋彃浠舵敞鍐屽鐞嗗櫒
      */
     public PluginHandler(Map<String, BasePluginRegistryHandler> registryHandlers) {
         this.registryHandlers = registryHandlers;
@@ -88,22 +81,22 @@ public class PluginHandler implements ApplicationContextAware {
     }
 
     /**
-     * 安装插件
+     * 瀹夎鎻掍欢
      * <p>
-     * 创建插件的类加载器、应用上下文，并扫描插件类。
+     * 鍒涘缓鎻掍欢鐨勭被鍔犺浇鍣ㄣ€佸簲鐢ㄤ笂涓嬫枃锛屽苟鎵弿鎻掍欢绫汇€?
      * </p>
      *
-     * @param pluginDir 插件目录
-     * @return 插件运行时对象
+     * @param pluginDir 鎻掍欢鐩綍
+     * @return 鎻掍欢杩愯鏃跺璞?
      */
     public Plugin installPlugin(File pluginDir) {
-        // 读取插件配置
+        // 璇诲彇鎻掍欢閰嶇疆
         PluginConfig config = PluginConfigReader.readConfig(pluginDir);
         if (config == null) {
             throw new IllegalArgumentException("Failed to read plugin configuration from: " + pluginDir);
         }
 
-        // 创建插件类加载器
+        // 鍒涘缓鎻掍欢绫诲姞杞藉櫒
         reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "create_classloader", 72, "Creating plugin classloader");
         PluginClassLoader pluginClassLoader = new PluginClassLoader(
                 config.getPlugin().getId(),
@@ -112,46 +105,52 @@ public class PluginHandler implements ApplicationContextAware {
         );
         pluginClassLoader.addFile(pluginDir);
 
-        // 扫描插件类
+        // Scan plugin classes
         reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "scan_classes", 75, "Scanning plugin classes");
-        List<Class<?>> classList = PluginClassScanner.scanClasses(
+        List<String> classNameList = PluginClassScanner.scanClassNames(
                 pluginDir,
                 pluginClassLoader,
                 config.getPlugin().getId(),
                 ACTION_INSTALL,
-                scanDetailEnabled
+                scanDetailEnabled,
+                scanIndexEnabled,
+                scanIndexTrustEnabled
         );
 
-        // 构建插件运行时对象
+        // 鏋勫缓鎻掍欢杩愯鏃跺璞?
         Plugin plugin = Plugin.builder()
                 .pluginConfig(config)
                 .pluginPath(pluginDir.getAbsolutePath())
                 .pluginId(config.getPlugin().getId())
                 .pluginClassLoader(pluginClassLoader)
-                .classList(classList)
+                .classList(List.of())
+                .classNameList(classNameList)
                 .build();
 
-        // 添加到插件注册表
+        // 娣诲姞鍒版彃浠舵敞鍐岃〃
         PluginHolder.addPluginInfo(plugin.getPluginId(), plugin);
 
-        // 创建插件专属的ApplicationContext
+        // 鍒涘缓鎻掍欢涓撳睘鐨凙pplicationContext
         reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "create_context", 78, "Creating plugin context");
         AnnotationConfigApplicationContext pluginContext = new AnnotationConfigApplicationContext();
         pluginContext.setParent(applicationContext);
         pluginContext.setClassLoader(pluginClassLoader);
         PluginApplicationContextHolder.addPluginApplicationContext(plugin.getPluginId(), pluginContext);
 
-        // 初始化所有注册处理器
+        // 鍒濆鍖栨墍鏈夋敞鍐屽鐞嗗櫒
         reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "init_handlers", 82, "Initializing registry handlers");
         int initTotal = registryHandlers.size();
         int initIndex = 0;
         for (Map.Entry<String, BasePluginRegistryHandler> entry : registryHandlers.entrySet()) {
             try {
+                long handlerStartedAt = System.currentTimeMillis();
                 entry.getValue().initialize();
+                long handlerElapsedMs = System.currentTimeMillis() - handlerStartedAt;
                 initIndex++;
                 int progress = 82 + (int) Math.round((double) initIndex / Math.max(initTotal, 1) * 6);
                 reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "init_handlers", progress, "Initializing registry handlers");
                 log.trace("Initialized registry handler: {}", entry.getKey());
+                log.info("plugin handler init: handler={}, elapsedMs={}", entry.getKey(), handlerElapsedMs);
             } catch (Exception e) {
                 log.error("Failed to initialize registry handler: {}", entry.getKey(), e);
                 throw new RuntimeException("Failed to initialize registry handler: " + entry.getKey(), e);
@@ -163,13 +162,13 @@ public class PluginHandler implements ApplicationContextAware {
     }
 
     /**
-     * 启动插件
+     * 鍚姩鎻掍欢
      * <p>
-     * 注册所有组件，刷新容器，调用插件的 onStart 生命周期方法。
+     * 娉ㄥ唽鎵€鏈夌粍浠讹紝鍒锋柊瀹瑰櫒锛岃皟鐢ㄦ彃浠剁殑 onStart 鐢熷懡鍛ㄦ湡鏂规硶銆?
      * </p>
      *
-     * @param pluginId 插件ID
-     * @return 启动后的插件对象
+     * @param pluginId 鎻掍欢ID
+     * @return 鍚姩鍚庣殑鎻掍欢瀵硅薄
      */
     public Plugin startPlugin(String pluginId) {
         Plugin plugin = PluginHolder.getPluginInfo(pluginId);
@@ -179,10 +178,10 @@ public class PluginHandler implements ApplicationContextAware {
 
         log.info("Starting plugin: {}", pluginId);
 
-        // 确保禁用后再次启用时能重新 refresh
+        // 纭繚绂佺敤鍚庡啀娆″惎鐢ㄦ椂鑳介噸鏂?refresh
         PluginApplicationContextHolder.clearRefreshed(pluginId);
 
-        // 执行插件组件注册
+        // 鎵ц鎻掍欢缁勪欢娉ㄥ唽
         int registryTotal = registryHandlers.size();
         int registryIndex = 0;
         for (Map.Entry<String, BasePluginRegistryHandler> entry : registryHandlers.entrySet()) {
@@ -191,18 +190,22 @@ public class PluginHandler implements ApplicationContextAware {
                 String stage = resolveRegistryStage(entry.getValue());
                 String message = resolveRegistryMessage(entry.getValue());
                 reportProgress(ACTION_ENABLE, pluginId, stage, startProgress, message);
+                long handlerStartedAt = System.currentTimeMillis();
                 entry.getValue().registry(plugin);
+                long handlerElapsedMs = System.currentTimeMillis() - handlerStartedAt;
                 registryIndex++;
                 int progress = 10 + (int) Math.round((double) registryIndex / Math.max(registryTotal, 1) * 70);
                 reportProgress(ACTION_ENABLE, pluginId, stage, progress, message);
                 log.trace("Executed registry handler: {}", entry.getKey());
+                log.info("plugin handler registry: pluginId={}, handler={}, stage={}, elapsedMs={}",
+                        pluginId, entry.getKey(), stage, handlerElapsedMs);
             } catch (Exception e) {
                 log.error("Failed to execute registry handler: {}", entry.getKey(), e);
                 throw new RuntimeException("Failed to execute registry handler: " + entry.getKey(), e);
             }
         }
 
-        // 调用插件的 onStart 生命周期方法
+        // 璋冪敤鎻掍欢鐨?onStart 鐢熷懡鍛ㄦ湡鏂规硶
         reportProgress(ACTION_ENABLE, pluginId, "lifecycle_start", 90, "Running start lifecycle");
         BasePluginLifecycle lifecycleBean = PluginApplicationContextHolder.getPluginBean(
                 plugin.getPluginId(), BasePluginLifecycle.class);
@@ -215,16 +218,16 @@ public class PluginHandler implements ApplicationContextAware {
     }
 
     /**
-     * 停止插件
+     * 鍋滄鎻掍欢
      * <p>
-     * 注销组件，调用插件的 onStop 生命周期方法。
+     * 娉ㄩ攢缁勪欢锛岃皟鐢ㄦ彃浠剁殑 onStop 鐢熷懡鍛ㄦ湡鏂规硶銆?
      * </p>
      * <p>
-     * <b>注意：</b>此操作保留插件的元数据（PluginHolder、ApplicationContextHolder、ClassLoader），
-     * 因此可以重新启动插件。
+     * <b>娉ㄦ剰锛?/b>姝ゆ搷浣滀繚鐣欐彃浠剁殑鍏冩暟鎹紙PluginHolder銆丄pplicationContextHolder銆丆lassLoader锛夛紝
+     * 鍥犳鍙互閲嶆柊鍚姩鎻掍欢銆?
      * </p>
      *
-     * @param pluginId 插件ID
+     * @param pluginId 鎻掍欢ID
      */
     public void stopPlugin(String pluginId) {
         Plugin plugin = PluginHolder.getPluginInfo(pluginId);
@@ -235,7 +238,7 @@ public class PluginHandler implements ApplicationContextAware {
 
         log.info("Stopping plugin: {}", pluginId);
 
-        // 先调用插件的 onStop 生命周期方法
+        // 鍏堣皟鐢ㄦ彃浠剁殑 onStop 鐢熷懡鍛ㄦ湡鏂规硶
         reportProgress(ACTION_DISABLE, pluginId, "lifecycle_stop", 30, "Running stop lifecycle");
         BasePluginLifecycle lifecycleBean = PluginApplicationContextHolder.getPluginBean(
                 plugin.getPluginId(), BasePluginLifecycle.class);
@@ -243,17 +246,21 @@ public class PluginHandler implements ApplicationContextAware {
             lifecycleBean.onStop();
         }
 
-        // 执行插件组件注销
+        // 鎵ц鎻掍欢缁勪欢娉ㄩ攢
         reportProgress(ACTION_DISABLE, pluginId, "unregistry", 30, "Unregistering plugin components");
         int unregistryTotal = registryHandlers.size();
         int unregistryIndex = 0;
         for (Map.Entry<String, BasePluginRegistryHandler> entry : registryHandlers.entrySet()) {
             try {
+                long handlerStartedAt = System.currentTimeMillis();
                 entry.getValue().unRegistry(plugin);
+                long handlerElapsedMs = System.currentTimeMillis() - handlerStartedAt;
                 unregistryIndex++;
                 int progress = 30 + (int) Math.round((double) unregistryIndex / Math.max(unregistryTotal, 1) * 55);
                 reportProgress(ACTION_DISABLE, pluginId, "unregistry", progress, "Unregistering plugin components");
                 log.trace("Executed unregistry handler: {}", entry.getKey());
+                log.info("plugin handler unregistry: pluginId={}, handler={}, elapsedMs={}",
+                        pluginId, entry.getKey(), handlerElapsedMs);
             } catch (Exception e) {
                 log.error("Failed to execute unregistry handler: {}", entry.getKey(), e);
             }
@@ -265,22 +272,22 @@ public class PluginHandler implements ApplicationContextAware {
     }
 
     /**
-     * 卸载插件
+     * 鍗歌浇鎻掍欢
      * <p>
-     * 彻底清理插件的所有资源，包括：
+     * 褰诲簳娓呯悊鎻掍欢鐨勬墍鏈夎祫婧愶紝鍖呮嫭锛?
      * <ul>
-     *     <li>停止插件（如果正在运行）</li>
-     *     <li>关闭ApplicationContext</li>
-     *     <li>关闭ClassLoader</li>
-     *     <li>清理PluginHolder中的元数据</li>
+     *     <li>鍋滄鎻掍欢锛堝鏋滄鍦ㄨ繍琛岋級</li>
+     *     <li>鍏抽棴ApplicationContext</li>
+     *     <li>鍏抽棴ClassLoader</li>
+     *     <li>娓呯悊PluginHolder涓殑鍏冩暟鎹?/li>
      * </ul>
      * </p>
      * <p>
-     * <b>注意：</b>卸载后插件无法重新启动，必须重新安装。
+     * <b>娉ㄦ剰锛?/b>鍗歌浇鍚庢彃浠舵棤娉曢噸鏂板惎鍔紝蹇呴』閲嶆柊瀹夎銆?
      * </p>
      *
-     * @param pluginId 插件ID
-     * @throws Exception 卸载过程中发生错误时抛出
+     * @param pluginId 鎻掍欢ID
+     * @throws Exception 鍗歌浇杩囩▼涓彂鐢熼敊璇椂鎶涘嚭
      */
     public void uninstallPlugin(String pluginId) throws Exception {
         Plugin plugin = PluginHolder.getPluginInfo(pluginId);
@@ -291,7 +298,7 @@ public class PluginHandler implements ApplicationContextAware {
 
         log.info("Uninstalling plugin: {}", pluginId);
 
-        // 1. 先调用插件的 onUnInstall 生命周期方法
+        // 1. 鍏堣皟鐢ㄦ彃浠剁殑 onUnInstall 鐢熷懡鍛ㄦ湡鏂规硶
         reportProgress(ACTION_UNINSTALL, pluginId, "lifecycle_uninstall", 20, "Running uninstall lifecycle");
         BasePluginLifecycle lifecycleBean = PluginApplicationContextHolder.getPluginBean(
                 plugin.getPluginId(), BasePluginLifecycle.class);
@@ -299,27 +306,31 @@ public class PluginHandler implements ApplicationContextAware {
             lifecycleBean.onUnInstall();
         }
 
-        // 2. 如果插件正在运行，先停止组件注册
+        // 2. 濡傛灉鎻掍欢姝ｅ湪杩愯锛屽厛鍋滄缁勪欢娉ㄥ唽
         reportProgress(ACTION_UNINSTALL, pluginId, "unregistry", 45, "Unregistering plugin components");
         int uninstallTotal = registryHandlers.size();
         int uninstallIndex = 0;
         for (Map.Entry<String, BasePluginRegistryHandler> entry : registryHandlers.entrySet()) {
             try {
+                long handlerStartedAt = System.currentTimeMillis();
                 entry.getValue().unRegistry(plugin);
+                long handlerElapsedMs = System.currentTimeMillis() - handlerStartedAt;
                 uninstallIndex++;
                 int progress = 45 + (int) Math.round((double) uninstallIndex / Math.max(uninstallTotal, 1) * 25);
                 reportProgress(ACTION_UNINSTALL, pluginId, "unregistry", progress, "Unregistering plugin components");
                 log.trace("Executed unregistry handler: {}", entry.getKey());
+                log.info("plugin handler uninstall: pluginId={}, handler={}, elapsedMs={}",
+                        pluginId, entry.getKey(), handlerElapsedMs);
             } catch (Exception e) {
                 log.error("Failed to execute unregistry handler: {}", entry.getKey(), e);
             }
         }
 
-        // 3. 移除并关闭ApplicationContext
+        // 3. 绉婚櫎骞跺叧闂瑼pplicationContext
         reportProgress(ACTION_UNINSTALL, pluginId, "remove_context", 70, "Removing plugin context");
         PluginApplicationContextHolder.removePluginApplicationContext(pluginId);
 
-        // 4. 关闭类加载器
+        // 4. 鍏抽棴绫诲姞杞藉櫒
         reportProgress(ACTION_UNINSTALL, pluginId, "close_classloader", 85, "Closing plugin classloader");
         URLClassLoader pluginClassLoader = plugin.getPluginClassLoader();
         PluginHolder.removePluginInfo(pluginId);
@@ -328,19 +339,21 @@ public class PluginHandler implements ApplicationContextAware {
             pluginClassLoader.close();
         }
 
-        // 5. 清理插件对象
+        // 5. 娓呯悊鎻掍欢瀵硅薄
         reportProgress(ACTION_UNINSTALL, pluginId, "cleanup", 90, "Cleaning plugin metadata");
         plugin.setPluginConfig(null);
         plugin.setClassList(null);
+        plugin.setClassNameList(null);
+        PluginClassMetadataCache.remove(pluginId);
 
         log.info("Plugin uninstalled: {}", pluginId);
         System.gc();
     }
 
     /**
-     * 获取所有注册处理器
+     * 鑾峰彇鎵€鏈夋敞鍐屽鐞嗗櫒
      *
-     * @return 注册处理器映射表
+     * @return 娉ㄥ唽澶勭悊鍣ㄦ槧灏勮〃
      */
     public Map<String, BasePluginRegistryHandler> getAllHandler() {
         return registryHandlers;
@@ -382,3 +395,4 @@ public class PluginHandler implements ApplicationContextAware {
         PluginProgressContext.report(new PluginProgress(pluginId, action, stage, progress, message));
     }
 }
+

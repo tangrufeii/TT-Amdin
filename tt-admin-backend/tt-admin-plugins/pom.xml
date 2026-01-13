@@ -20,28 +20,87 @@
         <module>tt-admin-test</module>
     </modules>
     <dependencies>
-        <!-- Knife4j -->
         <dependency>
-            <groupId>com.github.xiaoymin</groupId>
-            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
-            <version>${knife4j.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springdoc</groupId>
-                    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
+            <scope>provided</scope>
         </dependency>
-
         <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>${springdoc.version}</version>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <plugin.copyDependencies.includeScope>runtime</plugin.copyDependencies.includeScope>
+        <plugin.copyDependencies.includeGroupIds></plugin.copyDependencies.includeGroupIds>
+        <plugin.copyDependencies.excludeGroupIds>org.junit,org.mockito,org.assertj,org.hamcrest,org.skyscreamer,org.xmlunit,org.awaitility,io.rest-assured,net.bytebuddy,org.apiguardian,org.opentest4j,org.objenesis,org.hdrhistogram,org.latencyutils,com.jayway.jsonpath,net.minidev</plugin.copyDependencies.excludeGroupIds>
+        <plugin.copyDependencies.excludeArtifactIds>spring-boot-starter-test,spring-boot-test,spring-boot-test-autoconfigure,spring-test,junit-jupiter,junit-jupiter-api,junit-jupiter-engine,junit-jupiter-params,junit-platform-commons,junit-platform-engine,mockito-core,mockito-junit-jupiter,assertj-core,awaitility,hamcrest,jsonassert,json-path,rest-assured-common,apiguardian-api,opentest4j,byte-buddy,byte-buddy-agent,objenesis,HdrHistogram,LatencyUtils,xmlunit-core</plugin.copyDependencies.excludeArtifactIds>
+        <plugin.sharedLibDir>${project.parent.parent.basedir}/tt-admin-server/target/shared-lib</plugin.sharedLibDir>
     </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>clean-plugin-lib</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <delete dir="${project.build.directory}/lib" />
+                                <delete dir="${project.build.directory}/lib-raw" />
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>strip-shared-libs</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <copy todir="${project.build.directory}/lib">
+                                    <fileset dir="${project.build.directory}/lib-raw" erroronmissingdir="false">
+                                        <present present="srconly" targetdir="${plugin.sharedLibDir}" />
+                                    </fileset>
+                                </copy>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-plugin-dependencies</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib-raw</outputDirectory>
+                            <includeScope>${plugin.copyDependencies.includeScope}</includeScope>
+                            <includeGroupIds>${plugin.copyDependencies.includeGroupIds}</includeGroupIds>
+                            <excludeGroupIds>${plugin.copyDependencies.excludeGroupIds}</excludeGroupIds>
+                            <excludeArtifactIds>${plugin.copyDependencies.excludeArtifactIds}</excludeArtifactIds>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

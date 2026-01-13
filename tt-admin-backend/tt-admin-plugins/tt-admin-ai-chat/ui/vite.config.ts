@@ -106,7 +106,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: isStandalone ? '/' : `/plugin/${pluginId}`,
-    plugins: isStandalone ? [vue()] : [vue(), viteExternalsPlugin(SHARED_EXTERNALS)],
+    plugins: isStandalone
+      ? [vue()]
+      : [vue(), viteExternalsPlugin(SHARED_EXTERNALS, { disableInServe: true })],
     define: {
       'process.env': {},
       process: {

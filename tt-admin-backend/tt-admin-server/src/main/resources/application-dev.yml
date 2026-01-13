@@ -47,6 +47,9 @@ tt:
   plugin:
     progress:
       scan-detail: false
+    scan:
+      index-enabled: true
+      index-trust: true
     install:
       lazy-init: true
     dev:

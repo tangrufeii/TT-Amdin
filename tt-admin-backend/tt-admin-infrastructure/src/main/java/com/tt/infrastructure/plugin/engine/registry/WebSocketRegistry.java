@@ -3,6 +3,8 @@ package com.tt.infrastructure.plugin.engine.registry;
 import com.tt.common.utils.ClassUtils;
 import com.tt.domain.plugin.BasePluginRegistryHandler;
 import com.tt.domain.plugin.model.aggregate.Plugin;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadata;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadataCache;
 import jakarta.servlet.ServletContext;
 import jakarta.websocket.EndpointConfig;
 import jakarta.websocket.Session;
@@ -20,14 +22,7 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import java.util.Map;
 
 /**
- * 插件WebSocket注册器
- * <p>
- * 负责将插件中的WebSocket端点注册到WebSocket容器中。
- * 支持ServerEndpoint注解的类。
- * </p>
- *
- * @author trf
- * @date 2025/12/23
+ * Registers plugin WebSocket endpoints into the server container.
  */
 @Service
 @Order(4)
@@ -53,7 +48,7 @@ public class WebSocketRegistry implements BasePluginRegistryHandler {
             return;
         }
 
-        for (Class<?> clazz : plugin.getClassList()) {
+        for (Class<?> clazz : resolveWebSocketClasses(plugin)) {
             ServerEndpoint serverEndpoint = clazz.getAnnotation(ServerEndpoint.class);
             if (serverEndpoint == null) {
                 continue;
@@ -90,7 +85,7 @@ public class WebSocketRegistry implements BasePluginRegistryHandler {
         Map<Session, Session> sessions =
                 (Map<Session, Session>) ClassUtils.getReflectionField(serverContainer, "sessions");
 
-        for (Class<?> clazz : plugin.getClassList()) {
+        for (Class<?> clazz : resolveWebSocketClasses(plugin)) {
             ServerEndpoint serverEndpoint = clazz.getAnnotation(ServerEndpoint.class);
             if (serverEndpoint == null) {
                 continue;
@@ -172,5 +167,32 @@ public class WebSocketRegistry implements BasePluginRegistryHandler {
 
         ServletContext servletContext = applicationContext.getBean(ServletContext.class);
         return (ServerContainer) servletContext.getAttribute(ServerContainer.class.getName());
+    }
+
+    private Iterable<Class<?>> resolveWebSocketClasses(Plugin plugin) {
+        PluginClassMetadata metadata = PluginClassMetadataCache.get(plugin.getPluginId());
+        if (metadata != null && !metadata.getWebSocketClassNames().isEmpty()) {
+            return loadClasses(plugin, metadata.getWebSocketClassNames());
+        }
+        if (plugin.getClassList() != null && !plugin.getClassList().isEmpty()) {
+            return plugin.getClassList();
+        }
+        if (plugin.getClassNameList() != null && !plugin.getClassNameList().isEmpty()) {
+            return loadClasses(plugin, plugin.getClassNameList());
+        }
+        return java.util.List.of();
+    }
+
+    private Iterable<Class<?>> loadClasses(Plugin plugin, java.util.Collection<String> classNames) {
+        java.util.List<Class<?>> classes = new java.util.ArrayList<>();
+        ClassLoader classLoader = plugin.getPluginClassLoader();
+        for (String className : classNames) {
+            try {
+                classes.add(classLoader.loadClass(className));
+            } catch (ClassNotFoundException e) {
+                log.debug("Failed to load plugin class: {}", className, e);
+            }
+        }
+        return classes;
     }
 }

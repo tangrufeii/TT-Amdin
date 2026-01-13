@@ -16,7 +16,9 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -69,6 +71,19 @@ public class AiChatController {
     @Operation(summary = "Send chat message")
     public Result<AiChatSendResponse> sendMessage( @RequestBody AiChatSendRequest request) {
         return Result.data(aiChatService.sendMessage(request));
+    }
+
+    @PostMapping("/message/compat")
+    @Operation(summary = "Send chat message (compat for ai-suspended-ball-chat)")
+    public Map<String, Object> sendMessageCompat(@RequestBody AiChatSendRequest request) {
+        AiChatSendResponse response = aiChatService.sendMessage(request);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("code", 0);
+        payload.put("content", response.getContent());
+        if (response.getSessionId() != null) {
+            payload.put("sessionId", response.getSessionId());
+        }
+        return payload;
     }
 
     @PostMapping(value = "/message/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

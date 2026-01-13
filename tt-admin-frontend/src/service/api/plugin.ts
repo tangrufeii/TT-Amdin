@@ -170,3 +170,13 @@ export function fetchPluginFrontendModules() {
     method: 'get'
   });
 }
+
+/**
+ * 获取插件进度快照（WS 断线兜底）
+ */
+export function fetchPluginProgressSnapshots() {
+  return request<string[]>({
+    url: '/plugin/management/progress/snapshots',
+    method: 'get'
+  });
+}

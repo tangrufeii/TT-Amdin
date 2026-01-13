@@ -5,6 +5,8 @@ import com.tt.common.utils.SpringBeanUtil;
 import com.tt.domain.plugin.BasePluginRegistryHandler;
 import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolder;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadata;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadataCache;
 import com.tt.plugin.core.annotation.InterceptPath;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.annotations.Mapper;
@@ -34,14 +36,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 插件类注册器
- * <p>
- * 负责将插件中的组件类注册到插件独立 Spring 容器中。
- * 先注册 Mapper，再注册其他组件。
- * </p>
- *
- * @author trf
- * @date 2025/12/23
+ * Plugin registry handler.
  */
 @Service
 @Order(1)
@@ -173,9 +168,7 @@ public class ClassRegistry implements BasePluginRegistryHandler {
      * 查找带注解的类（不包含 Mapper 和接口）
      */
     private List<Class<?>> findAnnotatedClasses(Plugin plugin) {
-        List<Class<?>> pluginClassList = plugin.getClassList().stream()
-                .filter(clazz -> !clazz.isInterface())
-                .toList();
+        List<Class<?>> pluginClassList = resolveComponentClasses(plugin);
 
         if (pluginClassList.isEmpty()) {
             return Collections.emptyList();
@@ -203,13 +196,55 @@ public class ClassRegistry implements BasePluginRegistryHandler {
      * 获取所有 Mapper 接口
      */
     private List<Class<?>> getMapperList(Plugin plugin) {
+        PluginClassMetadata metadata = PluginClassMetadataCache.get(plugin.getPluginId());
+        if (metadata != null && !metadata.getMapperClassNames().isEmpty()) {
+            return resolveClassesByName(plugin, metadata.getMapperClassNames());
+        }
+
         List<Class<?>> mapperClassList = new ArrayList<>();
-        for (Class<?> clazz : plugin.getClassList()) {
+        for (Class<?> clazz : resolveAllClasses(plugin)) {
             if (clazz.getAnnotation(Mapper.class) != null) {
                 mapperClassList.add(clazz);
             }
         }
         return mapperClassList;
+    }
+
+    private List<Class<?>> resolveComponentClasses(Plugin plugin) {
+        PluginClassMetadata metadata = PluginClassMetadataCache.get(plugin.getPluginId());
+        if (metadata != null && !metadata.getComponentClassNames().isEmpty()) {
+            return resolveClassesByName(plugin, metadata.getComponentClassNames());
+        }
+
+        return resolveAllClasses(plugin).stream()
+                .filter(clazz -> !clazz.isInterface())
+                .toList();
+    }
+
+    private List<Class<?>> resolveClassesByName(Plugin plugin, List<String> classNames) {
+        if (classNames == null || classNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Class<?>> classes = new ArrayList<>();
+        ClassLoader classLoader = plugin.getPluginClassLoader();
+        for (String className : classNames) {
+            try {
+                classes.add(classLoader.loadClass(className));
+            } catch (ClassNotFoundException e) {
+                log.debug("Failed to load plugin class: {}", className, e);
+            }
+        }
+        return classes;
+    }
+
+    private List<Class<?>> resolveAllClasses(Plugin plugin) {
+        if (plugin.getClassList() != null && !plugin.getClassList().isEmpty()) {
+            return plugin.getClassList();
+        }
+        if (plugin.getClassNameList() != null && !plugin.getClassNameList().isEmpty()) {
+            return resolveClassesByName(plugin, plugin.getClassNameList());
+        }
+        return Collections.emptyList();
     }
 
     /**

@@ -30,6 +30,7 @@ import {
   fetchPluginDisable,
   fetchPluginEnable,
   fetchPluginPage,
+  fetchPluginProgressSnapshots,
   fetchPluginStatistics,
   fetchPluginInstall
 } from '@/service/api/plugin';
@@ -174,6 +175,9 @@ interface PluginProcessingInfo {
   elapsedMs?: number;
   stageElapsedMs?: number;
   stageStartedAt?: number;
+  serverElapsedMs?: number;
+  serverStageElapsedMs?: number;
+  serverUpdatedAt?: number;
   message?: string;
   updatedAt?: number;
 }
@@ -184,36 +188,71 @@ let wsReconnectTimer: number | undefined;
 let elapsedTimer: number | undefined;
 const processingTimeouts = new Map<string, number>();
 
+function buildProcessingKey(pluginId?: string, action?: string) {
+  if (!pluginId) return undefined;
+  if (!action) return pluginId;
+  return `${pluginId}::${action.toUpperCase()}`;
+}
+
 function setProcessingInfo(pluginId: string | undefined, info: PluginProcessingInfo) {
-  if (!pluginId) return;
+  const key = buildProcessingKey(pluginId, info.action);
+  if (!key || !pluginId) return;
   const next = new Map(processingMap.value);
-  const current = next.get(pluginId) || {};
+  const current = next.get(key) || {};
   if (current.updatedAt && info.updatedAt && info.updatedAt < current.updatedAt) {
     return;
   }
-  const nextInfo: PluginProcessingInfo = { ...current, ...info };
+  const now = Date.now();
+  let incomingUpdatedAt = info.updatedAt ?? now;
+  if (incomingUpdatedAt > now + 5000) {
+    incomingUpdatedAt = now;
+  }
+  const nextInfo: PluginProcessingInfo = { ...current, ...info, updatedAt: incomingUpdatedAt };
   if (info.stage && info.stage !== current.stage) {
-    nextInfo.stageStartedAt = info.updatedAt ?? Date.now();
+    nextInfo.stageStartedAt = incomingUpdatedAt;
+  }
+  if (info.elapsedMs !== undefined) {
+    nextInfo.serverElapsedMs = info.elapsedMs;
+    nextInfo.serverUpdatedAt = incomingUpdatedAt;
   }
   if (info.stageElapsedMs !== undefined) {
-    nextInfo.stageElapsedMs = info.stageElapsedMs;
+    nextInfo.serverStageElapsedMs = info.stageElapsedMs;
+    nextInfo.serverUpdatedAt = incomingUpdatedAt;
   }
-  next.set(pluginId, nextInfo);
+  next.set(key, nextInfo);
   processingMap.value = next;
   refreshTableView();
   ensureElapsedTimer();
-  if (info.updatedAt) {
-    scheduleProcessingTimeout(pluginId);
+  scheduleProcessingTimeout(key);
+}
+
+function clearProcessingInfo(pluginId?: string, action?: string) {
+  const key = buildProcessingKey(pluginId, action);
+  if (!key) return;
+  const next = new Map(processingMap.value);
+  next.delete(key);
+  processingMap.value = next;
+  refreshTableView();
+  clearProcessingTimeout(key);
+  if (processingMap.value.size === 0) {
+    stopElapsedTimer();
   }
 }
 
-function clearProcessingInfo(pluginId?: string) {
+function clearProcessingByPluginId(pluginId?: string) {
   if (!pluginId) return;
   const next = new Map(processingMap.value);
-  next.delete(pluginId);
+  let changed = false;
+  for (const key of next.keys()) {
+    if (key === pluginId || key.startsWith(`${pluginId}::`)) {
+      next.delete(key);
+      clearProcessingTimeout(key);
+      changed = true;
+    }
+  }
+  if (!changed) return;
   processingMap.value = next;
   refreshTableView();
-  clearProcessingTimeout(pluginId);
   if (processingMap.value.size === 0) {
     stopElapsedTimer();
   }
@@ -221,12 +260,25 @@ function clearProcessingInfo(pluginId?: string) {
 
 function getProcessingInfo(pluginId?: string) {
   if (!pluginId) return undefined;
-  return processingMap.value.get(pluginId);
+  const infos = Array.from(processingMap.value.entries())
+    .filter(([key]) => key.startsWith(`${pluginId}::`) || key === pluginId)
+    .map(([, info]) => info)
+    .filter(Boolean);
+  if (infos.length === 0) {
+    return undefined;
+  }
+  infos.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  return infos[0];
 }
 
 function isProcessing(pluginId?: string) {
   if (!pluginId) return false;
-  return processingMap.value.has(pluginId);
+  for (const key of processingMap.value.keys()) {
+    if (key === pluginId || key.startsWith(`${pluginId}::`)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function refreshTableView() {
@@ -242,10 +294,14 @@ function ensureElapsedTimer() {
     next.forEach((info, key) => {
       if (!info) return;
       const updated: PluginProcessingInfo = { ...info };
-      if (info.startedAt) {
+      if (info.serverUpdatedAt !== undefined && info.serverElapsedMs !== undefined) {
+        updated.elapsedMs = Math.max(0, info.serverElapsedMs + (now - info.serverUpdatedAt));
+      } else if (info.startedAt) {
         updated.elapsedMs = Math.max(0, now - info.startedAt);
       }
-      if (info.stageStartedAt) {
+      if (info.serverUpdatedAt !== undefined && info.serverStageElapsedMs !== undefined) {
+        updated.stageElapsedMs = Math.max(0, info.serverStageElapsedMs + (now - info.serverUpdatedAt));
+      } else if (info.stageStartedAt) {
         updated.stageElapsedMs = Math.max(0, now - info.stageStartedAt);
       }
       next.set(key, updated);
@@ -266,25 +322,26 @@ function stopElapsedTimer() {
 }
 
 // Fallback to clear processing state when no WS update arrives.
-function scheduleProcessingTimeout(pluginId: string, timeoutMs = 15000) {
-  clearProcessingTimeout(pluginId);
+function scheduleProcessingTimeout(key: string, timeoutMs = 120000) {
+  clearProcessingTimeout(key);
   const marker = Date.now();
   const timer = window.setTimeout(() => {
-    const current = getProcessingInfo(pluginId);
+    const current = processingMap.value.get(key);
     if (!current) return;
     if (current.updatedAt && current.updatedAt > marker) {
       return;
     }
-    clearProcessingInfo(pluginId);
+    const [pluginId, action] = key.split('::');
+    clearProcessingInfo(pluginId, action);
   }, timeoutMs);
-  processingTimeouts.set(pluginId, timer);
+  processingTimeouts.set(key, timer);
 }
 
-function clearProcessingTimeout(pluginId: string) {
-  const timer = processingTimeouts.get(pluginId);
+function clearProcessingTimeout(key: string) {
+  const timer = processingTimeouts.get(key);
   if (timer) {
     window.clearTimeout(timer);
-    processingTimeouts.delete(pluginId);
+    processingTimeouts.delete(key);
   }
 }
 
@@ -314,24 +371,17 @@ function formatStageElapsed(ms?: number) {
   return $t('page.pluginManagement.message.stageElapsed', { seconds: seconds.toFixed(1) });
 }
 
-function startSimulatedProgress(pluginId: string | undefined) {
-  if (!pluginId) return;
-  const info = getProcessingInfo(pluginId);
-  if (!info || !info.stage || !info.stage.startsWith('registry')) return;
-  let value = typeof info.progress === 'number' ? info.progress : 10;
-  const target = 90;
-  const timer = window.setInterval(() => {
-    const current = getProcessingInfo(pluginId);
-    if (!current || !current.stage || !current.stage.startsWith('registry')) {
-      window.clearInterval(timer);
-      return;
+function resolveOccurredAt(payload: any) {
+  if (typeof payload?.occurredAt === 'number') {
+    return payload.occurredAt;
+  }
+  if (payload?.occurredOn) {
+    const parsed = new Date(payload.occurredOn).getTime();
+    if (!Number.isNaN(parsed)) {
+      return parsed;
     }
-    value = Math.min(target, value + 1);
-    setProcessingInfo(pluginId, { progress: value });
-    if (value >= target) {
-      window.clearInterval(timer);
-    }
-  }, 300);
+  }
+  return Date.now();
 }
 
 function buildWsUrl() {
@@ -352,8 +402,8 @@ function connectPluginSocket() {
       const status = String(payload?.status || '').toUpperCase();
       const pluginId = payload?.pluginId;
       if (status === 'PROCESSING') {
-        const occurredOn = payload?.occurredOn ? new Date(payload.occurredOn).getTime() : Date.now();
-        const startedAt = typeof payload?.startedAt === 'number' ? payload.startedAt : Date.now();
+        const occurredOn = resolveOccurredAt(payload);
+        const startedAt = typeof payload?.startedAt === 'number' ? payload.startedAt : occurredOn;
         setProcessingInfo(pluginId, {
           action: payload?.action,
           stage: payload?.stage,
@@ -364,11 +414,10 @@ function connectPluginSocket() {
           message: payload?.message,
           updatedAt: occurredOn
         });
-        startSimulatedProgress(pluginId);
         return;
       }
       if (status === 'SUCCESS' || status === 'FAILED') {
-        clearProcessingInfo(pluginId);
+        clearProcessingByPluginId(pluginId);
       }
       if (status === 'FAILED') {
         window.$message?.error(payload?.message || $t('page.pluginManagement.message.operationFailed'));
@@ -391,6 +440,37 @@ function connectPluginSocket() {
   };
 }
 
+function applyProgressSnapshots(messages: string[]) {
+  messages.forEach(raw => {
+    try {
+      const payload = JSON.parse(raw);
+      const status = String(payload?.status || '').toUpperCase();
+      if (status !== 'PROCESSING') return;
+      const occurredOn = resolveOccurredAt(payload);
+      const startedAt = typeof payload?.startedAt === 'number' ? payload.startedAt : occurredOn;
+      setProcessingInfo(payload?.pluginId, {
+        action: payload?.action,
+        stage: payload?.stage,
+        progress: typeof payload?.progress === 'number' ? payload.progress : undefined,
+        startedAt,
+        elapsedMs: payload?.elapsedMs ?? 0,
+        stageElapsedMs: payload?.stageElapsedMs ?? undefined,
+        message: payload?.message,
+        updatedAt: occurredOn
+      });
+    } catch (error) {
+      console.error('[plugin] snapshot parse failed:', error);
+    }
+  });
+}
+
+async function loadProgressSnapshots() {
+  const { data, error } = await fetchPluginProgressSnapshots();
+  if (!error && Array.isArray(data.value)) {
+    applyProgressSnapshots(data.value);
+  }
+}
+
 async function getStatistics() {
   const {data} = await fetchPluginStatistics();
   if (data.value) {
@@ -400,10 +480,13 @@ async function getStatistics() {
 
 // 启用插件
 async function handleEnable(row: any) {
-  setProcessingInfo(row.pluginId, { stage: 'start', progress: 0, updatedAt: Date.now() });
+  setProcessingInfo(row.pluginId, { action: 'ENABLE', stage: 'start', progress: 0, updatedAt: Date.now() });
   const {error} = await fetchPluginEnable(row.id);
-  clearProcessingInfo(row.pluginId);
+  if (error) {
+    clearProcessingInfo(row.pluginId, 'ENABLE');
+  }
   if (!error) {
+    clearProcessingByPluginId(row.pluginId);
     window.$message?.success($t('page.pluginManagement.message.enableSuccess'));
     getData();
     getStatistics();
@@ -413,10 +496,13 @@ async function handleEnable(row: any) {
 
 // 禁用插件
 async function handleDisable(row: any) {
-  setProcessingInfo(row.pluginId, { stage: 'start', progress: 0, updatedAt: Date.now() });
+  setProcessingInfo(row.pluginId, { action: 'DISABLE', stage: 'start', progress: 0, updatedAt: Date.now() });
   const {error} = await fetchPluginDisable(row.id);
-  clearProcessingInfo(row.pluginId);
+  if (error) {
+    clearProcessingInfo(row.pluginId, 'DISABLE');
+  }
   if (!error) {
+    clearProcessingByPluginId(row.pluginId);
     window.$message?.success($t('page.pluginManagement.message.disableSuccess'));
     getData();
     getStatistics();
@@ -436,10 +522,13 @@ async function handleDelete(row: any) {
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
     onPositiveClick: async () => {
-      setProcessingInfo(row.pluginId, { stage: 'start', progress: 0, updatedAt: Date.now() });
+      setProcessingInfo(row.pluginId, { action: 'UNINSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
       const {error} = await fetchPluginDelete(row.id);
-      clearProcessingInfo(row.pluginId);
+      if (error) {
+        clearProcessingInfo(row.pluginId, 'UNINSTALL');
+      }
       if (!error) {
+        clearProcessingByPluginId(row.pluginId);
         window.$message?.success($t('page.pluginManagement.message.deleteSuccess'));
         getData();
         getStatistics();
@@ -481,6 +570,7 @@ function closeUploadModal() {
 async function handleUpload({ file }: any) {
   uploadLoading.value = true;
   try {
+    setProcessingInfo(undefined, { action: 'INSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
     const { error } = await fetchPluginInstall(file.file);
     if (!error) {
       window.$message?.success($t('page.pluginManagement.message.installSuccess'));
@@ -490,6 +580,7 @@ async function handleUpload({ file }: any) {
       await routeStore.refreshPluginRoutes();
     }
   } finally {
+    clearProcessingInfo(undefined, 'INSTALL');
     uploadLoading.value = false;
   }
   return false; // 阻止自动上传
@@ -502,6 +593,7 @@ function handleImportButtonClick() {
 onMounted(() => {
   getData();
   getStatistics();
+  loadProgressSnapshots();
   connectPluginSocket();
 });
 

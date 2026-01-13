@@ -140,6 +140,11 @@ public class PluginFileCopier {
             FileUtil.copy(file, pluginDir, true);
         }
 
+        File classIndex = new File(pluginDir, "code/.class-index");
+        if (classIndex.exists()) {
+            FileUtil.del(classIndex);
+        }
+
         log.info("Copied plugin from temp directory {} to {}", pluginTempDir.getAbsolutePath(), pluginDir.getAbsolutePath());
         return pluginDir;
     }
