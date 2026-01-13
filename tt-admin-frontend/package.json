@@ -62,6 +62,7 @@
     "defu": "6.1.4",
     "echarts": "6.0.0",
     "json5": "2.2.3",
+    "md-editor-v3": "6.3.1",
     "naive-ui": "2.43.1",
     "nprogress": "0.2.0",
     "pinia": "3.0.4",

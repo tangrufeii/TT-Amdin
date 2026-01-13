@@ -44,7 +44,7 @@
         </n-space>
       </div>
 
-      <n-scrollbar class="ai-messages" ref="messagesRef" @click="handleCodeCopy">
+      <n-scrollbar class="ai-messages" ref="messagesRef">
         <div v-if="!configForm.hasApiKey" class="ai-config-tip">
           API Key 未配置，请点击右上角“设置”完成初始化。
           <n-button size="tiny" secondary @click="openConfig">去配置</n-button>
@@ -61,7 +61,14 @@
             <div class="ai-message-toolbar" v-if="msg.role === 'assistant' && msg.displayContent">
               <n-button text size="tiny" @click="copyMessage(msg)">复制</n-button>
             </div>
-            <div v-html="renderMarkdown(msg.displayContent ?? msg.content)"></div>
+            <div class="ai-message-content">
+              <MdPreview
+                class="ai-message-markdown"
+                :editor-id="`ai-${msg.localId}`"
+                :model-value="msg.displayContent ?? msg.content"
+              />
+              <span v-if="shouldShowCursor(msg)" class="ai-typing-cursor"></span>
+            </div>
           </div>
         </div>
       </n-scrollbar>
@@ -130,9 +137,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-import hljs from 'highlight.js';
+import { MdPreview } from 'md-editor-v3';
+import 'md-editor-v3/lib/style.css';
+import { getPluginBaseURL, request, requestData, resolveToken } from '@tt/plugin-sdk';
 import {
   NButton,
   NCheckbox,
@@ -177,19 +184,6 @@ interface ConfigForm {
   azureApiVersion?: string;
 }
 
-type PluginRequestConfig = {
-  url: string;
-  method?: string;
-  params?: Record<string, any>;
-  data?: any;
-};
-
-type PluginApi = {
-  request?: <T>(config: PluginRequestConfig) => Promise<{ data: T; error: any; response?: any }>;
-};
-
-const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
-
 const sessions = ref<ChatSession[]>([]);
 const messages = ref<ChatMessage[]>([]);
 const activeSessionId = ref<number | null>(null);
@@ -199,10 +193,15 @@ const showConfig = ref(false);
 const sending = ref(false);
 const streaming = ref(true);
 const messagesRef = ref<any>(null);
-let typingTimer: number | null = null;
+const eventSourceRef = ref<EventSource | null>(null);
 let streamTypingTimer: number | null = null;
 let streamBuffer = '';
 let streamDone = false;
+const typingMessageId = ref<string | null>(null);
+let typingRafId: number | null = null;
+let typingLastTs = 0;
+let typingPauseUntil = 0;
+const typingSpeed = 70;
 
 const providerOptions = [
   { label: 'OpenAI 兼容', value: 'openai' },
@@ -258,129 +257,6 @@ const configForm = reactive<ConfigForm>({
   azureApiVersion: ''
 });
 
-const renderer = new marked.Renderer();
-renderer.link = (href, title, text) => {
-  const safeHref = href || '';
-  const safeTitle = title ? ` title="${title}"` : '';
-  return `<a href="${safeHref}"${safeTitle} target="_blank" rel="noreferrer">${text}</a>`;
-};
-renderer.code = (code, lang) => {
-  const language = lang && hljs.getLanguage(lang) ? lang : '';
-  const highlighted = language ? hljs.highlight(code, { language }).value : hljs.highlightAuto(code).value;
-  const safeCode = encodeURIComponent(code);
-  return `
-    <pre class="ai-code-block">
-      <button class="ai-code-copy" data-code="${safeCode}">复制</button>
-      <code class="hljs ${language}">${highlighted}</code>
-    </pre>
-  `;
-};
-
-marked.setOptions({
-  gfm: true,
-  breaks: true,
-  renderer,
-  highlight(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      return hljs.highlight(code, { language: lang }).value;
-    }
-    return hljs.highlightAuto(code).value;
-  }
-});
-
-function renderMarkdown(text: string) {
-  const raw = marked.parse(text || '');
-  return DOMPurify.sanitize(raw);
-}
-
-function getBaseApi() {
-  return (window as any).__TT_PLUGIN_API_BASE__ || import.meta.env.VITE_API_BASE || '/proxy-default';
-}
-
-function resolveToken() {
-  const keys = Object.keys(localStorage);
-  const tokenKey = keys.find(key => /token$/i.test(key) && !/refresh/i.test(key));
-  if (!tokenKey) return null;
-  const raw = localStorage.getItem(tokenKey);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-
-function clearAuthTokens() {
-  const keys = Object.keys(localStorage);
-  keys.forEach(key => {
-    if (/token$/i.test(key)) {
-      localStorage.removeItem(key);
-    }
-  });
-}
-
-function handleUnauthorized() {
-  clearAuthTokens();
-  const redirect = encodeURIComponent(location.pathname + location.search);
-  window.location.href = `/login?redirect=${redirect}`;
-}
-
-function withQuery(url: string, params?: Record<string, any>) {
-  if (!params) return url;
-  const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return;
-    if (Array.isArray(value)) {
-      value.forEach(item => {
-        if (item !== undefined && item !== null && item !== '') {
-          search.append(key, String(item));
-        }
-      });
-      return;
-    }
-    search.append(key, String(value));
-  });
-  const query = search.toString();
-  return query ? `${url}${url.includes('?') ? '&' : '?'}${query}` : url;
-}
-
-async function requestFallback<T>(config: PluginRequestConfig): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  };
-  const token = resolveToken();
-  if (token) {
-    headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  }
-  const url = withQuery(`${getBaseApi()}${config.url}`, config.params);
-  const response = await fetch(url, {
-    method: config.method || 'GET',
-    headers,
-    body: config.data ? JSON.stringify(config.data) : undefined
-  });
-  if (response.status === 401) {
-    handleUnauthorized();
-    throw new Error('unauthorized');
-  }
-  const payload = await response.json();
-  if (payload?.code === 401 || payload?.code === 40101) {
-    handleUnauthorized();
-    throw new Error('unauthorized');
-  }
-  return payload.data ?? payload;
-}
-
-async function callApi<T>(config: PluginRequestConfig): Promise<T> {
-  if (pluginApi?.request) {
-    const result = await pluginApi.request<T>(config);
-    if (result?.error) {
-      throw result.error;
-    }
-    return result.data;
-  }
-  return requestFallback<T>(config);
-}
-
 function handleProviderChange(value: string) {
   configForm.provider = value;
   applyProviderDefaults(value, false);
@@ -408,7 +284,7 @@ function applyProviderDefaults(provider: string, force: boolean) {
 }
 
 async function loadConfig() {
-  const data = await callApi<ConfigForm>({ url: '/plugin/ai-chat/config' });
+  const data = await requestData<ConfigForm>({ url: '/plugin/ai-chat/config' });
   configForm.provider = data.provider || 'openai';
   configForm.baseUrl = data.baseUrl || 'https://api.openai.com';
   configForm.apiKey = '';
@@ -423,7 +299,7 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
-  await callApi({
+  const saveResult = await request<boolean>({
     url: '/plugin/ai-chat/config',
     method: 'PUT',
     data: {
@@ -438,13 +314,16 @@ async function saveConfig() {
       azureApiVersion: configForm.azureApiVersion
     }
   });
+  if (saveResult.error) {
+    throw saveResult.error;
+  }
   configForm.apiKey = '';
   showConfig.value = false;
   await loadConfig();
 }
 
 async function loadSessions() {
-  sessions.value = await callApi<ChatSession[]>({ url: '/plugin/ai-chat/sessions' });
+  sessions.value = await requestData<ChatSession[]>({ url: '/plugin/ai-chat/sessions' });
   if (activeSessionId.value) {
     const active = sessions.value.find(item => item.id === activeSessionId.value);
     if (active) {
@@ -459,7 +338,7 @@ async function loadSessions() {
 async function selectSession(session: ChatSession) {
   activeSessionId.value = session.id;
   activeSessionTitle.value = session.title;
-  const data = await callApi<any[]>({ url: `/plugin/ai-chat/messages/${session.id}` });
+  const data = await requestData<any[]>({ url: `/plugin/ai-chat/messages/${session.id}` });
   messages.value = data.map((item, index) => ({
     localId: `${item.id || index}`,
     role: item.role,
@@ -470,14 +349,14 @@ async function selectSession(session: ChatSession) {
 }
 
 async function createSession() {
-  const session = await callApi<ChatSession>({ url: '/plugin/ai-chat/sessions', method: 'POST' });
+  const session = await requestData<ChatSession>({ url: '/plugin/ai-chat/sessions', method: 'POST' });
   sessions.value = [session, ...sessions.value];
   await selectSession(session);
 }
 
 async function removeSession(session: ChatSession) {
   if (!confirm('确认删除该会话吗？')) return;
-  await callApi({ url: `/plugin/ai-chat/sessions/${session.id}`, method: 'DELETE' });
+  await requestData({ url: `/plugin/ai-chat/sessions/${session.id}`, method: 'DELETE' });
   sessions.value = sessions.value.filter(item => item.id !== session.id);
   if (activeSessionId.value === session.id) {
     activeSessionId.value = null;
@@ -502,7 +381,7 @@ async function sendMessage() {
     if (streaming.value) {
       await streamSend(text, assistantMessage);
     } else {
-      const data = await callApi<any>({
+      const data = await requestData<any>({
         url: '/plugin/ai-chat/message',
         method: 'POST',
         data: { sessionId: activeSessionId.value, message: text }
@@ -514,6 +393,7 @@ async function sendMessage() {
     }
     await loadSessions();
   } catch (error) {
+    console.error('eror',error)
     assistantMessage.content = '请求失败，请检查配置或网络。';
     assistantMessage.displayContent = assistantMessage.content;
   } finally {
@@ -523,76 +403,49 @@ async function sendMessage() {
 }
 
 async function streamSend(message: string, assistantMessage: ChatMessage) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = resolveToken();
+  const params = new URLSearchParams();
+  if (activeSessionId.value) {
+    params.set('sessionId', String(activeSessionId.value));
+  }
+  params.set('message', message);
   if (token) {
-    headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+    const rawToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+    params.set('satoken', rawToken);
   }
-  const response = await fetch(`${getBaseApi()}/plugin/ai-chat/message/stream`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ sessionId: activeSessionId.value, message })
-  });
-
-  if (response.status === 401) {
-    handleUnauthorized();
-    throw new Error('unauthorized');
-  }
-
-  if (!response.ok || !response.body) {
-    throw new Error('stream failed');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split('\n\n');
-    buffer = parts.pop() || '';
-    for (const part of parts) {
-      handleSseEvent(part, assistantMessage);
+  const url = `${getPluginBaseURL()}/plugin/ai-chat/message/stream?${params.toString()}`;
+  return new Promise<void>((resolve, reject) => {
+    if (eventSourceRef.value) {
+      eventSourceRef.value.close();
     }
-  }
-  if (buffer) {
-    handleSseEvent(buffer, assistantMessage);
-  }
-}
-
-function handleSseEvent(rawEvent: string, assistantMessage: ChatMessage) {
-  const lines = rawEvent.split('\n').filter(Boolean);
-  let eventType = 'message';
-  let data = '';
-  lines.forEach(line => {
-    if (line.startsWith('event:')) {
-      eventType = line.replace('event:', '').trim();
-      return;
-    }
-    if (line.startsWith('data:')) {
-      data += line.replace('data:', '').trim();
-    }
-  });
-
-  if (!data) return;
-  if (eventType === 'meta') {
-    try {
-      const payload = JSON.parse(data);
-      if (payload.sessionId && !activeSessionId.value) {
-        activeSessionId.value = payload.sessionId;
+    const eventSource = new EventSource(url, { withCredentials: true });
+    eventSourceRef.value = eventSource;
+    let settled = false;
+    let hasChunk = false;
+    eventSource.onmessage = event => {
+      console.error("event",event)
+      hasChunk = true;
+      assistantMessage.content += event.data;
+      enqueueStreamText(assistantMessage, event.data);
+    };
+    eventSource.onerror = () => {
+      if (eventSource.readyState === EventSource.CLOSED || hasChunk) {
+        streamDone = true;
+        finalizeStreamTyping(assistantMessage);
+        eventSource.close();
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+        return;
       }
-    } catch {
-      return;
-    }
-  } else if (eventType === 'message') {
-    assistantMessage.content += data;
-    enqueueStreamText(assistantMessage, data);
-  } else if (eventType === 'done') {
-    streamDone = true;
-    finalizeStreamTyping(assistantMessage);
-  }
+      eventSource.close();
+      if (!settled) {
+        settled = true;
+        reject(new Error('stream failed'));
+      }
+    };
+  });
 }
 
 function openConfig() {
@@ -624,28 +477,12 @@ function scrollToBottom() {
 }
 
 function startTypewriter(message: ChatMessage, fullText: string) {
-  stopTypewriter();
+  stopStreamTypewriter(true);
   message.content = fullText || '';
   message.displayContent = '';
-  const chars = Array.from(message.content);
-  let index = 0;
-  typingTimer = window.setInterval(() => {
-    if (index >= chars.length) {
-      stopTypewriter();
-      message.displayContent = message.content;
-      return;
-    }
-    message.displayContent += chars[index];
-    index += 1;
-    scrollToBottom();
-  }, 12);
-}
-
-function stopTypewriter() {
-  if (typingTimer) {
-    window.clearInterval(typingTimer);
-    typingTimer = null;
-  }
+  streamBuffer = message.content;
+  streamDone = true;
+  startStreamTypewriter(message);
 }
 
 function enqueueStreamText(message: ChatMessage, text: string) {
@@ -658,18 +495,51 @@ function enqueueStreamText(message: ChatMessage, text: string) {
 
 function startStreamTypewriter(message: ChatMessage) {
   if (streamTypingTimer) return;
+  typingMessageId.value = message.localId;
+  typingLastTs = 0;
+  typingPauseUntil = 0;
   streamTypingTimer = window.setInterval(() => {
-    if (!streamBuffer.length) {
-      if (streamDone) {
-        finalizeStreamTyping(message);
-      }
-      return;
+    if (!typingRafId) {
+      typingRafId = window.requestAnimationFrame(ts => stepTyping(ts, message));
     }
+  }, 16);
+}
+
+function stepTyping(timestamp: number, message: ChatMessage) {
+  if (!typingLastTs) {
+    typingLastTs = timestamp;
+  }
+  if (typingPauseUntil && timestamp < typingPauseUntil) {
+    typingRafId = window.requestAnimationFrame(ts => stepTyping(ts, message));
+    return;
+  }
+  const delta = timestamp - typingLastTs;
+  typingLastTs = timestamp;
+  let charsToFlush = Math.floor((delta / 1000) * typingSpeed);
+  if (charsToFlush < 1) {
+    typingRafId = window.requestAnimationFrame(ts => stepTyping(ts, message));
+    return;
+  }
+  while (charsToFlush > 0 && streamBuffer.length) {
     const nextChar = streamBuffer[0];
     streamBuffer = streamBuffer.slice(1);
     message.displayContent += nextChar;
-    scrollToBottom();
-  }, 12);
+    charsToFlush -= 1;
+    if (/[，。！？]/.test(nextChar)) {
+      typingPauseUntil = timestamp + 160;
+      break;
+    }
+    if (/[,.!?]/.test(nextChar)) {
+      typingPauseUntil = timestamp + 90;
+      break;
+    }
+  }
+  scrollToBottom();
+  if (streamBuffer.length || !streamDone) {
+    typingRafId = window.requestAnimationFrame(ts => stepTyping(ts, message));
+    return;
+  }
+  finalizeStreamTyping(message);
 }
 
 function finalizeStreamTyping(message: ChatMessage) {
@@ -684,6 +554,11 @@ function stopStreamTypewriter(reset: boolean) {
     window.clearInterval(streamTypingTimer);
     streamTypingTimer = null;
   }
+  if (typingRafId) {
+    window.cancelAnimationFrame(typingRafId);
+    typingRafId = null;
+  }
+  typingMessageId.value = null;
   if (reset) {
     streamBuffer = '';
     streamDone = false;
@@ -693,13 +568,6 @@ function stopStreamTypewriter(reset: boolean) {
 function copyMessage(message: ChatMessage) {
   const text = message.content || message.displayContent || '';
   copyToClipboard(text);
-}
-
-function handleCodeCopy(event: MouseEvent) {
-  const target = event.target as HTMLElement | null;
-  if (!target || !target.classList.contains('ai-code-copy')) return;
-  const code = target.getAttribute('data-code') || '';
-  copyToClipboard(decodeURIComponent(code));
 }
 
 function copyToClipboard(text: string) {
@@ -716,6 +584,11 @@ function copyToClipboard(text: string) {
   textarea.select();
   document.execCommand('copy');
   document.body.removeChild(textarea);
+}
+
+function shouldShowCursor(message: ChatMessage) {
+  if (message.role !== 'assistant') return false;
+  return typingMessageId.value === message.localId;
 }
 
 watch(
@@ -738,32 +611,24 @@ onMounted(() => {
   margin-bottom: 6px;
 }
 
-.ai-code-block {
-  position: relative;
-  margin: 10px 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #0b1224;
-  color: #e2e8f0;
-  overflow: auto;
-  font-size: 13px;
-  line-height: 1.6;
+.ai-message-content {
+  display: inline;
 }
 
-.ai-code-copy {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  border: none;
-  background: rgba(255, 255, 255, 0.12);
-  color: #e2e8f0;
-  border-radius: 6px;
-  padding: 2px 6px;
-  font-size: 12px;
-  cursor: pointer;
+.ai-typing-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  margin-left: 4px;
+  background: #1f2937;
+  border-radius: 2px;
+  animation: ai-cursor-blink 1s steps(2, start) infinite;
+  vertical-align: text-bottom;
 }
 
-.ai-code-copy:hover {
-  background: rgba(255, 255, 255, 0.2);
+@keyframes ai-cursor-blink {
+  to {
+    visibility: hidden;
+  }
 }
 </style>

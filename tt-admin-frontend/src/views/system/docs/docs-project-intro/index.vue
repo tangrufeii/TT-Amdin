@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { $t } from '@/locales';
+import MarkdownViewer from '@/components/common/markdown-viewer.vue';
+import content from '../../../../../docs/project-intro.md?raw';
 
 defineOptions({
   name: 'DocsProjectIntro'
@@ -7,22 +8,9 @@ defineOptions({
 </script>
 
 <template>
-  <NSpace vertical :size="16">
-    <NCard :title="$t('page.docs.project.title')" :bordered="false" size="small" segmented>
-      <NList>
-        <NListItem>{{ $t('page.docs.project.positioning') }}</NListItem>
-        <NListItem>{{ $t('page.docs.project.architecture') }}</NListItem>
-        <NListItem>{{ $t('page.docs.project.rbac') }}</NListItem>
-        <NListItem>{{ $t('page.docs.project.frontend') }}</NListItem>
-        <NListItem>{{ $t('page.docs.project.backend') }}</NListItem>
-      </NList>
-    </NCard>
-    <NCard :title="$t('page.docs.project.tipsTitle')" :bordered="false" size="small">
-      <NAlert type="info" :bordered="false">
-        {{ $t('page.docs.project.tipsContent') }}
-      </NAlert>
-    </NCard>
-  </NSpace>
+  <NCard :bordered="false" size="small">
+    <MarkdownViewer :content="content" />
+  </NCard>
 </template>
 
 <style scoped></style>

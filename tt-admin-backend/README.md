@@ -281,6 +281,142 @@ public class DemoPluginLifecycle implements BasePluginLifecycle {
 }
 ```
 
+### 插件前端统一规范（推荐）
+
+- **统一请求封装**：优先使用 `@tt/plugin-sdk` 的 `request` / `requestData`，宿主存在时复用宿主请求链路，独立运行时自动 fallback。
+- **统一表头与批量操作**：列表页使用 `useTable` + `TableHeaderOperation` + `useTableOperate`，保证新增/批量删除/刷新/列设置一致。
+- **统一布局高度**：列表区使用 `flex-1-hidden`，容器内部需要滚动时配合 `h-full-hidden`。
+- **统一表单结构**：表单用 `NForm` + `NGrid` + `NFormItemGi`，弹窗优先用 `NDrawer`/`NModal`，footer 固定“取消/确定”按钮样式。
+
+示例：统一请求封装
+```ts
+import { requestData } from '@tt/plugin-sdk';
+
+const detail = await requestData({ url: '/plugin/demo/detail', params: { id: 1 } });
+await requestData({ url: '/plugin/demo', method: 'POST', data: { name: 'Demo' } });
+```
+
+说明：`TableHeaderOperation` 已对齐 panis-boot 版本，分为左右两栏：
+- 左侧：新增/批量删除/自定义按钮（`prefix`/`suffix`）
+- 右侧：导出/刷新/列设置（`extra-prefix`/`extra-suffix`）
+支持 `addAuth`/`deleteAuth`/`exportAuth` 控制按钮权限显示。
+
+示例：列表页 + 表头操作
+```vue
+<script setup lang="ts">
+import { useTable, useTableOperate } from '@/hooks/common/table';
+import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
+import { useAuth } from '@/hooks/business/auth';
+
+const { columns, data, loading, columnChecks, getData } = useTable({
+  apiFn: fetchPage,
+  apiParams: { page: 1, pageSize: 20 },
+  columns: () => [{ type: 'selection', width: 48, align: 'center' }, { key: 'name', title: 'Name' }]
+});
+const { checkedRowKeys, onBatchDeleted } = useTableOperate(data, getData);
+const { hasAuth } = useAuth();
+</script>
+
+<template>
+  <TableHeaderOperation
+    v-model:columns="columnChecks"
+    :checked-row-keys="checkedRowKeys"
+    :loading="loading"
+    add-auth="sys:demo:add"
+    delete-auth="sys:demo:delete"
+    export-auth="sys:demo:export"
+    @add="openCreate"
+    @delete="handleBatchDelete"
+    @refresh="getData"
+  />
+  <NDataTable v-model:checked-row-keys="checkedRowKeys" :columns="columns" :data="data" />
+</template>
+```
+
+### hasAuth 是什么
+`hasAuth` 来自 `@/hooks/business/auth`，用于判断当前用户是否具备权限标识（如 `sys:user:add`）。  
+常用于按钮显示/隐藏或禁用：
+```ts
+import { useAuth } from '@/hooks/business/auth';
+const { hasAuth } = useAuth();
+const canAdd = hasAuth('sys:demo:add');
+```
+
+### 权限标识命名规范（推荐）
+- 格式：`<模块>:<资源>:<动作>`，全小写、使用冒号分隔。
+- 示例：
+  - `sys:user:add` 新增用户
+  - `sys:user:update` 编辑用户
+  - `sys:user:delete` 删除用户
+  - `sys:menu:add` 新增菜单
+  - `sys:permission:delete` 删除权限
+
+### 表头按钮区的标准组合
+建议统一使用以下 slot 组合，避免按钮散落：
+
+1) 默认新增+批删（自动由 `addAuth/deleteAuth` 控制）  
+```vue
+<TableHeaderOperation
+  v-model:columns="columnChecks"
+  :checked-row-keys="checkedRowKeys"
+  add-auth="sys:demo:add"
+  delete-auth="sys:demo:delete"
+  @add="handleAdd"
+  @delete="handleBatchDelete"
+  @refresh="getData"
+/>
+```
+
+2) 自定义左侧按钮（prefix/suffix）  
+```vue
+<TableHeaderOperation v-model:columns="columnChecks" :checked-row-keys="checkedRowKeys" @refresh="getData">
+  <template #prefix>
+    <NButton size="small" ghost type="primary" @click="handleAdd">新增</NButton>
+  </template>
+  <template #suffix>
+    <NPopconfirm @positive-click="handleBatchDelete">
+      <template #trigger>
+        <NButton size="small" ghost type="error" :disabled="!checkedRowKeys.length">批量删除</NButton>
+      </template>
+      {{ $t('common.confirmBatchDelete') }}
+    </NPopconfirm>
+  </template>
+</TableHeaderOperation>
+```
+
+3) 自定义右侧扩展（extra-prefix/extra-suffix）  
+```vue
+<TableHeaderOperation v-model:columns="columnChecks" :checked-row-keys="checkedRowKeys" @refresh="getData">
+  <template #extra-prefix>
+    <NButton size="small" quaternary @click="handleExport">导出</NButton>
+  </template>
+  <template #extra-suffix>
+    <NButton size="small" quaternary @click="handleRefresh">自定义刷新</NButton>
+  </template>
+</TableHeaderOperation>
+```
+
+示例：表单弹窗
+```vue
+<NDrawer v-model:show="showDrawer" placement="right" :width="520">
+  <NDrawerContent title="编辑数据" closable>
+    <NForm ref="formRef" :model="formModel" :rules="rules" label-placement="left" :label-width="90">
+      <NGrid :x-gap="8" :y-gap="8">
+        <NFormItemGi span="12" label="名称" path="name">
+          <NInput v-model:value="formModel.name" />
+        </NFormItemGi>
+      </NGrid>
+    </NForm>
+    <template #footer>
+      <NSpace justify="end">
+        <NButton @click="showDrawer = false">取消</NButton>
+        <NButton type="primary" @click="submit">确定</NButton>
+      </NSpace>
+    </template>
+  </NDrawerContent>
+</NDrawer>
+```
+
 ## API 接口
 
 ### 认证授权
