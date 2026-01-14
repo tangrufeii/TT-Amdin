@@ -17,5 +17,5 @@ spring:
       - classpath:config/mybatis-plus.yml
       - classpath:config/swagger.yml
       - classpath:config/sa-token.yml
-      - optional:classpath:application-local.yml
+
 

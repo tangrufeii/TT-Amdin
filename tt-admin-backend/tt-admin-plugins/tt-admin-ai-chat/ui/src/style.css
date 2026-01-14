@@ -1,14 +1,6 @@
 
 
-html,
-body,
-#app {
-  height: 100%;
-
-}
-
-
-:root {
+.ai-chat-app {
   color-scheme: light;
   font-family: 'HarmonyOS Sans', 'Source Han Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --bg: #f5f7fb;
