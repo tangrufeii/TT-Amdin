@@ -33,3 +33,8 @@ hs_err_pid*
 **/yarn-debug.log*
 **/yarn-error.log*
 **/pnpm-debug.log*
+
+# Plugin UI build artifacts
+**/src/main/resources/ui/**
+**/resources/plugins/**/ui/**
+**/resources/temp/**
