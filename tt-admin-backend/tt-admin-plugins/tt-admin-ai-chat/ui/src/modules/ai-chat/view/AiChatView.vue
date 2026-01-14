@@ -1,12 +1,10 @@
 <template>
-  <n-layout class="ai-layout" has-sider>
+  <div class="ai-chat-app">
+    <n-layout class="ai-layout" has-sider>
     <n-layout-sider class="ai-sider" width="280" bordered>
       <div class="ai-sider-header">
-        <div class="ai-brand">AI 助手</div>
-        <n-space size="small">
-          <n-button size="small" secondary @click="openConfig">设置</n-button>
-          <n-button size="small" type="primary" @click="createSession">新建</n-button>
-        </n-space>
+        <div class="ai-brand">deepseek</div>
+        <n-button class="ai-new-session" tertiary @click="createSession">开启新对话</n-button>
       </div>
       <div class="ai-sider-sub">会话列表</div>
       <n-scrollbar class="ai-sessions">
@@ -32,24 +30,53 @@
     </n-layout-sider>
 
     <n-layout-content class="ai-content">
-      <div class="ai-content-header">
-        <div>
-          <div class="ai-title">{{ activeSessionTitle }}</div>
-          <div class="ai-subtitle">{{ activeSessionId ? '会话持续中' : '请先创建会话' }}</div>
-        </div>
-        <n-space size="small" align="center">
+      <div v-if="messages.length > 0" class="ai-content-header">
+        <div class="ai-content-title">{{ activeSessionTitle }}</div>
+        <div class="ai-content-actions">
           <n-checkbox v-model:checked="streaming">流式输出</n-checkbox>
-          <n-button size="small" secondary @click="openConfig">设置</n-button>
-          <n-button size="small" type="primary" @click="createSession">新建</n-button>
-        </n-space>
+          <n-button size="small" tertiary @click="openConfig">设置</n-button>
+        </div>
       </div>
 
-      <n-scrollbar class="ai-messages" ref="messagesRef">
+      <div v-if="messages.length === 0" class="ai-empty">
+        <div class="ai-empty-title">
+          <span class="ai-empty-logo">✦</span>
+          今天有什么可以帮到你？
+        </div>
+        <div class="ai-input ai-input--center">
+          <div class="ai-input-panel">
+            <n-input
+              v-model:value="inputMessage"
+              type="textarea"
+              placeholder="给 deepseek 发送消息"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              @keydown.enter.exact.prevent="handleEnter"
+              @keydown.shift.enter.stop
+            />
+            <div class="ai-input-actions">
+              <div class="ai-input-tools">
+                <n-button size="tiny" round secondary>深度思考</n-button>
+                <n-button size="tiny" round secondary>联网搜索</n-button>
+              </div>
+              <n-button
+                class="ai-send-btn"
+                type="primary"
+                circle
+                :disabled="sending || !inputMessage.trim()"
+                @click="sendMessage"
+              >
+                ↑
+              </n-button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <n-scrollbar v-else class="ai-messages" ref="messagesRef">
         <div v-if="!configForm.hasApiKey" class="ai-config-tip">
           API Key 未配置，请点击右上角“设置”完成初始化。
           <n-button size="tiny" secondary @click="openConfig">去配置</n-button>
         </div>
-        <div v-if="messages.length === 0" class="ai-message-empty">暂无消息，输入内容开始对话。</div>
         <div
           v-for="msg in messages"
           :key="msg.localId"
@@ -73,22 +100,36 @@
         </div>
       </n-scrollbar>
 
-      <div class="ai-input">
-        <n-input
-          v-model:value="inputMessage"
-          type="textarea"
-          placeholder="输入你的问题..."
-          :autosize="{ minRows: 2, maxRows: 6 }"
-          @keydown.enter.exact.prevent="handleEnter"
-          @keydown.shift.enter.stop
-        />
-        <div class="ai-input-actions">
-          <div class="ai-hint">{{ sending ? '生成中...' : 'Shift + Enter 换行' }}</div>
-          <n-button type="primary" :disabled="sending || !inputMessage.trim()" @click="sendMessage">发送</n-button>
+      <div v-if="messages.length > 0" class="ai-input">
+        <div class="ai-input-panel">
+          <n-input
+            v-model:value="inputMessage"
+            type="textarea"
+            placeholder="给 deepseek 发送消息"
+            :autosize="{ minRows: 2, maxRows: 6 }"
+            @keydown.enter.exact.prevent="handleEnter"
+            @keydown.shift.enter.stop
+          />
+          <div class="ai-input-actions">
+            <div class="ai-input-tools">
+              <n-button size="tiny" round secondary>深度思考</n-button>
+              <n-button size="tiny" round secondary>联网搜索</n-button>
+            </div>
+            <n-button
+              class="ai-send-btn"
+              type="primary"
+              circle
+              :disabled="sending || !inputMessage.trim()"
+              @click="sendMessage"
+            >
+              ↑
+            </n-button>
+          </div>
         </div>
       </div>
     </n-layout-content>
-  </n-layout>
+    </n-layout>
+  </div>
 
   <n-drawer v-model:show="showConfig" placement="right" :width="420">
     <n-drawer-content title="模型设置" closable>
@@ -136,10 +177,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onDeactivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { MdPreview } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
-import { getPluginBaseURL, request, requestData, resolveToken } from '@tt/plugin-sdk';
+import {
+  buildStreamUrl,
+  createSession as createSessionRequest,
+  deleteSession,
+  fetchConfig,
+  fetchMessages,
+  fetchSessions,
+  saveConfig as saveConfigRequest,
+  sendMessage
+} from '../api';
+import type { ChatMessage, ChatSession, ConfigForm } from '../api';
 import {
   NButton,
   NCheckbox,
@@ -155,34 +206,6 @@ import {
   NSelect,
   NSpace
 } from 'naive-ui';
-
-interface ChatSession {
-  id: number;
-  title: string;
-  summary?: string;
-  lastMessageTime?: string;
-  createTime?: string;
-}
-
-interface ChatMessage {
-  localId: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  displayContent?: string;
-}
-
-interface ConfigForm {
-  provider: string;
-  baseUrl: string;
-  apiKey: string;
-  hasApiKey: boolean;
-  model: string;
-  temperature: number;
-  maxTokens?: number;
-  systemPrompt?: string;
-  azureDeployment?: string;
-  azureApiVersion?: string;
-}
 
 const sessions = ref<ChatSession[]>([]);
 const messages = ref<ChatMessage[]>([]);
@@ -284,7 +307,7 @@ function applyProviderDefaults(provider: string, force: boolean) {
 }
 
 async function loadConfig() {
-  const data = await requestData<ConfigForm>({ url: '/plugin/ai-chat/config' });
+  const data = await fetchConfig();
   configForm.provider = data.provider || 'openai';
   configForm.baseUrl = data.baseUrl || 'https://api.openai.com';
   configForm.apiKey = '';
@@ -299,21 +322,7 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
-  const saveResult = await request<boolean>({
-    url: '/plugin/ai-chat/config',
-    method: 'PUT',
-    data: {
-      baseUrl: configForm.baseUrl,
-      apiKey: configForm.apiKey,
-      model: configForm.model,
-      temperature: configForm.temperature,
-      maxTokens: configForm.maxTokens,
-      systemPrompt: configForm.systemPrompt,
-      provider: configForm.provider,
-      azureDeployment: configForm.azureDeployment,
-      azureApiVersion: configForm.azureApiVersion
-    }
-  });
+  const saveResult = await saveConfigRequest(configForm);
   if (saveResult.error) {
     throw saveResult.error;
   }
@@ -323,7 +332,7 @@ async function saveConfig() {
 }
 
 async function loadSessions() {
-  sessions.value = await requestData<ChatSession[]>({ url: '/plugin/ai-chat/sessions' });
+  sessions.value = await fetchSessions();
   if (activeSessionId.value) {
     const active = sessions.value.find(item => item.id === activeSessionId.value);
     if (active) {
@@ -338,7 +347,7 @@ async function loadSessions() {
 async function selectSession(session: ChatSession) {
   activeSessionId.value = session.id;
   activeSessionTitle.value = session.title;
-  const data = await requestData<any[]>({ url: `/plugin/ai-chat/messages/${session.id}` });
+  const data = await fetchMessages(session.id);
   messages.value = data.map((item, index) => ({
     localId: `${item.id || index}`,
     role: item.role,
@@ -349,14 +358,14 @@ async function selectSession(session: ChatSession) {
 }
 
 async function createSession() {
-  const session = await requestData<ChatSession>({ url: '/plugin/ai-chat/sessions', method: 'POST' });
+  const session = await createSessionRequest();
   sessions.value = [session, ...sessions.value];
   await selectSession(session);
 }
 
 async function removeSession(session: ChatSession) {
   if (!confirm('确认删除该会话吗？')) return;
-  await requestData({ url: `/plugin/ai-chat/sessions/${session.id}`, method: 'DELETE' });
+  await deleteSession(session.id);
   sessions.value = sessions.value.filter(item => item.id !== session.id);
   if (activeSessionId.value === session.id) {
     activeSessionId.value = null;
@@ -381,11 +390,7 @@ async function sendMessage() {
     if (streaming.value) {
       await streamSend(text, assistantMessage);
     } else {
-      const data = await requestData<any>({
-        url: '/plugin/ai-chat/message',
-        method: 'POST',
-        data: { sessionId: activeSessionId.value, message: text }
-      });
+      const data = await sendMessage({ sessionId: activeSessionId.value, message: text });
       startTypewriter(assistantMessage, data.content || '');
       if (data.sessionId && !activeSessionId.value) {
         activeSessionId.value = data.sessionId;
@@ -403,17 +408,7 @@ async function sendMessage() {
 }
 
 async function streamSend(message: string, assistantMessage: ChatMessage) {
-  const token = resolveToken();
-  const params = new URLSearchParams();
-  if (activeSessionId.value) {
-    params.set('sessionId', String(activeSessionId.value));
-  }
-  params.set('message', message);
-  if (token) {
-    const rawToken = token.startsWith('Bearer ') ? token.slice(7) : token;
-    params.set('satoken', rawToken);
-  }
-  const url = `${getPluginBaseURL()}/plugin/ai-chat/message/stream?${params.toString()}`;
+  const url = buildStreamUrl({ sessionId: activeSessionId.value, message });
   return new Promise<void>((resolve, reject) => {
     if (eventSourceRef.value) {
       eventSourceRef.value.close();
@@ -591,6 +586,21 @@ function shouldShowCursor(message: ChatMessage) {
   return typingMessageId.value === message.localId;
 }
 
+function cleanupGlobalOverlays() {
+  const selectors = [
+    '.medium-zoom-overlay',
+    '.medium-zoom-image',
+    '.medium-zoom-image--opened',
+    '.md-editor-modal-mask',
+    '.md-editor-modal',
+    '.md-editor-modal-container'
+  ];
+  selectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(node => node.parentElement?.removeChild(node));
+  });
+  document.body.classList.remove('medium-zoom--opened');
+}
+
 watch(
   () => configForm.provider,
   value => {
@@ -602,9 +612,233 @@ onMounted(() => {
   loadConfig();
   loadSessions();
 });
+
+onUnmounted(() => {
+  if (eventSourceRef.value) {
+    eventSourceRef.value.close();
+    eventSourceRef.value = null;
+  }
+  showConfig.value = false;
+  stopStreamTypewriter(true);
+  cleanupGlobalOverlays();
+});
+
+onDeactivated(() => {
+  showConfig.value = false;
+  stopStreamTypewriter(true);
+  cleanupGlobalOverlays();
+});
 </script>
 
 <style scoped>
+.ai-chat-app {
+  height: 100%;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.08), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(14, 165, 233, 0.08), transparent 45%),
+    #121212;
+  color: #e5e7eb;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  font-family: 'HarmonyOS Sans', 'Source Han Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.ai-layout {
+  height: 100%;
+  background: #121212;
+  color: #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.ai-sider {
+  background: #161616;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ai-sider-header {
+  padding: 20px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #4c86ff;
+}
+
+.ai-new-session {
+  width: 100%;
+  border-radius: 999px;
+  background: #2b2b2b;
+  color: #e5e7eb;
+}
+
+.ai-sider-sub {
+  padding: 0 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ai-sessions {
+  height: calc(100% - 92px);
+  padding: 8px 8px 16px;
+}
+
+.ai-session-empty {
+  padding: 12px 8px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.ai-session-group {
+  margin-top: 12px;
+}
+
+.ai-session-group-title {
+  padding: 0 8px 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.ai-session-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.ai-session-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ai-session-item.active {
+  background: rgba(76, 134, 255, 0.18);
+}
+
+.ai-session-title {
+  font-size: 13px;
+  color: #f3f4f6;
+}
+
+.ai-session-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 4px;
+}
+
+.ai-content {
+  background: radial-gradient(circle at top, #1b1b1b 0%, #121212 50%, #0f0f0f 100%);
+  padding: 20px 28px 28px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-content-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0 16px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ai-content-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ai-content-actions {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.ai-empty-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.ai-empty-logo {
+  color: #4c86ff;
+  font-size: 22px;
+}
+
+.ai-messages {
+  flex: 1;
+  padding: 12px 8px 16px;
+}
+
+.ai-message-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.ai-message-row--user {
+  justify-content: flex-end;
+}
+
+.ai-message-row--user .ai-message-avatar {
+  background: #2f6bff;
+}
+
+.ai-message-row--user .ai-message-bubble {
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ai-message-row--assistant .ai-message-bubble {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.ai-message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #2b2b2b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ai-message-bubble {
+  max-width: 720px;
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
 .ai-message-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -613,6 +847,76 @@ onMounted(() => {
 
 .ai-message-content {
   display: inline;
+}
+
+.ai-message-markdown {
+  background: transparent;
+  color: #e5e7eb;
+}
+
+.ai-message-markdown :deep(.md-editor-preview) {
+  background: transparent;
+  color: #e5e7eb;
+}
+
+.ai-message-markdown :deep(.md-editor-preview-wrapper) {
+  padding: 0;
+}
+
+.ai-input {
+  padding-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.ai-input--center {
+  width: min(760px, 90%);
+}
+
+.ai-input-panel {
+  width: min(760px, 100%);
+  background: #1b1b1b;
+  border-radius: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.ai-input-panel :deep(textarea) {
+  background: transparent;
+  color: #e5e7eb;
+}
+
+.ai-input-panel :deep(.n-input__textarea) {
+  padding: 0;
+}
+
+.ai-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.ai-input-tools {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-send-btn {
+  background: #3b6cf4;
+}
+
+.ai-send-btn:disabled {
+  background: #374151;
+}
+
+.ai-config-tip {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 16px;
 }
 
 .ai-typing-cursor {

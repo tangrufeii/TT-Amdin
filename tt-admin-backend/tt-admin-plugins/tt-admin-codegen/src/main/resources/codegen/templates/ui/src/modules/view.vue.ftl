@@ -202,7 +202,7 @@ import {
   NSwitch
 } from 'naive-ui';
 import type { FormRules } from 'naive-ui';
-import { request } from '@tt/plugin-sdk';
+import { deleteRecord, fetchDictOptions, fetchPage, saveRecord } from './api';
 
 const { t } = useI18n();
 
@@ -315,10 +315,6 @@ function createColumnFactory() {
   ];
 }
 
-async function fetchPage(params: Record<string, any>) {
-  return await requestPost('/plugin/${ctx.moduleName}/page', params);
-}
-
 const { loading, data, columns, columnChecks, pagination, getData, getDataByPage, searchParams, resetSearchParams } = useTableHook({
   apiFn: fetchPage,
   apiParams: baseSearchParams,
@@ -357,22 +353,6 @@ const tableHeaderComponent = computed(() => {
   const instance = getCurrentInstance();
   return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
 });
-
-async function requestParams<T>(path: string, params?: Record<string, any>) {
-  return await request<T>({ url: path, params });
-}
-
-async function requestPost<T>(path: string, data: any) {
-  return await request<T>({ url: path, method: 'POST', data });
-}
-
-async function requestPut<T>(path: string, data: any) {
-  return await request<T>({ url: path, method: 'PUT', data });
-}
-
-async function requestDelete<T>(path: string) {
-  return await request<T>({ url: path, method: 'DELETE' });
-}
 
 function createFallbackTableHooks() {
   function getColumnChecks(cols: any[]) {
@@ -562,52 +542,29 @@ function openEdit(row: any) {
 
 async function submitForm() {
   const payload = { ...formModel };
-  const method = isEdit.value ? 'PUT' : 'POST';
-  const result =
-    method === 'PUT'
-      ? await requestPut('/plugin/${ctx.moduleName}', payload)
-      : await requestPost('/plugin/${ctx.moduleName}', payload);
-  if (!result.error) {
-    await onMessage(t('common.saveSuccess'));
-    closeModal();
-  }
+  await saveRecord(payload, isEdit.value);
+  await onMessage(t('common.saveSuccess'));
+  closeModal();
 }
 
 async function removeRow(row: any) {
   if (!window.confirm(t('common.deleteConfirm'))) return;
-  const result = await requestDelete('/plugin/${ctx.moduleName}/' + row.${primaryKey.fieldName});
-  if (!result.error) {
-    await onDeleted();
-  }
+  await deleteRecord(row.${primaryKey.fieldName});
+  await onDeleted();
 }
 
 async function batchDelete() {
   if (checkedRowKeys.value.length === 0) return;
   if (!window.confirm(t('common.confirmDelete'))) return;
   for (const id of checkedRowKeys.value) {
-    const result = await requestDelete('/plugin/${ctx.moduleName}/' + id);
-    if (result.error) {
-      return;
-    }
+    await deleteRecord(id);
   }
   await onBatchDeleted();
 }
 
 async function loadDictOptions(code: string) {
   if (!code || dictOptions[code]) return;
-  const dictListResult = await requestParams<any[]>('/system/dict/list', { code });
-  const dictList = dictListResult.data || [];
-  const dict = Array.isArray(dictList) ? dictList[0] : null;
-  if (!dict?.id) {
-    dictOptions[code] = [];
-    return;
-  }
-  const itemsResult = await requestPost('/system/dict/item/page', { page: 1, pageSize: 200, dictId: dict.id });
-  const items = itemsResult.data || {};
-  dictOptions[code] = (items.records ?? []).map((item: any) => ({
-    label: item.zhCn ?? item.value,
-    value: item.value
-  }));
+  dictOptions[code] = await fetchDictOptions(code);
 }
 
 onMounted(() => {

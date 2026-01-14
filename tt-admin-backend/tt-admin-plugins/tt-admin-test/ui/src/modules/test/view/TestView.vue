@@ -104,7 +104,8 @@ import {
   NSpace
 } from 'naive-ui';
 import type { FormRules } from 'naive-ui';
-import { request, requestData } from '@tt/plugin-sdk';
+import { deleteTestRecord, deleteTestRecords, fetchTestPage, saveTestRecord } from '../api';
+import type { TestPageQuery, TestRecord } from '../api';
 const { t } = useI18n();
 const isMobile = ref(false);
 let mobileQuery: MediaQueryList | null = null;
@@ -150,7 +151,7 @@ const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
 const fallbackHooks = createFallbackTableHooks();
 const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
 const useTableOperateHook = pluginApi?.useTableOperate ?? fallbackHooks.useTableOperate;
-const formModel = reactive({
+const formModel = reactive<TestRecord>({
   name: '',
   sex: '',
   age: null as number | null,
@@ -160,7 +161,7 @@ const rules: FormRules = {
   name: { required: true, message: t('form.required'), trigger: ['input', 'blur'] },
   sex: { required: true, message: t('form.required'), trigger: ['input', 'blur'] }
 };
-const baseSearchParams = {
+const baseSearchParams: TestPageQuery = {
   page: 1,
   pageSize: 20,
   name: '',
@@ -184,7 +185,7 @@ const createColumns = () => [
   }
 ];
 const { loading, data, columns, columnChecks, pagination, getData, getDataByPage, searchParams, resetSearchParams } = useTableHook({
-  apiFn: fetchPage,
+  apiFn: fetchTestPage,
   apiParams: baseSearchParams,
   columns: createColumns,
   transformer: res => {
@@ -215,9 +216,6 @@ const tableHeaderComponent = computed(() => {
   const instance = getCurrentInstance();
   return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
 });
-async function fetchPage(params: Record<string, any>) {
-  return await request({ url: '/plugin/test/page', method: 'POST', data: params });
-}
 function resetForm(row?: any) {
   formModel.name = row?.name ?? '';
   formModel.sex = row?.sex ?? '';
@@ -236,20 +234,19 @@ function openEdit(row: any) {
 }
 async function submitForm() {
   const payload = { ...formModel };
-  const method = operateType.value === 'edit' ? 'PUT' : 'POST';
-  await requestData({ url: '/plugin/test', method, data: payload });
+  await saveTestRecord(payload, operateType.value === 'edit');
   await onMessage(t('common.saveSuccess'));
   closeDrawer();
 }
 async function removeRow(row: any) {
   if (!window.confirm(t('common.confirmDelete'))) return;
-  await requestData({ url: /plugin/test/, method: 'DELETE' });
+  await deleteTestRecord(row.id);
   await onDeleted();
 }
 async function batchDelete() {
   if (checkedRowKeys.value.length === 0) return;
   if (!window.confirm(t('common.confirmDelete'))) return;
-  await requestData({ url: '/plugin/test', method: 'DELETE', data: checkedRowKeys.value });
+  await deleteTestRecords(checkedRowKeys.value as number[]);
   await onBatchDeleted();
 }
 function createFallbackTableHooks() {

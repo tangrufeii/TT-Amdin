@@ -74,7 +74,8 @@
 import { computed, getCurrentInstance, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { NButton, NCard, NDataTable, NForm, NFormItemGi, NGrid, NInput, NInputNumber, NSelect, NSpace, NSwitch, NTag } from 'naive-ui';
-import { request, requestData } from '@tt/plugin-sdk';
+import { fetchBackupConfig, fetchBackupRecords, runBackupTask, saveBackupConfig } from '../api';
+import type { BackupConfig, BackupRecord } from '../api';
 
 type PluginApi = {
   useTable?: any;
@@ -84,30 +85,6 @@ type PluginApi = {
 };
 
 const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
-
-interface BackupConfig {
-  id?: number;
-  dbType?: string;
-  backupType?: string;
-  customCommand?: string;
-  cron?: string;
-  enabled?: string;
-  retentionDays?: number;
-  targetDir?: string;
-  lastRunTime?: string;
-}
-
-interface BackupRecord {
-  id: number;
-  configId: number;
-  fileName: string;
-  filePath: string;
-  fileSize: number;
-  status: string;
-  message: string;
-  startTime: string;
-  endTime: string;
-}
 
 const { t } = useI18n();
 const isMobile = ref(false);
@@ -189,23 +166,15 @@ const baseSearchParams = {
   pageSize: 10
 };
 
-async function fetchRecords(params: Record<string, any>) {
-  return await request<{ records: BackupRecord[]; total: number; page?: number; pageSize?: number }>({
-    url: '/plugin/backup/records/page',
-    method: 'POST',
-    data: params
-  });
-}
-
 async function loadConfig() {
-  const data = await requestData<BackupConfig>({ url: '/plugin/backup/config' });
+  const data = await fetchBackupConfig();
   Object.assign(config, data);
 }
 
 async function saveConfig(silent = false) {
   saving.value = true;
   try {
-    const data = await requestData<BackupConfig>({ url: '/plugin/backup/config', method: 'PUT', data: config });
+    const data = await saveBackupConfig(config);
     Object.assign(config, data);
     if (!silent) {
       window.$message?.success(t('common.saveSuccess'));
@@ -219,7 +188,7 @@ async function runBackup() {
   running.value = true;
   try {
     await saveConfig(true);
-    await requestData({ url: '/plugin/backup/run', method: 'POST' });
+    await runBackupTask();
     window.$message?.success(t('plugin.backup.run'));
     await getData();
     await loadConfig();
@@ -232,7 +201,7 @@ const fallbackHooks = createFallbackTableHooks();
 const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
 
 const { loading, data, columns, columnChecks, pagination, getData, getDataByPage } = useTableHook({
-  apiFn: fetchRecords,
+  apiFn: fetchBackupRecords,
   apiParams: baseSearchParams,
   columns: createColumns,
   transformer: res => {

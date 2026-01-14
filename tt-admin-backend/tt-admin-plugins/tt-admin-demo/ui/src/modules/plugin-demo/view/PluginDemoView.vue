@@ -35,6 +35,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { sendGreetingMessage } from '../api';
 import '../../../style.css';
 
 const counter = ref(0);
@@ -49,16 +50,6 @@ function reset() {
 }
 
 function sendMessage() {
-  const payload = {
-    pluginId: 'tt-plugin-demo',
-    type: 'greeting',
-    data: { message: message.value }
-  };
-  const parentWindow = window.parent && window.parent !== window ? window.parent : window;
-  parentWindow.postMessage(payload, '*');
-  if (window.top && window.top !== parentWindow) {
-    window.top.postMessage(payload, '*');
-  }
-  console.info('[plugin-demo] message sent:', payload);
+  sendGreetingMessage(message.value);
 }
 </script>

@@ -104,37 +104,8 @@ import {
   NSwitch,
   NTag
 } from 'naive-ui';
-import { requestData } from '@tt/plugin-sdk';
-
-interface MonitorConfig {
-  id?: number;
-  cpuThreshold?: number;
-  memoryThreshold?: number;
-  diskThreshold?: number;
-  enabled?: string;
-}
-
-interface DiskUsage {
-  path: string;
-  total: number;
-  free: number;
-  used: number;
-  usage: number;
-}
-
-interface MonitorMetrics {
-  cpuUsage?: number;
-  memoryUsage?: number;
-  jvmMemoryUsage?: number;
-  jvmMemoryUsed?: number;
-  jvmMemoryTotal?: number;
-  loadAverage?: number;
-  threadCount?: number;
-  uptime?: number;
-  timestamp?: number;
-  disks?: DiskUsage[];
-  alerts?: Record<string, boolean>;
-}
+import { fetchMonitorConfig, fetchMonitorMetrics, saveMonitorConfig } from '../api';
+import type { DiskUsage, MonitorConfig, MonitorMetrics } from '../api';
 
 const { t } = useI18n();
 
@@ -166,18 +137,14 @@ const diskColumns = computed(() => [
 ]);
 
 async function loadConfig() {
-  const data = await requestData<MonitorConfig>({ url: '/plugin/monitor/config' });
+  const data = await fetchMonitorConfig();
   Object.assign(config, data);
 }
 
 async function saveConfig() {
   saving.value = true;
   try {
-    const data = await requestData<MonitorConfig>({
-      url: '/plugin/monitor/config',
-      method: 'PUT',
-      data: config
-    });
+    const data = await saveMonitorConfig(config);
     Object.assign(config, data);
     window.$message?.success(t('common.saveSuccess'));
   } finally {
@@ -188,7 +155,7 @@ async function saveConfig() {
 async function fetchMetrics() {
   metricsLoading.value = true;
   try {
-    const data = await requestData<MonitorMetrics>({ url: '/plugin/monitor/metrics' });
+    const data = await fetchMonitorMetrics();
     Object.assign(metrics, data);
     lastUpdate.value = new Date(metrics.timestamp || Date.now()).toLocaleString();
   } finally {

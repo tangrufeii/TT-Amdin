@@ -32,11 +32,25 @@
           v-if="tableHeaderComponent"
           v-model:columns="columnChecks"
           :loading="loading"
-          :disabled-delete="checkedRowKeys.length === 0"
+          :checked-row-keys="checkedRowKeys"
           @add="openCreate"
           @delete="batchDelete"
           @refresh="getData"
-        />
+        >
+          <template #default>
+            <n-button size="small" ghost type="primary" @click="openCreate">
+              {{ t('common.add') }}
+            </n-button>
+            <n-popconfirm placement="bottom" @positive-click="batchDelete">
+              <template #trigger>
+                <n-button size="small" ghost type="error" :disabled="checkedRowKeys.length === 0">
+                  {{ t('common.batchDelete') }}
+                </n-button>
+              </template>
+              {{ t('common.confirmBatchDelete') }}
+            </n-popconfirm>
+          </template>
+        </component>
         <div v-else class="toolbar">
           <n-space>
             <n-button size="small" ghost type="primary" @click="openCreate">
@@ -194,6 +208,7 @@ import {
   NGrid,
   NInput,
   NInputNumber,
+  NPopconfirm,
   NResult,
   NSelect,
   NSpace,
@@ -202,7 +217,19 @@ import {
   NTabs,
   NTag
 } from 'naive-ui';
-import { getPluginBaseURL, request, requestData } from '@tt/plugin-sdk';
+import {
+  cleanColumns,
+  deleteTables,
+  downloadTableZip,
+  fetchColumns,
+  fetchDataTables,
+  fetchDictOptions,
+  fetchTableDetail,
+  fetchTablePage,
+  saveTable,
+  syncColumns,
+  updateColumns
+} from '../api';
 
 const { t } = useI18n();
 const isMobile = ref(false);
@@ -253,72 +280,7 @@ const fallbackHooks = createFallbackTableHooks();
 const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
 const useTableOperateHook = pluginApi?.useTableOperate ?? fallbackHooks.useTableOperate;
 
-interface DataTableInfo {
-  tableName: string;
-  tableComment?: string;
-}
-
-interface CodegenTable {
-  id?: number;
-  tableName: string;
-  tableComment?: string;
-  tablePrefix?: string;
-  pluginId: string;
-  pluginName: string;
-  version?: string;
-  parentPackage: string;
-  moduleName: string;
-  routePath?: string;
-  menuName?: string;
-  i18nKey?: string;
-  icon?: string;
-  includeTableSql: string;
-  parentMenuId: number;
-  author: string;
-  status: string;
-  createTime?: string;
-}
-
-interface CodegenColumn {
-  id?: number;
-  tableId?: number;
-  tableName?: string;
-  columnName?: string;
-  propertyName?: string;
-  columnComment?: string;
-  dataType?: string;
-  javaType?: string;
-  typeScriptType?: string;
-  ordinalPosition?: number;
-  i18n?: string;
-  required?: string;
-  list?: string;
-  search?: string;
-  searchType?: string;
-  added?: string;
-  edit?: string;
-  dictCode?: string;
-  renderType?: string;
-  formSpan?: number;
-  searchSpan?: number;
-  listWidth?: number;
-  placeholder?: string;
-  defaultValue?: string;
-  formDisabled?: string;
-  formReadonly?: string;
-  minLength?: number;
-  maxLength?: number;
-  minValue?: number;
-  maxValue?: number;
-  pattern?: string;
-  componentProps?: string;
-  status?: string;
-}
-
-interface DictOption {
-  label: string;
-  value: string;
-}
+import type { CodegenColumn, CodegenTable, DataTableInfo, DictOption } from '../api';
 
 const modalVisible = ref(false);
 const step = ref(1);
@@ -818,12 +780,8 @@ const baseSearchParams = {
   tableName: ''
 };
 
-async function fetchPage(params: Record<string, any>) {
-  return await requestParams<any>('/plugin/codegen/tables/page', params);
-}
-
 const { loading, data, columns, columnChecks, pagination, getData, getDataByPage, searchParams, resetSearchParams } = useTableHook({
-  apiFn: fetchPage,
+  apiFn: fetchTablePage,
   apiParams: baseSearchParams,
   columns: createTableColumns,
   transformer: res => {
@@ -889,16 +847,12 @@ function formatDateTime(value?: string) {
   return date.toLocaleString();
 }
 
-async function requestParams<T>(path: string, params?: Record<string, any>) {
-  return await request<T>({ url: path, params });
-}
-
 async function loadDataTables() {
-  dataTableOptions.value = await requestData<DataTableInfo[]>({ url: '/plugin/codegen/data-tables' });
+  dataTableOptions.value = await fetchDataTables();
 }
 
 async function loadDictOptions() {
-  dictOptions.value = await requestData<DictOption[]>({ url: '/plugin/codegen/dict/options' });
+  dictOptions.value = await fetchDictOptions();
 }
 
 function getPrefix(tableName: string) {
@@ -944,7 +898,7 @@ async function openEdit(row: CodegenTable) {
   step.value = 1;
   modalVisible.value = true;
   loadDictOptions();
-  const data = await requestData<CodegenTable>({ url: `/plugin/codegen/tables/${row.id}` });
+  const data = await fetchTableDetail(row.id!);
   Object.assign(formModel, data);
   await loadColumns(row.id!);
 }
@@ -952,9 +906,7 @@ async function openEdit(row: CodegenTable) {
 async function loadColumns(tableId: number) {
   columnLoading.value = true;
   try {
-    const data = await requestData<CodegenColumn[] | Record<string, unknown>>({
-      url: `/plugin/codegen/tables/columns/${tableId}`
-    });
+    const data = await fetchColumns(tableId);
     columnData.value = Array.isArray(data) ? data : [];
   } finally {
     columnLoading.value = false;
@@ -975,7 +927,7 @@ async function nextStep() {
     }
     saving.value = true;
     try {
-      await requestData({ url: '/plugin/codegen/tables/columns', method: 'PUT', data: columnData.value });
+      await updateColumns(columnData.value);
       step.value = 3;
     } finally {
       saving.value = false;
@@ -987,8 +939,7 @@ async function saveBase() {
   await formRef.value?.validate();
   saving.value = true;
   try {
-    const method = isEdit.value ? 'PUT' : 'POST';
-    const data = await requestData<CodegenTable>({ url: '/plugin/codegen/tables', method, data: formModel });
+    const data = await saveTable(formModel, isEdit.value);
     Object.assign(formModel, data);
     if (!isEdit.value) {
       operateType.value = 'edit';
@@ -1002,14 +953,14 @@ async function saveBase() {
 async function deleteRow(row: CodegenTable) {
   if (!row.id) return;
   if (!confirmAction(t('plugin.codegen.tips.deleteConfirm'))) return;
-  await requestData({ url: '/plugin/codegen/tables', method: 'DELETE', data: [row.id] });
+  await deleteTables([row.id]);
   await onDeleted();
 }
 
 async function batchDelete() {
   if (checkedRowKeys.value.length === 0) return;
   if (!confirmAction(t('plugin.codegen.tips.batchDeleteConfirm'))) return;
-  await requestData({ url: '/plugin/codegen/tables', method: 'DELETE', data: checkedRowKeys.value });
+  await deleteTables(checkedRowKeys.value as number[]);
   await onBatchDeleted();
 }
 
@@ -1018,9 +969,7 @@ async function syncColumns() {
   if (!confirmAction(t('plugin.codegen.tips.syncConfirm'))) return;
   columnLoading.value = true;
   try {
-    const data = await requestData<CodegenColumn[] | Record<string, unknown>>({
-      url: `/plugin/codegen/tables/columns/sync/${formModel.id}`
-    });
+    const data = await syncColumns(formModel.id);
     columnData.value = Array.isArray(data) ? data : [];
   } finally {
     columnLoading.value = false;
@@ -1030,24 +979,18 @@ async function syncColumns() {
 async function cleanColumns() {
   if (!formModel.id) return;
   if (!confirmAction(t('plugin.codegen.tips.cleanConfirm'))) return;
-  await requestData({ url: `/plugin/codegen/tables/columns/clean/${formModel.id}`, method: 'PUT' });
+  await cleanColumns(formModel.id);
   columnData.value = [];
 }
 
 async function downloadZip() {
   if (!formModel.id) return;
-  const response = await fetch(`${getPluginBaseURL()}/plugin/codegen/tables/zip/${formModel.id}`, {
-    method: 'POST'
-  });
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
+  const payload = await downloadTableZip(formModel.id);
   const a = document.createElement('a');
-  const disposition = response.headers.get('content-disposition') || '';
-  const match = disposition.match(/filename=([^;]+)/i);
-  a.href = url;
-  a.download = match ? decodeURIComponent(match[1].replace(/"/g, '')) : 'plugin-source.zip';
+  a.href = payload.url;
+  a.download = payload.filename;
   a.click();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(payload.url);
 }
 
 function confirmAction(message: string) {
