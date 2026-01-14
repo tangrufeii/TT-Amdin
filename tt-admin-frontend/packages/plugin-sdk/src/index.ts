@@ -55,6 +55,35 @@ export type PluginApi = {
   request?: <T>(config: PluginRequestConfig) => Promise<PluginRequestResult<T>>;
 };
 
+export interface SystemDictItem {
+  /** 字典值 */
+  value: string;
+  /** 中文名称 */
+  zhCn?: string;
+  /** 英文名称 */
+  enUs?: string;
+  /** 排序值 */
+  sort?: number;
+}
+
+export interface SystemDict {
+  /** 字典编码 */
+  code: string;
+  /** 字典名称 */
+  name: string;
+  /** 字典类型 */
+  type?: string;
+  /** 字典项列表 */
+  items?: SystemDictItem[];
+}
+
+export interface DictOption {
+  /** 显示名称 */
+  label: string;
+  /** 实际值 */
+  value: string;
+}
+
 type PluginWindow = typeof window & {
   __TT_PLUGIN_API__?: PluginApi;
   __TT_PLUGIN_API_BASE__?: string;
@@ -230,4 +259,40 @@ export async function requestData<T>(config: PluginRequestConfig): Promise<T> {
     throw result.error;
   }
   return result.data;
+}
+
+function resolveLocale() {
+  if (typeof window === 'undefined') return 'zh-cn';
+  const lang = (navigator.language || '').toLowerCase();
+  return lang || 'zh-cn';
+}
+
+function pickDictLabel(item: SystemDictItem, locale: string) {
+  if (locale.startsWith('zh')) {
+    return item.zhCn || item.enUs || item.value;
+  }
+  return item.enUs || item.zhCn || item.value;
+}
+
+/** 获取全部系统字典（含字典项） */
+export async function fetchSystemDicts() {
+  return await requestData<SystemDict[]>({ url: '/dict/all' });
+}
+
+/** 获取字典列表（用于下拉选择字典编码） */
+export async function fetchSystemDictListOptions() {
+  const dicts = await fetchSystemDicts();
+  return dicts.map(dict => ({ label: dict.name, value: dict.code })) as DictOption[];
+}
+
+/** 获取指定字典编码的选项列表 */
+export async function fetchSystemDictOptions(dictCode: string) {
+  const dicts = await fetchSystemDicts();
+  const target = dicts.find(item => item.code === dictCode);
+  if (!target?.items?.length) return [] as DictOption[];
+  const locale = resolveLocale();
+  return target.items.map(item => ({
+    label: pickDictLabel(item, locale),
+    value: item.value
+  })) as DictOption[];
 }

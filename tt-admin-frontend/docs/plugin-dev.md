@@ -33,6 +33,30 @@ const data = await requestData<Config>({
 - `requestData`：失败时直接抛错，成功返回 `data`。
 - 宿主存在 `window.__TT_PLUGIN_API__` 时会走宿主请求；否则使用内置 alova。
 
+## 插件 API 分层（推荐）
+每个插件将请求集中到 `api.ts`，视图层只调用方法，避免散落各处：
+
+```ts
+// api.ts
+import { requestData } from '@tt/plugin-sdk';
+
+export interface DemoRecord {
+  /** 主键 ID */
+  id?: number;
+  /** 名称 */
+  name: string;
+}
+
+export async function fetchDemoList() {
+  return await requestData<DemoRecord[]>({ url: '/plugin/demo/list' });
+}
+```
+
+```ts
+// view.vue
+import { fetchDemoList } from './api';
+```
+
 ## 基础 API 地址
 `getPluginBaseURL()` 规则：
 - 如果宿主注入 `window.__TT_PLUGIN_API_BASE__`，直接使用。
@@ -92,6 +116,16 @@ const canEdit = computed(() => hasAuth('plugin:ai-chat:update'));
 ```
 
 建议权限命名格式：`plugin:<pluginId>:<action>`，例如 `plugin:ai-chat:add`。
+
+## 系统字典访问（统一）
+插件统一通过 `@tt/plugin-sdk` 访问系统字典，无需各插件自行拼装：
+
+```ts
+import { fetchSystemDictOptions } from '@tt/plugin-sdk';
+
+const options = await fetchSystemDictOptions('sys_status');
+// options: [{ label, value }]
+```
 
 ## i18n
 插件内维护 `i18n` 文件，宿主启动后动态加载，避免与宿主 i18n 冲突。
