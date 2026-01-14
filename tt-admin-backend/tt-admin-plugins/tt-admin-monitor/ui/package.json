@@ -23,7 +23,12 @@
     "vite-plugin-css-injected-by-js": "^3.4.3",
     "vite-plugin-externals": "^0.6.2",
     "vite-plugin-progress": "^0.0.7",
-    "vue-tsc": "^2.0.6"
+    "vue-tsc": "^2.0.6",
+    "@sa/uno-preset": "file:../../../../tt-admin-frontend/packages/uno-preset",
+    "@unocss/vite": "66.5.6",
+    "@unocss/preset-wind3": "66.5.6",
+    "@unocss/transformer-directives": "66.5.6",
+    "@unocss/transformer-variant-group": "66.5.6"
   },
   "packageManager": "pnpm@10.6.2+sha512.47870716bea1572b53df34ad8647b42962bc790ce2bf4562ba0f643237d7302a3d6a8ecef9e4bdfc01d23af1969aa90485d4cebb0b9638fa5ef1daef656f6c1b"
 }

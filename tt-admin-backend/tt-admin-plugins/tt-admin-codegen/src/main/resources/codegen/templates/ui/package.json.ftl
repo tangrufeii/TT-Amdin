@@ -18,7 +18,12 @@
     "vue-i18n": "11.1.12"
   },
   "devDependencies": {
+    "@sa/uno-preset": "file:../../../../tt-admin-frontend/packages/uno-preset",
     "@types/node": "^20.11.19",
+    "@unocss/preset-wind3": "66.5.6",
+    "@unocss/transformer-directives": "66.5.6",
+    "@unocss/transformer-variant-group": "66.5.6",
+    "@unocss/vite": "66.5.6",
     "@vitejs/plugin-vue": "^5.1.2",
     "js-yaml": "^4.1.0",
     "typescript": "^5.4.2",

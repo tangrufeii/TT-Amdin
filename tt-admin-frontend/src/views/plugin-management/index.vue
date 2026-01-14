@@ -1,9 +1,11 @@
 <script lang="ts" setup>
-import {h, onBeforeUnmount, onMounted, ref} from 'vue'
+import { h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import {
   NButton,
   NCard,
   NDataTable,
+  NDrawer,
+  NDrawerContent,
   NForm,
   NFormItem,
   NGi,
@@ -13,18 +15,20 @@ import {
   NSelect,
   NSpace,
   NStatistic,
+  NSwitch,
   NTag,
+  NTooltip,
   NUpload,
   NUploadDragger,
   NModal,
   NIcon,
   NText
 } from 'naive-ui';
-import {$t} from '@/locales'
+import { $t } from '@/locales';
 import { formatDateTime } from '@/utils/date';
-import {useTable, useTableOperate} from '@/hooks/common/table';
-import {useAppStore} from '@/store/modules/app';
-import {useRouteStore} from '@/store/modules/route';
+import { useTable, useTableOperate } from '@/hooks/common/table';
+import { useAppStore } from '@/store/modules/app';
+import { useRouteStore } from '@/store/modules/route';
 import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 
 import {
@@ -34,7 +38,8 @@ import {
   fetchPluginPage,
   fetchPluginProgressSnapshots,
   fetchPluginStatistics,
-  fetchPluginInstall
+  fetchPluginInstall,
+  fetchPluginUpdate
 } from '@/service/api/plugin';
 
 defineOptions({
@@ -125,6 +130,12 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
           'div',
           {class: 'flex-center flex-wrap gap-2'},
           [
+            h(NButton, {
+              size: 'small',
+              ghost: true,
+              disabled: isProcessing(row.pluginId),
+              onClick: () => openEdit(row)
+            }, () => $t('page.pluginManagement.table.edit')),
             row.status === 0
               ? h(NButton, {
                 type: 'primary',
@@ -156,6 +167,20 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
   ]
 });
 const { checkedRowKeys, onBatchDeleted } = useTableOperate(data, getData);
+const editVisible = ref(false);
+const editLoading = ref(false);
+const editForm = reactive({
+  id: 0,
+  pluginId: '',
+  name: '',
+  description: '',
+  version: '',
+  author: '',
+  email: '',
+  website: '',
+  isDev: false,
+  frontDevAddress: ''
+});
 // 插件统计信息
 interface PluginStatistics {
   total: number;
@@ -590,6 +615,58 @@ function handleReset() {
   getData();
 }
 
+function openEdit(row: any) {
+  editForm.id = row.id;
+  editForm.pluginId = row.pluginId;
+  editForm.name = row.name || '';
+  editForm.description = row.description || '';
+  editForm.version = row.version || '';
+  editForm.author = row.author || '';
+  editForm.email = row.email || '';
+  editForm.website = row.website || '';
+  editForm.isDev = Boolean(row.isDev);
+  editForm.frontDevAddress = row.frontDevAddress || '';
+  editVisible.value = true;
+}
+
+function closeEdit() {
+  editVisible.value = false;
+}
+
+async function saveEdit() {
+  if (!editForm.name.trim()) {
+    window.$message?.warning($t('page.pluginManagement.form.namePlaceholder'));
+    return;
+  }
+  if (editForm.isDev && !editForm.frontDevAddress.trim()) {
+    window.$message?.warning($t('page.pluginManagement.form.frontDevAddressPlaceholder'));
+    return;
+  }
+  editLoading.value = true;
+  try {
+    const payload = {
+      id: editForm.id,
+      name: editForm.name.trim(),
+      description: editForm.description.trim(),
+      version: editForm.version.trim(),
+      author: editForm.author.trim(),
+      email: editForm.email.trim(),
+      website: editForm.website.trim(),
+      isDev: editForm.isDev,
+      frontDevAddress: editForm.frontDevAddress.trim()
+    };
+    const { error } = await fetchPluginUpdate(payload);
+    if (!error) {
+      window.$message?.success($t('page.pluginManagement.message.updateSuccess'));
+      editVisible.value = false;
+      await getData();
+      await routeStore.refreshPluginRoutes();
+    }
+  } finally {
+    editLoading.value = false;
+  }
+}
+
 // 导入插件
 const uploadModalVisible = ref(false);
 const uploadLoading = ref(false);
@@ -774,6 +851,78 @@ onBeforeUnmount(() => {
         </NUploadDragger>
       </NUpload>
     </NModal>
+
+    <NDrawer
+      :show="editVisible"
+      width="420"
+      placement="right"
+      @update:show="value => (editVisible = value)"
+    >
+      <NDrawerContent :title="$t('page.pluginManagement.table.edit')" :closable="true">
+        <NForm :label-width="100" label-placement="left">
+          <NFormItem :label="$t('page.pluginManagement.table.pluginId')">
+            <NInput v-model:value="editForm.pluginId" disabled />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.name')">
+            <NInput v-model:value="editForm.name" :placeholder="$t('page.pluginManagement.form.namePlaceholder')" />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.description')">
+            <NInput v-model:value="editForm.description" :placeholder="$t('page.pluginManagement.form.descriptionPlaceholder')" />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.version')">
+            <NInput v-model:value="editForm.version" :placeholder="$t('page.pluginManagement.form.versionPlaceholder')" />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.author')">
+            <NInput v-model:value="editForm.author" :placeholder="$t('page.pluginManagement.form.authorPlaceholder')" />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.email')">
+            <NInput v-model:value="editForm.email" :placeholder="$t('page.pluginManagement.form.emailPlaceholder')" />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.website')">
+            <NInput v-model:value="editForm.website" :placeholder="$t('page.pluginManagement.form.websitePlaceholder')" />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.isDev')">
+            <NSwitch v-model:value="editForm.isDev" />
+          </NFormItem>
+          <NFormItem :label="$t('page.pluginManagement.form.frontDevAddress')">
+            <template #label>
+              <div class="flex items-center gap-6px">
+                <span>{{ $t('page.pluginManagement.form.frontDevAddress') }}</span>
+                <NTooltip trigger="hover">
+                  <template #trigger>
+                    <NIcon size="14" class="text-muted">
+                      <svg viewBox="0 0 24 24" width="1em" height="1em">
+                        <path
+                          fill="currentColor"
+                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2m-1 5h2v2h-2zm0 4h2v6h-2z"
+                        />
+                      </svg>
+                    </NIcon>
+                  </template>
+                  {{ $t('page.pluginManagement.form.frontDevAddressTip') }}
+                </NTooltip>
+              </div>
+            </template>
+            <NInput
+              v-model:value="editForm.frontDevAddress"
+              :placeholder="$t('page.pluginManagement.form.frontDevAddressPlaceholder')"
+              :disabled="!editForm.isDev"
+            />
+          </NFormItem>
+          <NText depth="3" class="text-xs">
+            {{ $t('page.pluginManagement.form.frontDevAddressHint') }}
+          </NText>
+        </NForm>
+        <template #footer>
+          <NSpace justify="end">
+            <NButton @click="closeEdit">{{ $t('common.cancel') }}</NButton>
+            <NButton type="primary" :loading="editLoading" @click="saveEdit">
+              {{ $t('common.confirm') }}
+            </NButton>
+          </NSpace>
+        </template>
+      </NDrawerContent>
+    </NDrawer>
   </NSpace>
 </template>
 

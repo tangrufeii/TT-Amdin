@@ -21,7 +21,8 @@ export function presetSoybeanAdmin(): Preset<Theme> {
         'i-flex-col-center': 'flex-col i-flex-center',
         'i-flex-col-stretch': 'i-flex-col items-stretch',
         'flex-1-hidden': 'flex-1 overflow-hidden',
-        'h-full-hidden': 'h-full overflow-hidden'
+        'h-full-hidden': 'h-full overflow-hidden',
+        'min-h-500px': 'min-h-[500px]'
       },
       {
         'absolute-lt': 'absolute left-0 top-0',

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import UnoCSS from '@unocss/vite';
 import yaml from 'js-yaml';
 import { viteExternalsPlugin } from 'vite-plugin-externals';
 import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
@@ -97,7 +98,7 @@ function createModuleConfig(pluginId, moduleName, entryPath) {
       'process.env.NODE_ENV': '"production"'
     },
     base: `/plugin/${pluginId}`,
-    plugins: [vue(), viteExternalsPlugin(SHARED_EXTERNALS), cssInjectedByJsPlugin()],
+    plugins: [vue(), UnoCSS(), viteExternalsPlugin(SHARED_EXTERNALS), cssInjectedByJsPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src')

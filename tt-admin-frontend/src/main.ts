@@ -23,6 +23,7 @@ type PluginHostWindow = typeof window & {
   axios?: typeof axios;
   VueUse?: typeof VueUse;
   __TT_PLUGIN_API_BASE__?: string;
+  __TT_PLUGIN_HMR_RELOAD__?: () => void;
 };
 
 function exposePluginGlobals() {
@@ -53,6 +54,11 @@ async function setupApp() {
 
   setupStore(app);
   setupPluginApi();
+  // 供插件开发态的 HMR 使用：当插件热更新时触发页面软刷新。
+  const appStore = useAppStore();
+  (window as PluginHostWindow).__TT_PLUGIN_HMR_RELOAD__ = () => {
+    appStore.reloadPage(60);
+  };
 
   await setupRouter(app);
 

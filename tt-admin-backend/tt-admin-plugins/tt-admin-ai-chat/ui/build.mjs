@@ -3,12 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import UnoCSS from '@unocss/vite';
 import { viteExternalsPlugin } from 'vite-plugin-externals';
 import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 共享依赖由宿主运行时提供，构建时外部化以复用宿主。
 const SHARED_EXTERNALS = {
   vue: 'Vue',
   'vue-router': 'VueRouter',
@@ -19,6 +21,7 @@ const SHARED_EXTERNALS = {
 
 const pluginYamlPath = path.resolve(__dirname, '../src/main/resources/plugin.yaml');
 
+// 精简的 plugin.yaml 解析器（只关心 plugin 与 author 分段）。
 function parseSimpleYaml(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.split(/\r?\n/);
@@ -50,6 +53,7 @@ function parseSimpleYaml(filePath) {
   return result;
 }
 
+// 扫描模块目录并解析首个匹配的入口文件。
 function scanModuleEntries() {
   const modulesDir = path.resolve(__dirname, 'src/modules');
   const entries = {};
@@ -77,12 +81,13 @@ function scanModuleEntries() {
   return entries;
 }
 
+// 为每个模块生成独立的 Vite 构建配置（lib 模式输出）。
 function createModuleConfig(pluginId, moduleName, entryPath) {
   return defineConfig({
     configFile: false,
     envFile: false,
     base: `/plugin/${pluginId}`,
-    plugins: [vue(), viteExternalsPlugin(SHARED_EXTERNALS), cssInjectedByJsPlugin()],
+    plugins: [vue(), UnoCSS(), viteExternalsPlugin(SHARED_EXTERNALS), cssInjectedByJsPlugin()],
     define: {
       'process.env': {},
       process: {
@@ -128,6 +133,7 @@ async function buildModules() {
   }
 }
 
+// 复制 i18n JSON 到打包资源目录供运行时加载。
 function copyI18nAssets() {
   const sourceDir = path.resolve(__dirname, 'src/i18n');
   if (!fs.existsSync(sourceDir)) {

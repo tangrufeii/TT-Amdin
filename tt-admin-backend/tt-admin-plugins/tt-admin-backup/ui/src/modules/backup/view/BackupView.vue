@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+  <div class="h-full min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
       <n-card :title="t('plugin.backup.config')" size="small" :bordered="false" class="card-wrapper">
         <n-form label-placement="left" label-width="120" :model="config" size="small">
           <n-grid cols="2" x-gap="16" y-gap="8" responsive="screen">

@@ -342,12 +342,14 @@ const local: App.I18n.Schema = {
         delete: '删除',
         enable: '启用',
         disable: '禁用',
+        devConfig: '开发配置',
         install: '安装插件',
         download: '下载'
       },
       form: {
         addTitle: '新增插件',
         editTitle: '编辑插件',
+        devConfigTitle: '开发配置',
         pluginId: '插件ID',
         pluginIdPlaceholder: '请输入插件ID',
         name: '插件名称',
@@ -364,7 +366,9 @@ const local: App.I18n.Schema = {
         websitePlaceholder: '请输入官方网址',
         isDev: '开发模式',
         frontDevAddress: '前端开发地址',
-        frontDevAddressPlaceholder: '请输入前端开发地址'
+        frontDevAddressPlaceholder: '请输入前端开发地址',
+        frontDevAddressTip: '开发模式时，插件模块将从该地址加载',
+        frontDevAddressHint: '例如 http://127.0.0.1:5173，需先启动插件 UI dev'
       },
       statistics: {
         title: '插件统计',

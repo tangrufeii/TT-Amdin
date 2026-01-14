@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+  <div>嘿嘿,黑你好</div>
+  <div class="h-full min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
       <n-card :title="t('plugin.test.title')" size="small" :bordered="false" class="card-wrapper">
         <n-form :model="searchParams" label-width="80" label-placement="left">
           <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">
@@ -59,7 +60,7 @@
           :row-key="row => row.id"
           v-model:checked-row-keys="checkedRowKeys"
           :single-line="false"
-          :flex-height="!isMobile"
+          :flex-height="false"
         />
       </n-card>
     <n-drawer v-model:show="drawerVisible" placement="right" :width="420">
@@ -175,6 +176,8 @@ const createColumns = () => [
   {
     title: t('common.action'),
     key: 'action',
+    width: 200,
+    fixed: 'right',
     render: (row: any) =>
       h(NSpace, {}, {
         default: () => [

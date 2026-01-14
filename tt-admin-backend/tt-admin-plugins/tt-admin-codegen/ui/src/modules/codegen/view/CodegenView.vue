@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+  <div class="h-full min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
       <n-card :title="t('plugin.codegen.title')" size="small" :bordered="false" class="card-wrapper">
         <n-form :model="searchParams" label-width="80" label-placement="left">
           <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">

@@ -345,12 +345,14 @@ const local: App.I18n.Schema = {
         delete: 'Delete',
         enable: 'Enable',
         disable: 'Disable',
+        devConfig: 'Dev Config',
         install: 'Install Plugin',
         download: 'Download'
       },
       form: {
         addTitle: 'Add Plugin',
         editTitle: 'Edit Plugin',
+        devConfigTitle: 'Dev Config',
         pluginId: 'Plugin ID',
         pluginIdPlaceholder: 'Please enter plugin ID',
         name: 'Plugin Name',
@@ -367,7 +369,9 @@ const local: App.I18n.Schema = {
         websitePlaceholder: 'Please enter website',
         isDev: 'Dev Mode',
         frontDevAddress: 'Frontend Dev Address',
-        frontDevAddressPlaceholder: 'Please enter frontend dev address'
+        frontDevAddressPlaceholder: 'Please enter frontend dev address',
+        frontDevAddressTip: 'In dev mode, plugin modules are loaded from this address',
+        frontDevAddressHint: 'Example: http://127.0.0.1:5173 (start plugin UI dev first)'
       },
       statistics: {
         title: 'Plugin Statistics',

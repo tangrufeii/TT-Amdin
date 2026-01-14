@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import UnoCSS from '@unocss/vite';
 import { viteExternalsPlugin } from 'vite-plugin-externals';
 
 type SectionRecord = Record<string, string>;
@@ -15,6 +16,7 @@ interface EntryMap {
   [key: string]: string;
 }
 
+// 生产环境外部化这些共享依赖，复用宿主运行时。
 const SHARED_EXTERNALS: Record<string, string> = {
   vue: 'Vue',
   'vue-router': 'VueRouter',
@@ -25,6 +27,7 @@ const SHARED_EXTERNALS: Record<string, string> = {
 
 const pluginYamlPath = path.resolve(__dirname, '../src/main/resources/plugin.yaml');
 
+// 精简的 plugin.yaml 解析器（只关心 plugin 与 author 分段）。
 function parseSimpleYaml(filePath: string): SimpleYaml {
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.split(/\r?\n/);
@@ -56,6 +59,7 @@ function parseSimpleYaml(filePath: string): SimpleYaml {
   return result;
 }
 
+// 构建模块入口映射，便于本地开发直接加载模块文件。
 function scanModuleEntries(): EntryMap {
   const modulesDir = path.resolve(__dirname, 'src/modules');
   const entries: EntryMap = {};
@@ -83,6 +87,7 @@ function scanModuleEntries(): EntryMap {
   return entries;
 }
 
+// 从 frontDevAddress 推导 dev 端口，避免每个插件硬编码。
 function resolveDevPort(devAddress?: string) {
   if (!devAddress) return undefined;
   try {
@@ -96,19 +101,24 @@ function resolveDevPort(devAddress?: string) {
 const pluginSetting = parseSimpleYaml(pluginYamlPath);
 const pluginId = pluginSetting.plugin?.id || 'tt-plugin-ai-chat';
 const devPort = resolveDevPort(pluginSetting.plugin?.frontDevAddress);
+// 扫描模块入口以对齐宿主运行时的模块清单。
 scanModuleEntries();
 const sharedDeps = Object.keys(SHARED_EXTERNALS);
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:8080';
   const isStandalone = env.VITE_STANDALONE === 'Y';
+  // 开发态不外部化，保证 Vite HMR 与 Vue 导出正常。
+  const useExternals = !isStandalone && command !== 'serve';
 
   return {
     base: isStandalone ? '/' : `/plugin/${pluginId}`,
-    plugins: isStandalone
-      ? [vue()]
-      : [vue(), viteExternalsPlugin(SHARED_EXTERNALS, { disableInServe: true })],
+    plugins: [
+      vue(),
+      UnoCSS(),
+      ...(useExternals ? [viteExternalsPlugin(SHARED_EXTERNALS)] : [])
+    ],
     define: {
       'process.env': {},
       process: {
@@ -125,6 +135,7 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       cors: true,
       strictPort: true,
+      // 开发态允许宿主跨域拉取插件资源。
       headers: {
         'Access-Control-Allow-Origin': '*'
       },
@@ -137,7 +148,8 @@ export default defineConfig(({ mode }) => {
       }
     },
     optimizeDeps: {
-      exclude: isStandalone ? [] : sharedDeps
+      // 避免预打包外部依赖，保证构建与开发行为一致。
+      exclude: useExternals ? sharedDeps : []
     }
   };
 });

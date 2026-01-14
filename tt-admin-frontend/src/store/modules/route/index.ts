@@ -736,7 +736,8 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     const sanitizedPath = assetPath.replace(/^\/+/, '');
     if (moduleInfo.pluginIsDev && moduleInfo.frontDevAddress) {
       const base = moduleInfo.frontDevAddress.replace(/\/$/, '');
-      return `${base}/plugin/${moduleInfo.pluginId}/${sanitizedPath}`;
+      const devPath = sanitizedPath.startsWith('src/') ? sanitizedPath : `src/${sanitizedPath}`;
+      return `${base}/plugin/${moduleInfo.pluginId}/${devPath}`;
     }
 
     const version = moduleInfo.pluginVersion ? encodeURIComponent(moduleInfo.pluginVersion) : '';

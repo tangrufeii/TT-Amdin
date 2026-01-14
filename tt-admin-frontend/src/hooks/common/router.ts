@@ -11,7 +11,8 @@ import { router as globalRouter } from '@/router';
  * @param inSetup Whether is in vue script setup
  */
 export function useRouterPush(inSetup = true) {
-  const router = inSetup ? useRouter() : globalRouter;
+  // 非 setup 场景下 useRouter 可能为空，兜底使用全局 router。
+  const router = (inSetup ? useRouter() : globalRouter) || globalRouter;
   const route = globalRouter.currentRoute;
 
   const routerPush = router.push;
