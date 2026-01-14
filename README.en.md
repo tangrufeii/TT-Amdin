@@ -1,36 +1,88 @@
-# TT-Amdin
+# TT-Admin
 
-#### Description
-{**When you're done, you can delete the content in this README and update the file with details for others getting started with your repository**}
+## Overview
+TT-Admin is a DDD-based admin system with backend services and a Vue3 admin console, supporting plugin-based extensions and unified plugin frontend workflows.
 
-#### Software Architecture
-Software architecture description
+## Structure
+- tt-admin-backend: backend services
+  - tt-admin-domain: domain model
+  - tt-admin-application: use case orchestration
+  - tt-admin-infrastructure: persistence and integrations
+  - tt-admin-interfaces: REST APIs and DTOs
+  - tt-admin-plugin-core: plugin utilities and constants
+  - tt-admin-plugins: built-in plugins
+- tt-admin-frontend: admin console (Vite + Vue3)
+  - src: business pages
+  - packages: shared packages
+  - public: static assets
+- tt-amdin/sql: plugin and init SQL
 
-#### Installation
+## Tech Stack
+- Backend: Java 21, Spring Boot, JUnit5, MockMvc
+- Frontend: Vite, Vue3, TypeScript, pnpm
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Requirements
+- JDK 21
+- Maven 3.9+
+- Node.js 18+ with pnpm
+- MySQL and Redis
 
-#### Instructions
+## Quick Start
+### Backend
+- Build: `mvn clean verify`
+- Run: `mvn -pl tt-admin-server spring-boot:run`
+- Module test: `mvn -pl <module> -am test`
+- Config: `tt-admin-backend/tt-admin-server/src/main/resources/application.yml`
+- Local secrets: `tt-admin-backend/tt-admin-server/src/main/resources/application-local.yml`
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+### Frontend
+- Install: `pnpm install`
+- Dev: `pnpm dev` (uses `.env.dev`)
+- Build: `pnpm build` or `pnpm build:dev`
+- Preview: `pnpm preview`
+- Before commit: `pnpm lint` and `pnpm typecheck`
 
-#### Contribution
+## Plugin System
+### Structure and Assets
+- Plugin source: `tt-admin-backend/tt-admin-plugins/<plugin>`
+- Plugin config: `plugin.yaml`, `frontend.yaml`, `setting.json`
+- Plugin UI assets: `src/main/resources/ui` (build output, do not commit)
+- Plugin SQL: `tt-amdin/sql`
 
-1.  Fork the repository
-2.  Create Feat_xxx branch
-3.  Commit your code
-4.  Create Pull Request
+### Key plugin.yaml fields
+- `id/name/version/staticLocations`: metadata and static resources
+- `isDev/frontDevAddress`: frontend dev mode switch
 
+### Frontend loading
+- Plugin modules are described in `frontend.yaml` and registered as routes and menus.
+- Dev mode loads modules from `frontDevAddress`.
+- Production loads modules from `/api/plugin-static/{pluginId}`.
 
-#### Gitee Feature
+### Packaging and shared libs
+- Build host first to generate `shared-lib` so plugins avoid duplicating host dependencies.
+- Build outputs must be ignored from VCS.
 
-1.  You can use Readme\_XXX.md to support different languages, such as Readme\_en.md, Readme\_zh.md
-2.  Gitee blog [blog.gitee.com](https://blog.gitee.com)
-3.  Explore open source project [https://gitee.com/explore](https://gitee.com/explore)
-4.  The most valuable open source project [GVP](https://gitee.com/gvp)
-5.  The manual of Gitee [https://gitee.com/help](https://gitee.com/help)
-6.  The most popular members  [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+## Commit Convention (Conventional Commit)
+Use `pnpm commit` (EN) or `pnpm commit:zh` (ZH), example:
+- `feat(plugin): enable dynamic loading`
+
+Common types:
+| Type | Purpose | Example |
+| --- | --- | --- |
+| feat | New feature | `feat(plugin): add dictionary api` |
+| fix | Bug fix | `fix(ai-chat): handle sse error` |
+| docs | Documentation | `docs: update plugin dev guide` |
+| style | Formatting | `style(frontend): format lint` |
+| refactor | Refactor | `refactor(plugin): extract api module` |
+| perf | Performance | `perf(route): reduce re-render` |
+| test | Tests | `test(plugin): add service tests` |
+| build | Build/deps | `build: bump pnpm lock` |
+| chore | Maintenance | `chore: cleanup build outputs` |
+| ci | CI related | `ci: update pipeline` |
+
+## Contribution
+- PR should include goals, affected paths, commands/results, and UI screenshots/recordings when applicable.
+- Keep each commit scoped to one module and note related SQL if any.
+
+## Docs
+- Plugin dev guide: `tt-admin-frontend/docs/plugin-dev.md`
