@@ -9,6 +9,7 @@ import importPluginModule from '@/utils/plugin-import/_import';
 import BaseLayout from '@/layouts/base-layout/index.vue';
 import BlankLayout from '@/layouts/blank-layout/index.vue';
 import { mergeLocaleMessages } from '@/locales';
+import { useSvgIcon } from '@/hooks/common/icon';
 import { SetupStoreId } from '@/enum';
 import { createStaticRoutes, getAuthVueRoutes } from '@/router/routes';
 import { ROOT_ROUTE } from '@/router/routes/builtin';
@@ -584,6 +585,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       return null;
     }
 
+    const { SvgIconVNode } = useSvgIcon();
     const menu = getGlobalMenuByBaseRoute({
       name: route.name as RouteKey,
       path: route.path || '',
@@ -595,6 +597,14 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     }
     if (menuConfig?.i18nKey) {
       menu.i18nKey = menuConfig.i18nKey;
+    }
+    if (menuConfig?.icon) {
+      const useLocalIcon = menuConfig.iconType === '2';
+      menu.icon = SvgIconVNode({
+        icon: useLocalIcon ? undefined : menuConfig.icon,
+        localIcon: useLocalIcon ? menuConfig.icon : undefined,
+        fontSize: 20
+      });
     }
     menu.order = menuConfig?.order ?? menu.order ?? 0;
     const configuredParentKey = menuConfig?.parent?.trim();
@@ -614,6 +624,38 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       ...menu,
       children: menu.children ? cloneMenus(menu.children) : undefined
     }));
+  }
+
+  function updateMenuIcon(params: { routeName?: string; routePath?: string; icon?: string | null; iconType?: string | null }) {
+    const { routeName, routePath, icon, iconType } = params || {};
+    if (!routeName && !routePath) return;
+    const { SvgIconVNode } = useSvgIcon();
+    const useLocalIcon = String(iconType) === '2';
+    const iconVNode = SvgIconVNode({
+      icon: useLocalIcon ? undefined : icon || undefined,
+      localIcon: useLocalIcon ? icon || undefined : undefined,
+      fontSize: 20
+    });
+
+    function walk(list: App.Global.Menu[] | undefined) {
+      if (!list || list.length === 0) return false;
+      for (const item of list) {
+        if ((routeName && item.key === routeName) || (routePath && item.routePath === routePath)) {
+          item.icon = iconVNode;
+          return true;
+        }
+        if (item.children?.length && walk(item.children)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    const updatedBase = walk(baseMenus.value);
+    const updatedPlugin = walk(pluginMenus.value);
+    if (updatedBase || updatedPlugin) {
+      syncMenus();
+    }
   }
 
   function insertMenuNode(tree: App.Global.Menu[], menuNode: App.Global.Menu) {
@@ -734,10 +776,10 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       return assetPath;
     }
     const sanitizedPath = assetPath.replace(/^\/+/, '');
-    if (moduleInfo.pluginIsDev && moduleInfo.frontDevAddress) {
-      const base = moduleInfo.frontDevAddress.replace(/\/$/, '');
+    if (moduleInfo.pluginIsDev) {
+      // 开发态统一走主应用的 /plugin-dev 代理，避免跨域与 CORS。
       const devPath = sanitizedPath.startsWith('src/') ? sanitizedPath : `src/${sanitizedPath}`;
-      return `${base}/plugin/${moduleInfo.pluginId}/${devPath}`;
+      return `/plugin-dev/${moduleInfo.pluginId}/${devPath}`;
     }
 
     const version = moduleInfo.pluginVersion ? encodeURIComponent(moduleInfo.pluginVersion) : '';
@@ -761,6 +803,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     isInitAuthRoute,
     setIsInitAuthRoute,
     refreshPluginRoutes,
+    updateMenuIcon,
     getIsAuthRouteExist,
     getSelectedMenuKeyPath,
     onRouteSwitchWhenLoggedIn,

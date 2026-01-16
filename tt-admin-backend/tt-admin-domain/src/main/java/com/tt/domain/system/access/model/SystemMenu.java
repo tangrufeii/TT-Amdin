@@ -56,6 +56,12 @@ public class SystemMenu {
 
     private String remark;
 
+    private String sourceType;
+
+    private String sourceId;
+
+    private String originData;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

@@ -154,6 +154,18 @@ public class PermissionManagementRepositoryImpl implements PermissionManagementR
         return result;
     }
 
+    @Override
+    public List<PermissionManageDTO> listByMenuId(Long menuId) {
+        if (menuId == null) {
+            return List.of();
+        }
+        List<SysPermissionPO> list = sysPermissionMapper.selectList(
+                new LambdaQueryWrapper<SysPermissionPO>()
+                        .eq(SysPermissionPO::getMenuId, menuId)
+                        .orderByAsc(SysPermissionPO::getSort, SysPermissionPO::getId));
+        return list.stream().map(this::convert).toList();
+    }
+
     private PermissionManageDTO convert(SysPermissionPO po) {
         PermissionManageDTO dto = new PermissionManageDTO();
         dto.setId(po.getId());

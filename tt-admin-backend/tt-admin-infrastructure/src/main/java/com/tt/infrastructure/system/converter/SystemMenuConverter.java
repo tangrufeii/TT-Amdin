@@ -38,6 +38,9 @@ public final class SystemMenuConverter {
                 .query(po.getQuery())
                 .status(po.getStatus())
                 .remark(po.getRemark())
+                .sourceType(po.getSourceType())
+                .sourceId(po.getSourceId())
+                .originData(po.getOriginData())
                 .createTime(po.getCreateTime())
                 .updateTime(po.getUpdateTime())
                 .build();
@@ -70,6 +73,9 @@ public final class SystemMenuConverter {
         po.setQuery(menu.getQuery());
         po.setStatus(menu.getStatus());
         po.setRemark(menu.getRemark());
+        po.setSourceType(menu.getSourceType());
+        po.setSourceId(menu.getSourceId());
+        po.setOriginData(menu.getOriginData());
         po.setCreateTime(menu.getCreateTime());
         po.setUpdateTime(menu.getUpdateTime());
         return po;

@@ -18,5 +18,10 @@ public class PluginFrontendMenuDTO {
 
     private String icon;
 
+    /**
+     * 图标类型：1-iconify 2-local
+     */
+    private String iconType;
+
     private Integer order;
 }

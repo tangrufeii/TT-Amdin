@@ -1,24 +1,22 @@
 ﻿<template>
-  <div class="plugin-monitor">
-    <n-space vertical size="large">
-      <n-card :title="t('plugin.monitor.config')" size="small" bordered>
-        <n-form label-placement="left" label-width="140" :model="config" size="small">
-          <n-grid cols="4" x-gap="16" y-gap="8" responsive="screen">
-            <n-form-item-gi :label="t('plugin.monitor.threshold') + ' CPU'">
-              <n-input-number v-model:value="config.cpuThreshold" :min="1" :max="100" />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.monitor.threshold') + ' Memory'">
-              <n-input-number v-model:value="config.memoryThreshold" :min="1" :max="100" />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.monitor.threshold') + ' Disk'">
-              <n-input-number v-model:value="config.diskThreshold" :min="1" :max="100" />
-            </n-form-item-gi>
-            <n-form-item-gi label="Enabled">
-              <n-switch v-model:value="config.enabled" checked-value="Y" unchecked-value="N" />
-            </n-form-item-gi>
-          </n-grid>
-        </n-form>
-        <n-space justify="end" class="action-row">
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+    <PluginFormCard :title="t('plugin.monitor.config')" :model="config" :label-width="140">
+      <n-grid cols="4" x-gap="16" y-gap="8" responsive="screen">
+        <n-form-item-gi :label="t('plugin.monitor.threshold') + ' CPU'">
+          <n-input-number v-model:value="config.cpuThreshold" :min="1" :max="100" />
+        </n-form-item-gi>
+        <n-form-item-gi :label="t('plugin.monitor.threshold') + ' Memory'">
+          <n-input-number v-model:value="config.memoryThreshold" :min="1" :max="100" />
+        </n-form-item-gi>
+        <n-form-item-gi :label="t('plugin.monitor.threshold') + ' Disk'">
+          <n-input-number v-model:value="config.diskThreshold" :min="1" :max="100" />
+        </n-form-item-gi>
+        <n-form-item-gi label="Enabled">
+          <n-switch v-model:value="config.enabled" checked-value="Y" unchecked-value="N" />
+        </n-form-item-gi>
+      </n-grid>
+      <template #actions>
+        <n-space justify="end">
           <n-button type="primary" @click="saveConfig" :loading="saving">
             {{ t('plugin.monitor.save') }}
           </n-button>
@@ -26,64 +24,64 @@
             {{ t('plugin.monitor.refresh') }}
           </n-button>
         </n-space>
-      </n-card>
+      </template>
+    </PluginFormCard>
 
-      <n-grid cols="4" x-gap="16" y-gap="16" responsive="screen">
-        <n-grid-item>
-          <n-card size="small" bordered>
-            <n-space align="center" justify="space-between">
-              <div>{{ t('plugin.monitor.cpu') }}</div>
-              <n-tag :type="alertType(metrics.alerts?.cpu)">{{ metrics.cpuUsage ?? 0 }}%</n-tag>
-            </n-space>
-            <n-progress type="line" :percentage="metrics.cpuUsage || 0" :status="progressStatus(metrics.alerts?.cpu)" />
-          </n-card>
-        </n-grid-item>
-        <n-grid-item>
-          <n-card size="small" bordered>
-            <n-space align="center" justify="space-between">
-              <div>{{ t('plugin.monitor.memory') }}</div>
-              <n-tag :type="alertType(metrics.alerts?.memory)">{{ metrics.memoryUsage ?? 0 }}%</n-tag>
-            </n-space>
-            <n-progress type="line" :percentage="metrics.memoryUsage || 0" :status="progressStatus(metrics.alerts?.memory)" />
-          </n-card>
-        </n-grid-item>
-        <n-grid-item>
-          <n-card size="small" bordered>
-            <n-space align="center" justify="space-between">
-              <div>{{ t('plugin.monitor.disk') }}</div>
-              <n-tag :type="alertType(metrics.alerts?.disk)">{{ diskUsageValue }}%</n-tag>
-            </n-space>
-            <n-progress type="line" :percentage="diskUsageValue" :status="progressStatus(metrics.alerts?.disk)" />
-          </n-card>
-        </n-grid-item>
-        <n-grid-item>
-          <n-card size="small" bordered>
-            <n-space align="center" justify="space-between">
-              <div>{{ t('plugin.monitor.jvm') }}</div>
-              <n-tag type="info">{{ metrics.jvmMemoryUsage ?? 0 }}%</n-tag>
-            </n-space>
-            <n-progress type="line" :percentage="metrics.jvmMemoryUsage || 0" />
-          </n-card>
-        </n-grid-item>
-      </n-grid>
-
-      <n-card size="small" bordered>
-        <n-space justify="space-between" align="center">
-          <n-space size="large">
-            <div>{{ t('plugin.monitor.thread') }}: {{ metrics.threadCount ?? 0 }}</div>
-            <div>{{ t('plugin.monitor.uptime') }}: {{ formatUptime(metrics.uptime) }}</div>
+    <n-grid cols="4" x-gap="16" y-gap="16" responsive="screen">
+      <n-grid-item>
+        <n-card size="small" :bordered="false" class="card-wrapper">
+          <n-space align="center" justify="space-between">
+            <div>{{ t('plugin.monitor.cpu') }}</div>
+            <n-tag :type="alertType(metrics.alerts?.cpu)">{{ metrics.cpuUsage ?? 0 }}%</n-tag>
           </n-space>
-          <div class="muted">{{ t('plugin.monitor.lastUpdate') }}: {{ lastUpdate }}</div>
+          <n-progress type="line" :percentage="metrics.cpuUsage || 0" :status="progressStatus(metrics.alerts?.cpu)" />
+        </n-card>
+      </n-grid-item>
+      <n-grid-item>
+        <n-card size="small" :bordered="false" class="card-wrapper">
+          <n-space align="center" justify="space-between">
+            <div>{{ t('plugin.monitor.memory') }}</div>
+            <n-tag :type="alertType(metrics.alerts?.memory)">{{ metrics.memoryUsage ?? 0 }}%</n-tag>
+          </n-space>
+          <n-progress type="line" :percentage="metrics.memoryUsage || 0" :status="progressStatus(metrics.alerts?.memory)" />
+        </n-card>
+      </n-grid-item>
+      <n-grid-item>
+        <n-card size="small" :bordered="false" class="card-wrapper">
+          <n-space align="center" justify="space-between">
+            <div>{{ t('plugin.monitor.disk') }}</div>
+            <n-tag :type="alertType(metrics.alerts?.disk)">{{ diskUsageValue }}%</n-tag>
+          </n-space>
+          <n-progress type="line" :percentage="diskUsageValue" :status="progressStatus(metrics.alerts?.disk)" />
+        </n-card>
+      </n-grid-item>
+      <n-grid-item>
+        <n-card size="small" :bordered="false" class="card-wrapper">
+          <n-space align="center" justify="space-between">
+            <div>{{ t('plugin.monitor.jvm') }}</div>
+            <n-tag type="info">{{ metrics.jvmMemoryUsage ?? 0 }}%</n-tag>
+          </n-space>
+          <n-progress type="line" :percentage="metrics.jvmMemoryUsage || 0" />
+        </n-card>
+      </n-grid-item>
+    </n-grid>
+
+    <n-card size="small" :bordered="false" class="card-wrapper">
+      <n-space justify="space-between" align="center">
+        <n-space size="large">
+          <div>{{ t('plugin.monitor.thread') }}: {{ metrics.threadCount ?? 0 }}</div>
+          <div>{{ t('plugin.monitor.uptime') }}: {{ formatUptime(metrics.uptime) }}</div>
         </n-space>
-        <n-data-table
-          :columns="diskColumns"
-          :data="metrics.disks || []"
-          :loading="metricsLoading"
-          :row-key="row => row.path"
-          class="disk-table"
-        />
-      </n-card>
-    </n-space>
+        <div class="muted">{{ t('plugin.monitor.lastUpdate') }}: {{ lastUpdate }}</div>
+      </n-space>
+      <n-data-table
+        :columns="diskColumns"
+        :data="metrics.disks || []"
+        :loading="metricsLoading"
+        :row-key="row => row.path"
+        class="disk-table"
+      />
+    </n-card>
   </div>
 </template>
 
@@ -94,7 +92,6 @@ import {
   NButton,
   NCard,
   NDataTable,
-  NForm,
   NFormItemGi,
   NGrid,
   NGridItem,
@@ -106,6 +103,7 @@ import {
 } from 'naive-ui';
 import { fetchMonitorConfig, fetchMonitorMetrics, saveMonitorConfig } from '../api';
 import type { DiskUsage, MonitorConfig, MonitorMetrics } from '../api';
+import { PluginFormCard } from '@tt/plugin-ui';
 
 const { t } = useI18n();
 
@@ -206,10 +204,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.plugin-monitor {
-  padding: 16px;
-}
-
 .action-row {
   margin-top: 16px;
 }

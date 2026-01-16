@@ -5,6 +5,7 @@ import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useDict } from '@/hooks/business/dict';
 import { fetchAddMenu, fetchGetMenuDetail, fetchUpdateMenu } from '@/service/api';
 import { $t } from '@/locales';
+import IconPicker from '@/components/advanced/icon-picker.vue';
 import { getLayoutAndPage, getPathParamFromRoutePath, getRoutePathByRouteName, getRoutePathWithParam, transformLayoutAndPageToComponent } from './shared';
 
 export type OperateType = 'add' | 'addChild' | 'edit';
@@ -143,7 +144,7 @@ async function handleSubmit() {
   stopSubmitting();
   if (!error && data) {
     window.$message?.success(props.operateType === 'edit' ? $t('common.updateSuccess') : $t('common.addSuccess'));
-    emit('submitted', null);
+    emit('submitted', { ...model });
     visible.value = false;
   }
 }
@@ -193,7 +194,7 @@ watch(
             </NRadioGroup>
           </NFormItemGi>
           <NFormItemGi span="24" :label="$t('page.manage.menu.icon')">
-            <NInput v-model:value="model.icon" :placeholder="$t('page.manage.menu.form.icon')" />
+            <IconPicker v-model:value="model.icon" :icon-type="model.iconType" :placeholder="$t('page.manage.menu.form.icon')" />
           </NFormItemGi>
           <NFormItemGi span="24" :label="$t('page.manage.menu.routePath')" path="routePath">
             <NInput v-model:value="model.routePath" disabled :placeholder="$t('page.manage.menu.form.routePath')" />

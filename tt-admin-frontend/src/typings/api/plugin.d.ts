@@ -25,7 +25,7 @@ declare namespace Api {
       email: string;
       /** 是否为开发环境插件 */
       isDev: boolean;
-      /** 开发环境前端���址 */
+      /** 开发环境前端地址 */
       frontDevAddress: string;
       /** 插件状态：0-禁用，1-启用 */
       status: number;
@@ -63,7 +63,7 @@ declare namespace Api {
       pageSize: number;
       /** 插件名称（模糊查询） */
       name?: string;
-      /** 插件状���：0-禁用，1-启用 */
+      /** 插件状态：0-禁用，1-启用 */
       status?: number;
     }
 
@@ -145,6 +145,7 @@ declare namespace Api {
       title?: string;
       i18nKey?: string;
       icon?: string;
+      iconType?: string;
       order?: number;
     }
 

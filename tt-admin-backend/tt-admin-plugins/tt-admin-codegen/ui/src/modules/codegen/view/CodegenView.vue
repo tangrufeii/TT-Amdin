@@ -1,69 +1,38 @@
-<template>
-  <div class="h-full min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
-      <n-card :title="t('plugin.codegen.title')" size="small" :bordered="false" class="card-wrapper">
-        <n-form :model="searchParams" label-width="80" label-placement="left">
-          <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">
-            <n-form-item-gi :label="t('plugin.codegen.search.tableName')" span="12">
-              <n-input v-model:value="searchParams.tableName" :placeholder="t('plugin.codegen.search.placeholder')" />
-            </n-form-item-gi>
-            <n-form-item-gi span="12">
-              <n-space justify="end" class="w-full">
-                <n-button type="primary" ghost @click="getDataByPage(1)">
-                  <template #icon>
-                    <icon-ic-round-search class="text-icon" />
-                  </template>
-                  {{ t('plugin.codegen.actions.search') }}
-                </n-button>
-                <n-button quaternary @click="resetSearchParams">
-                  <template #icon>
-                    <icon-ic-round-refresh class="text-icon" />
-                  </template>
-                  {{ t('plugin.codegen.actions.reset') }}
-                </n-button>
-              </n-space>
-            </n-form-item-gi>
-          </n-grid>
-        </n-form>
-      </n-card>
+﻿<template>
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+      <PluginFormCard :title="t('plugin.codegen.title')" :model="searchParams" :label-width="80">
+        <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">
+          <n-form-item-gi :label="t('plugin.codegen.search.tableName')" span="12">
+            <n-input v-model:value="searchParams.tableName" :placeholder="t('plugin.codegen.search.placeholder')" />
+          </n-form-item-gi>
+          <n-form-item-gi span="12">
+            <n-space justify="end" class="w-full">
+              <n-button type="primary" ghost @click="getDataByPage(1)">
+                <template #icon>
+                  <IconSearch class="text-icon" />
+                </template>
+                {{ t('plugin.codegen.actions.search') }}
+              </n-button>
+              <n-button quaternary @click="resetSearchParams">
+                <template #icon>
+                  <IconRefresh class="text-icon" />
+                </template>
+                {{ t('plugin.codegen.actions.reset') }}
+              </n-button>
+            </n-space>
+          </n-form-item-gi>
+        </n-grid>
+      </PluginFormCard>
 
       <n-card :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
-        <component
-          :is="tableHeaderComponent"
-          v-if="tableHeaderComponent"
+        <TableHeaderOperation
           v-model:columns="columnChecks"
           :loading="loading"
           :checked-row-keys="checkedRowKeys"
           @add="openCreate"
           @delete="batchDelete"
           @refresh="getData"
-        >
-          <template #default>
-            <n-button size="small" ghost type="primary" @click="openCreate">
-              {{ t('common.add') }}
-            </n-button>
-            <n-popconfirm placement="bottom" @positive-click="batchDelete">
-              <template #trigger>
-                <n-button size="small" ghost type="error" :disabled="checkedRowKeys.length === 0">
-                  {{ t('common.batchDelete') }}
-                </n-button>
-              </template>
-              {{ t('common.confirmBatchDelete') }}
-            </n-popconfirm>
-          </template>
-        </component>
-        <div v-else class="toolbar">
-          <n-space>
-            <n-button size="small" ghost type="primary" @click="openCreate">
-              {{ t('common.add') }}
-            </n-button>
-            <n-button size="small" ghost type="error" :disabled="checkedRowKeys.length === 0" @click="batchDelete">
-              {{ t('common.batchDelete') }}
-            </n-button>
-          </n-space>
-          <n-button size="small" @click="getData">
-            {{ t('common.refresh') }}
-          </n-button>
-        </div>
+        />
         <n-data-table
           remote
           striped
@@ -194,7 +163,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, getCurrentInstance, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import * as VueNamespace from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui';
 import {
@@ -203,12 +173,10 @@ import {
   NDataTable,
   NDrawer,
   NDrawerContent,
-  NForm,
   NFormItemGi,
   NGrid,
   NInput,
   NInputNumber,
-  NPopconfirm,
   NResult,
   NSelect,
   NSpace,
@@ -230,6 +198,7 @@ import {
   syncColumns,
   updateColumns
 } from '../api';
+import { IconRefresh, IconSearch, PluginFormCard, TableHeaderOperation } from '@tt/plugin-ui';
 
 const { t } = useI18n();
 const isMobile = ref(false);
@@ -269,16 +238,16 @@ onBeforeUnmount(() => {
 type PluginApi = {
   useTable?: any;
   useTableOperate?: any;
-  components?: {
-    TableHeaderOperation?: any;
-  };
 };
 
 const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
 
 const fallbackHooks = createFallbackTableHooks();
-const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
-const useTableOperateHook = pluginApi?.useTableOperate ?? fallbackHooks.useTableOperate;
+const isSharedVue = typeof window !== 'undefined' && (window as any).Vue && (window as any).Vue === VueNamespace;
+const allowHostHooks = !import.meta.env.DEV && isSharedVue;
+const useTableHook = allowHostHooks && pluginApi?.useTable ? pluginApi.useTable : fallbackHooks.useTable;
+const useTableOperateHook =
+  allowHostHooks && pluginApi?.useTableOperate ? pluginApi.useTableOperate : fallbackHooks.useTableOperate;
 
 import type { CodegenColumn, CodegenTable, DataTableInfo, DictOption } from '../api';
 
@@ -812,10 +781,6 @@ const {
 
 const isEdit = computed(() => operateType.value === 'edit');
 
-const tableHeaderComponent = computed(() => {
-  const instance = getCurrentInstance();
-  return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
-});
 
 function createDefaultModel(): CodegenTable {
   return {
@@ -998,6 +963,8 @@ function confirmAction(message: string) {
 }
 
 function createFallbackTableHooks() {
+  const vueRuntime = (typeof window !== 'undefined' && (window as any).Vue) ? (window as any).Vue : VueNamespace;
+  const { ref: hostRef, reactive: hostReactive, computed: hostComputed } = vueRuntime;
   function getColumnChecks(cols: any[]) {
     return cols.map(column => {
       if (column.type === 'selection') {
@@ -1031,13 +998,13 @@ function createFallbackTableHooks() {
   }
 
   function useTable(config: any) {
-    const loading = ref(false);
-    const data = ref<any[]>([]);
-    const searchParams = reactive({ ...(config.apiParams || {}) });
-    const rawColumns = computed(() => config.columns());
-    const columnChecks = ref<any[]>([]);
+    const loading = hostRef(false);
+    const data = hostRef<any[]>([]);
+    const searchParams = hostReactive({ ...(config.apiParams || {}) });
+    const rawColumns = hostComputed(() => config.columns());
+    const columnChecks = hostRef<any[]>([]);
 
-    const columns = computed(() => {
+    const columns = hostComputed(() => {
       const cols = rawColumns.value || [];
       if (columnChecks.value.length === 0) {
         columnChecks.value = getColumnChecks(cols);
@@ -1045,7 +1012,7 @@ function createFallbackTableHooks() {
       return buildColumns(cols, columnChecks.value);
     });
 
-    const pagination = reactive({
+    const pagination = hostReactive({
       page: searchParams.page ?? 1,
       pageSize: searchParams.pageSize ?? 20,
       itemCount: 0,
@@ -1107,8 +1074,8 @@ function createFallbackTableHooks() {
   }
 
   function useTableOperate(data: any, getData: () => Promise<void>) {
-    const checkedRowKeys = ref<any[]>([]);
-    const operateType = ref('add');
+    const checkedRowKeys = hostRef<any[]>([]);
+    const operateType = hostRef('add');
 
     function handleAdd() {
       operateType.value = 'add';

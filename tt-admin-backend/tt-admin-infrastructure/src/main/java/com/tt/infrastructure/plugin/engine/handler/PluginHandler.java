@@ -90,6 +90,11 @@ public class PluginHandler implements ApplicationContextAware {
      * @return 鎻掍欢杩愯鏃跺璞?
      */
     public Plugin installPlugin(File pluginDir) {
+        return installPlugin(pluginDir, ACTION_INSTALL);
+    }
+
+    public Plugin installPlugin(File pluginDir, String action) {
+        String actionCode = action == null ? ACTION_INSTALL : action;
         // 璇诲彇鎻掍欢閰嶇疆
         PluginConfig config = PluginConfigReader.readConfig(pluginDir);
         if (config == null) {
@@ -97,7 +102,7 @@ public class PluginHandler implements ApplicationContextAware {
         }
 
         // 鍒涘缓鎻掍欢绫诲姞杞藉櫒
-        reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "create_classloader", 72, "Creating plugin classloader");
+        reportProgress(actionCode, config.getPlugin().getId(), "create_classloader", 72, "Creating plugin classloader");
         PluginClassLoader pluginClassLoader = new PluginClassLoader(
                 config.getPlugin().getId(),
                 getClass().getClassLoader(),
@@ -106,12 +111,12 @@ public class PluginHandler implements ApplicationContextAware {
         pluginClassLoader.addFile(pluginDir);
 
         // Scan plugin classes
-        reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "scan_classes", 75, "Scanning plugin classes");
+        reportProgress(actionCode, config.getPlugin().getId(), "scan_classes", 75, "Scanning plugin classes");
         List<String> classNameList = PluginClassScanner.scanClassNames(
                 pluginDir,
                 pluginClassLoader,
                 config.getPlugin().getId(),
-                ACTION_INSTALL,
+                actionCode,
                 scanDetailEnabled,
                 scanIndexEnabled,
                 scanIndexTrustEnabled
@@ -131,24 +136,26 @@ public class PluginHandler implements ApplicationContextAware {
         PluginHolder.addPluginInfo(plugin.getPluginId(), plugin);
 
         // 鍒涘缓鎻掍欢涓撳睘鐨凙pplicationContext
-        reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "create_context", 78, "Creating plugin context");
+        reportProgress(actionCode, config.getPlugin().getId(), "create_context", 78, "Creating plugin context");
         AnnotationConfigApplicationContext pluginContext = new AnnotationConfigApplicationContext();
         pluginContext.setParent(applicationContext);
         pluginContext.setClassLoader(pluginClassLoader);
         PluginApplicationContextHolder.addPluginApplicationContext(plugin.getPluginId(), pluginContext);
 
         // 鍒濆鍖栨墍鏈夋敞鍐屽鐞嗗櫒
-        reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "init_handlers", 82, "Initializing registry handlers");
+        reportProgress(actionCode, config.getPlugin().getId(), "init_handlers", 82, "Initializing registry handlers");
         int initTotal = registryHandlers.size();
         int initIndex = 0;
         for (Map.Entry<String, BasePluginRegistryHandler> entry : registryHandlers.entrySet()) {
             try {
+                log.info("plugin handler init start: pluginId={}, handler={}, action={}",
+                        config.getPlugin().getId(), entry.getKey(), actionCode);
                 long handlerStartedAt = System.currentTimeMillis();
                 entry.getValue().initialize();
                 long handlerElapsedMs = System.currentTimeMillis() - handlerStartedAt;
                 initIndex++;
                 int progress = 82 + (int) Math.round((double) initIndex / Math.max(initTotal, 1) * 6);
-                reportProgress(ACTION_INSTALL, config.getPlugin().getId(), "init_handlers", progress, "Initializing registry handlers");
+                reportProgress(actionCode, config.getPlugin().getId(), "init_handlers", progress, "Initializing registry handlers");
                 log.trace("Initialized registry handler: {}", entry.getKey());
                 log.info("plugin handler init: handler={}, elapsedMs={}", entry.getKey(), handlerElapsedMs);
             } catch (Exception e) {

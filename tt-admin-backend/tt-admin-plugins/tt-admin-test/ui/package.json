@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tt/plugin-sdk": "file:../../../../tt-admin-frontend/packages/plugin-sdk",
+    "@tt/plugin-ui": "file:../../../../tt-admin-frontend/packages/plugin-ui",
     "naive-ui": "2.43.1",
     "vue": "^3.5.12",
     "vue-i18n": "11.1.12"

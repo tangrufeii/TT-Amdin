@@ -1,4 +1,6 @@
-﻿const modules = import.meta.glob('./view/*.vue');
+﻿import 'uno.css';
+import '../../style.css';
+const modules = import.meta.glob('./view/*.vue');
 
 // 插件开发态热更新后，通知宿主刷新当前页面视图。
 if (import.meta.hot) {

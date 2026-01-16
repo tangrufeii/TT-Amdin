@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, defineConfig } from 'vite';
@@ -11,8 +11,7 @@ import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 共享依赖由宿主运行时提供，构建时外部化以复用宿主。
-const SHARED_EXTERNALS = {
+// 鍏变韩渚濊禆鐢卞涓昏繍琛屾椂鎻愪緵锛屾瀯寤烘椂澶栭儴鍖栦互澶嶇敤瀹夸富銆?const SHARED_EXTERNALS = {
   vue: 'Vue',
   'vue-router': 'VueRouter',
   pinia: 'Pinia',
@@ -23,8 +22,7 @@ const SHARED_EXTERNALS = {
 const pluginYamlPath = path.resolve(__dirname, '../src/main/resources/plugin.yaml');
 const frontendYamlPath = path.resolve(__dirname, '../src/main/resources/frontend.yaml');
 
-// 精简的 plugin.yaml 解析器（只关心 plugin 与 author 分段）。
-function parseSimpleYaml(filePath) {
+// 绮剧畝鐨?plugin.yaml 瑙ｆ瀽鍣紙鍙叧蹇?plugin 涓?author 鍒嗘锛夈€?function parseSimpleYaml(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.split(/\r?\n/);
   const result = {};
@@ -55,8 +53,7 @@ function parseSimpleYaml(filePath) {
   return result;
 }
 
-// 读取 frontend.yaml 用于限定打包的模块列表。
-function readFrontendModules() {
+// 璇诲彇 frontend.yaml 鐢ㄤ簬闄愬畾鎵撳寘鐨勬ā鍧楀垪琛ㄣ€?function readFrontendModules() {
   if (!fs.existsSync(frontendYamlPath)) return [];
   const content = fs.readFileSync(frontendYamlPath, 'utf8');
   const data = yaml.load(content) || {};
@@ -64,8 +61,7 @@ function readFrontendModules() {
   return modules.map(module => module?.moduleName).filter(Boolean);
 }
 
-// 扫描模块目录并解析首个匹配的入口文件。
-function scanModuleEntries(allowedModules = []) {
+// 鎵弿妯″潡鐩綍骞惰В鏋愰涓尮閰嶇殑鍏ュ彛鏂囦欢銆?function scanModuleEntries(allowedModules = []) {
   const modulesDir = path.resolve(__dirname, 'src/modules');
   const entries = {};
 
@@ -93,8 +89,7 @@ function scanModuleEntries(allowedModules = []) {
   return entries;
 }
 
-// 为每个模块生成独立的 Vite 构建配置（lib 模式输出）。
-function createModuleConfig(pluginId, moduleName, entryPath) {
+// 涓烘瘡涓ā鍧楃敓鎴愮嫭绔嬬殑 Vite 鏋勫缓閰嶇疆锛坙ib 妯″紡杈撳嚭锛夈€?function createModuleConfig(pluginId, moduleName, entryPath) {
   return defineConfig({
     configFile: false,
     envFile: false,
@@ -106,7 +101,8 @@ function createModuleConfig(pluginId, moduleName, entryPath) {
     plugins: [vue(), UnoCSS(), viteExternalsPlugin(SHARED_EXTERNALS), cssInjectedByJsPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src')
+        '@': path.resolve(__dirname, './src'),
+        '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src'),
       }
     },
     build: {
@@ -136,8 +132,7 @@ async function buildModules() {
   const allowedModules = readFrontendModules();
   const moduleEntries = scanModuleEntries(allowedModules);
 
-  // 每次重建模块输出，避免残留旧资源。
-  const outputModulesDir = path.resolve(__dirname, '../src/main/resources/ui/modules');
+  // 姣忔閲嶅缓妯″潡杈撳嚭锛岄伩鍏嶆畫鐣欐棫璧勬簮銆?  const outputModulesDir = path.resolve(__dirname, '../src/main/resources/ui/modules');
   fs.rmSync(outputModulesDir, { recursive: true, force: true });
   fs.mkdirSync(outputModulesDir, { recursive: true });
 
@@ -147,8 +142,7 @@ async function buildModules() {
   }
 }
 
-// 复制 i18n JSON 到打包资源目录供运行时加载。
-function copyI18nAssets() {
+// 澶嶅埗 i18n JSON 鍒版墦鍖呰祫婧愮洰褰曚緵杩愯鏃跺姞杞姐€?function copyI18nAssets() {
   const sourceDir = path.resolve(__dirname, 'src/i18n');
   if (!fs.existsSync(sourceDir)) {
     return;

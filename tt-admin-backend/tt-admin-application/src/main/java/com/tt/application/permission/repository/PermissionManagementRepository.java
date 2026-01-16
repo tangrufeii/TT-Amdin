@@ -26,4 +26,6 @@ public interface PermissionManagementRepository {
     Map<String, String> findResourceAnnotations();
 
     List<MenuPermissionDTO> listMenuPermissions();
+
+    List<PermissionManageDTO> listByMenuId(Long menuId);
 }

@@ -1,5 +1,6 @@
 ﻿import fs from 'node:fs';
 import path from 'node:path';
+import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import UnoCSS from '@unocss/vite';
@@ -74,17 +75,154 @@ const sharedDeps = Object.keys(SHARED_EXTERNALS);
 export default defineConfig(({ command }) => {
   // 开发态不外部化，保证 Vite HMR 与 Vue 导出正常。
   const useExternals = command !== 'serve';
+  const useVueBridge = command === 'serve';
+
+  function createVueBridgePlugin(): Plugin {
+    const bridgeId = 'virtual:plugin-vue-bridge';
+    const resolvedBridgeId = `\0${bridgeId}`;
+    const vueExports = [
+      'EffectScope',
+      'ReactiveEffect',
+      'EffectScope',
+      'customRef',
+      'computed',
+      'ref',
+      'shallowRef',
+      'reactive',
+      'shallowReactive',
+      'readonly',
+      'shallowReadonly',
+      'markRaw',
+      'toRaw',
+      'toRef',
+      'toRefs',
+      'unref',
+      'isRef',
+      'isReactive',
+      'isReadonly',
+      'isProxy',
+      'isVNode',
+      'watch',
+      'watchEffect',
+      'watchPostEffect',
+      'watchSyncEffect',
+      'effectScope',
+      'onScopeDispose',
+      'getCurrentInstance',
+      'getCurrentScope',
+      'provide',
+      'inject',
+      'nextTick',
+      'queuePostFlushCb',
+      'queuePreFlushCb',
+      'queueJob',
+      'h',
+      'createVNode',
+      'cloneVNode',
+      'mergeProps',
+      'createTextVNode',
+      'createCommentVNode',
+      'createStaticVNode',
+      'openBlock',
+      'createBlock',
+      'createElementBlock',
+      'createElementVNode',
+      'createElementVNode',
+      'createSlots',
+      'renderList',
+      'renderSlot',
+      'render',
+      'createRenderer',
+      'resolveComponent',
+      'resolveDynamicComponent',
+      'resolveDirective',
+      'withCtx',
+      'withDirectives',
+      'toDisplayString',
+      'normalizeClass',
+      'normalizeStyle',
+      'normalizeProps',
+      'guardReactiveProps',
+      'camelize',
+      'capitalize',
+      'hyphenate',
+      'toHandlerKey',
+      'Fragment',
+      'Text',
+      'Comment',
+      'Teleport',
+      'Transition',
+      'TransitionGroup',
+      'KeepAlive',
+      'Suspense',
+      'vShow',
+      'onMounted',
+      'onBeforeMount',
+      'onUpdated',
+      'onBeforeUpdate',
+      'onBeforeUnmount',
+      'onUnmounted',
+      'onActivated',
+      'onDeactivated',
+      'onErrorCaptured',
+      'defineComponent',
+      'defineAsyncComponent',
+      'defineEmits',
+      'defineProps',
+      'defineExpose',
+      'useModel',
+      'mergeModels',
+      'defineModel',
+      'defineOptions',
+      'withDefaults',
+      'useCssModule',
+      'useCssVars',
+      'useSlots',
+      'useAttrs',
+      'createApp',
+      'createSSRApp'
+    ];
+    const exportLines = vueExports
+      .filter((name, index, list) => list.indexOf(name) === index)
+      .map(name => `export const ${name} = Vue.${name};`)
+      .join('\n');
+
+    return {
+      name: 'plugin-vue-bridge',
+      enforce: 'pre',
+      resolveId(id) {
+        if (id === 'vue') return resolvedBridgeId;
+        return null;
+      },
+      load(id) {
+        if (id !== resolvedBridgeId) return null;
+        return `
+const Vue = window.Vue;
+if (!Vue) {
+  throw new Error('Vue runtime not found on window. Please start host app first.');
+}
+export default Vue;
+${exportLines}
+`;
+      }
+    };
+  }
+
   return {
     base: `/plugin/${pluginId}`,
     plugins: [
       vue(),
       UnoCSS(),
+      ...(useVueBridge ? [createVueBridgePlugin()] : []),
       ...(useExternals ? [viteExternalsPlugin(SHARED_EXTERNALS)] : [])
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src')
-      }
+        '@': path.resolve(__dirname, './src'),
+        '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src'),
+      },
+      // 开发态强制去重，避免出现多个 Vue 运行时实例。
+      dedupe: useVueBridge ? ['vue'] : []
     },
     server: {
       port: devPort ?? 4203,
@@ -97,8 +235,8 @@ export default defineConfig(({ command }) => {
       }
     },
     optimizeDeps: {
-      // 避免预打包外部依赖，保证构建与开发行为一致。
-      exclude: useExternals ? sharedDeps : []
+      // 开发态禁用关键依赖预打包，确保它们走桥接的 Vue。
+      exclude: useVueBridge ? ['vue', 'vue-i18n', 'naive-ui'] : (useExternals ? sharedDeps : [])
     }
   };
 });

@@ -18,4 +18,9 @@ spring:
       - classpath:config/swagger.yml
       - classpath:config/sa-token.yml
 
+plugin:
+  menu:
+    root-name: 插件
+    root-icon: mdi:puzzle-outline
+
 

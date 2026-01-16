@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
@@ -25,6 +25,95 @@ interface ExternalLibConfig {
 const toPosixPath = (value: string) => value.replace(/\\/g, '/');
 
 const resolveProjectPath = (relativePath: string) => path.resolve(projectRoot, relativePath);
+
+type PluginDevSourceMap = Record<string, string>;
+
+function parseSimpleYaml(filePath: string) {
+  const content = readFileSync(filePath, 'utf8');
+  const lines = content.split(/\r?\n/);
+  const result: Record<string, Record<string, string>> = {};
+  let currentSection: string | undefined;
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+
+    const isSection = !line.startsWith(' ') && trimmed.endsWith(':');
+    if (isSection) {
+      const sectionName = trimmed.slice(0, -1);
+      currentSection = sectionName;
+      result[currentSection] = {};
+      return;
+    }
+
+    if (currentSection && trimmed.includes(':')) {
+      const [key, ...rest] = trimmed.split(':');
+      result[currentSection][key.trim()] = rest.join(':').trim();
+    }
+  });
+
+  return result;
+}
+
+function collectPluginDevSources(): PluginDevSourceMap {
+  const pluginRoot = resolveProjectPath('../tt-admin-backend/tt-admin-plugins');
+  if (!existsSync(pluginRoot)) return {};
+
+  const entries = readdirSync(pluginRoot, { withFileTypes: true });
+  const map: PluginDevSourceMap = {};
+
+  entries.forEach(entry => {
+    if (!entry.isDirectory()) return;
+    const pluginDir = path.join(pluginRoot, entry.name);
+    const pluginYamlPath = path.join(pluginDir, 'src/main/resources/plugin.yaml');
+    const uiRoot = path.join(pluginDir, 'ui');
+
+    if (!existsSync(pluginYamlPath) || !existsSync(uiRoot)) return;
+
+    const yaml = parseSimpleYaml(pluginYamlPath);
+    const pluginId = yaml.plugin?.id;
+    if (pluginId) {
+      map[pluginId] = uiRoot;
+    }
+  });
+
+  return map;
+}
+
+function createPluginDevSourcePlugin(pluginSources: PluginDevSourceMap) {
+  const prefix = '/plugin-dev/';
+  const sourceRoots = Object.values(pluginSources).map(source => toPosixPath(source));
+
+  return {
+    name: 'plugin-dev-source',
+    enforce: 'pre' as const,
+    configResolved(config: any) {
+      if (!config.server) return;
+      const allowList = config.server.fs?.allow ?? [];
+      const merged = [...allowList, ...sourceRoots].filter(Boolean);
+      config.server.fs = { ...(config.server.fs || {}), allow: merged };
+    },
+    configureServer(server: any) {
+      server.middlewares.use((req: any, _res: any, next: any) => {
+        const url = req.url || '';
+        if (!url.startsWith(prefix)) return next();
+
+        const [pathPart, queryPart] = url.split('?');
+        const segments = pathPart.split('/').filter(Boolean);
+        if (segments.length < 3) return next();
+
+        const pluginId = segments[1];
+        const relativePath = segments.slice(2).join('/');
+        const sourceRoot = pluginSources[pluginId];
+        if (!sourceRoot) return next();
+
+        const fsPath = `/@fs/${toPosixPath(path.join(sourceRoot, relativePath))}`;
+        req.url = queryPart ? `${fsPath}?${queryPart}` : fsPath;
+        next();
+      });
+    }
+  };
+}
 
 function createLibExternalConfig(isProd: boolean): ExternalLibConfig {
   const suffix = isProd ? '.prod' : '';
@@ -136,6 +225,9 @@ export default defineConfig(configEnv => {
     }
   }
 
+  const pluginDevSources = configEnv.command === 'serve' ? collectPluginDevSources() : {};
+  const pluginDevSourcePlugin = configEnv.command === 'serve' ? createPluginDevSourcePlugin(pluginDevSources) : null;
+
   return {
     base: viteEnv.VITE_BASE_URL,
     resolve: {
@@ -152,7 +244,7 @@ export default defineConfig(configEnv => {
         }
       }
     },
-    plugins: setupVitePlugins(viteEnv, buildTime, pluginOptions),
+    plugins: [...setupVitePlugins(viteEnv, buildTime, pluginOptions), ...(pluginDevSourcePlugin ? [pluginDevSourcePlugin] : [])],
     define: {
       BUILD_TIME: JSON.stringify(buildTime)
     },

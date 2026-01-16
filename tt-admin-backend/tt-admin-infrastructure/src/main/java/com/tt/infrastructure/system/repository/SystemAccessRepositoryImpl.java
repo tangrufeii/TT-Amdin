@@ -69,6 +69,7 @@ public class SystemAccessRepositoryImpl implements SystemAccessRepository {
         return menuPOS.stream()
                 .filter(menu -> "1".equals(menu.getStatus()))
                 .filter(menu -> !"3".equals(menu.getType()))
+                .filter(menu -> !"PLUGIN".equalsIgnoreCase(Optional.ofNullable(menu.getSourceType()).orElse("SYSTEM")))
                 .map(SystemMenuConverter::toDomain)
                 .collect(Collectors.toList());
     }

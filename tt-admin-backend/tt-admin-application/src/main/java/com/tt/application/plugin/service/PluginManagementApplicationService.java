@@ -28,6 +28,8 @@ import com.tt.domain.plugin.service.PluginManagementDomainService;
 import com.tt.domain.plugin.PluginManager;
 import com.tt.domain.plugin.event.PluginLifecycleEvent;
 import com.tt.domain.plugin.progress.PluginProgressContext;
+import com.tt.domain.system.access.model.SystemMenu;
+import com.tt.domain.system.menu.repository.SystemMenuRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +41,10 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -78,6 +83,8 @@ public class PluginManagementApplicationService {
     private final PluginDomainService pluginDomainService;
     private final PluginManager pluginManager;
     private final PluginFrontendDefinitionRepository pluginFrontendDefinitionRepository;
+    private final SystemMenuRepository systemMenuRepository;
+    private final PluginMenuSyncService pluginMenuSyncService;
 
     /**
      * 创建插件记录
@@ -161,6 +168,7 @@ public class PluginManagementApplicationService {
             PluginProgressContext.clear();
         }
 
+        pluginMenuSyncService.removePluginMenus(plugin.getPluginId());
         plugin.uninstall();
         pluginManagementRepository.deleteById(id);
 
@@ -301,6 +309,7 @@ public class PluginManagementApplicationService {
             PluginProgressContext.clear();
         }
 
+        pluginMenuSyncService.syncPluginMenus(plugin);
         pluginManagementRepository.save(plugin);
 
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
@@ -347,6 +356,7 @@ public class PluginManagementApplicationService {
             PluginProgressContext.clear();
         }
 
+        pluginMenuSyncService.disablePluginMenus(plugin.getPluginId());
         pluginManagementRepository.save(plugin);
 
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
@@ -471,7 +481,7 @@ public class PluginManagementApplicationService {
         moduleDTO.setPluginIsDev(plugin.getPluginInfo() != null && Boolean.TRUE.equals(plugin.getPluginInfo().getIsDev()));
         moduleDTO.setFrontDevAddress(plugin.getPluginInfo() != null ? plugin.getPluginInfo().getFrontDevAddress() : null);
         moduleDTO.setRoutes(routes);
-        moduleDTO.setMenus(filterMenusForRoutes(definition != null ? definition.getMenus() : null, routes));
+        moduleDTO.setMenus(resolveFrontendMenus(plugin.getPluginId(), definition, routes));
         moduleDTO.setI18n(definition != null ? definition.getI18n() : null);
         return moduleDTO;
     }
@@ -526,7 +536,56 @@ public class PluginManagementApplicationService {
                     dto.setTitle(menu.getTitle());
                     dto.setI18nKey(menu.getI18nKey());
                     dto.setIcon(menu.getIcon());
+                    dto.setIconType("1");
                     dto.setOrder(menu.getOrder());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<PluginFrontendMenuDTO> resolveFrontendMenus(String pluginId,
+                                                             PluginFrontendDefinition definition,
+                                                             List<PluginFrontendRouteDTO> routes) {
+        List<PluginFrontendMenuDTO> menusFromSystem = loadMenusFromSystem(pluginId, routes);
+        if (!menusFromSystem.isEmpty()) {
+            return menusFromSystem;
+        }
+        return filterMenusForRoutes(definition != null ? definition.getMenus() : null, routes);
+    }
+
+    private List<PluginFrontendMenuDTO> loadMenusFromSystem(String pluginId, List<PluginFrontendRouteDTO> routes) {
+        if (pluginId == null || pluginId.isBlank() || CollectionUtils.isEmpty(routes)) {
+            return Collections.emptyList();
+        }
+        List<SystemMenu> pluginMenus = systemMenuRepository.findBySource("PLUGIN", pluginId);
+        if (pluginMenus.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<String> routeNames = routes.stream()
+                .map(PluginFrontendRouteDTO::getName)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (routeNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<Long, SystemMenu> menuById = systemMenuRepository.findAll().stream()
+                .filter(menu -> menu.getId() != null)
+                .collect(Collectors.toMap(SystemMenu::getId, menu -> menu, (a, b) -> a));
+        return pluginMenus.stream()
+                .filter(menu -> "1".equals(menu.getStatus()))
+                .filter(menu -> routeNames.contains(menu.getRouteName()))
+                .map(menu -> {
+                    PluginFrontendMenuDTO dto = new PluginFrontendMenuDTO();
+                    dto.setRouteName(menu.getRouteName());
+                    dto.setTitle(menu.getName());
+                    dto.setI18nKey(menu.getI18nKey());
+                    dto.setIcon(menu.getIcon());
+                    dto.setIconType(menu.getIconType());
+                    dto.setOrder(menu.getSort());
+                    String parentRouteName = Optional.ofNullable(menuById.get(menu.getParentId()))
+                            .map(SystemMenu::getRouteName)
+                            .orElse(null);
+                    dto.setParent(parentRouteName);
                     return dto;
                 })
                 .collect(Collectors.toList());

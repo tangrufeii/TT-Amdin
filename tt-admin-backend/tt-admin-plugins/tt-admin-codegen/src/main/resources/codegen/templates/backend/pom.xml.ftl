@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -68,32 +68,33 @@
                 <configuration>
                     <workingDirectory>ui</workingDirectory>
                     <installDirectory>target</installDirectory>
-                    <nodeVersion>v20.10.0</nodeVersion>
-                    <npmVersion>10.2.4</npmVersion>
+                    <nodeVersion>v23.3.0</nodeVersion>
+                    <nodeDownloadRoot>https://npmmirror.com/mirrors/node/</nodeDownloadRoot>
+                    <pnpmVersion>10.6.2</pnpmVersion>
                 </configuration>
                 <executions>
                     <execution>
                         <id>install node and npm</id>
                         <phase>initialize</phase>
                         <goals>
-                            <goal>install-node-and-npm</goal>
+                            <goal>install-node-and-pnpm</goal>
                         </goals>
                     </execution>
                     <execution>
-                        <id>npm install</id>
+                        <id>pnpm install</id>
                         <phase>generate-resources</phase>
                         <goals>
-                            <goal>npm</goal>
+                            <goal>pnpm</goal>
                         </goals>
                         <configuration>
                             <arguments>install</arguments>
                         </configuration>
                     </execution>
                     <execution>
-                        <id>npm run build</id>
+                        <id>pnpm run build</id>
                         <phase>process-resources</phase>
                         <goals>
-                            <goal>npm</goal>
+                            <goal>pnpm</goal>
                         </goals>
                         <configuration>
                             <arguments>run build</arguments>

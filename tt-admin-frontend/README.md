@@ -15,7 +15,7 @@
 
 ## 简介
 
-`TT Admin` 是一个基于 [`SoybeanAdmin`](https://github.com/soybeanjs/soybean-admin) 的后台管理系统，采用��清新优雅、高颜值的设计，基于最新的前端技术栈，包括 Vue3, Vite7, TypeScript, Pinia 和 UnoCSS。它内置了丰富的主题配置和组件，代码规范严谨，实现了自动化的文件路由系统。`TT Admin` 为您提供了一站式的后台管理解决方案，无需额外配置，开箱即用。
+`TT Admin` 是一个基于 [`SoybeanAdmin`](https://github.com/soybeanjs/soybean-admin) 的后台管理系统，采用清新优雅、高颜值的设计，基于最新的前端技术栈，包括 Vue3, Vite7, TypeScript, Pinia 和 UnoCSS。它内置了丰富的主题配置和组件，代码规范严谨，实现了自动化的文件路由系统。`TT Admin` 为您提供了一站式的后台管理解决方案，无需额外配置，开箱即用。
 
 ## 特性
 

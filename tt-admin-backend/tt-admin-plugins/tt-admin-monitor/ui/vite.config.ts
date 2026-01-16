@@ -67,7 +67,7 @@ function resolveDevPort(devAddress?: string) {
 }
 
 const pluginSetting = parseSimpleYaml(pluginYamlPath);
-const pluginId = pluginSetting.plugin?.id || 'tt-plugin-monitor';
+const pluginId = pluginSetting.plugin?.id || 'tt-plugin-test';
 const devPort = resolveDevPort(pluginSetting.plugin?.frontDevAddress);
 const sharedDeps = Object.keys(SHARED_EXTERNALS);
 
@@ -83,7 +83,8 @@ export default defineConfig(({ command }) => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src')
+        '@': path.resolve(__dirname, './src'),
+        '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src'),
       }
     },
     server: {

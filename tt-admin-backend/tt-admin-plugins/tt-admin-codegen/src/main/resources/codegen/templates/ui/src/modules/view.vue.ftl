@@ -1,8 +1,7 @@
-<template>
-  <div class="h-full min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
-    <n-card :title="t('plugin.${ctx.moduleName}.title')" :bordered="false" size="small" class="card-wrapper">
-      <n-form :model="searchParams" label-width="80" label-placement="left">
-        <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">
+﻿<template>
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+    <PluginFormCard :title="t('plugin.${ctx.moduleName}.title')" :model="searchParams" :label-width="80">
+      <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">
 <#list searchColumns as column>
           <n-form-item-gi
             :span="${column.searchSpan!12}"
@@ -46,42 +45,30 @@
             <n-space justify="end" class="w-full">
               <n-button type="primary" ghost @click="getDataByPage(1)">
                 <template #icon>
-                  <icon-ic-round-search class="text-icon" />
+                  <IconSearch class="text-icon" />
                 </template>
                 {{ t('common.search') }}
               </n-button>
               <n-button quaternary @click="resetSearchParams">
                 <template #icon>
-                  <icon-ic-round-refresh class="text-icon" />
+                  <IconRefresh class="text-icon" />
                 </template>
                 {{ t('common.reset') }}
               </n-button>
             </n-space>
           </n-form-item-gi>
         </n-grid>
-      </n-form>
-    </n-card>
+      </PluginFormCard>
 
     <n-card :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
-      <component
-        :is="tableHeaderComponent"
-        v-if="tableHeaderComponent"
+      <TableHeaderOperation
         v-model:columns="columnChecks"
         :loading="loading"
-        :disabled-delete="checkedRowKeys.length === 0"
+        :checked-row-keys="checkedRowKeys"
         @add="openCreate"
         @delete="batchDelete"
         @refresh="getData"
       />
-      <div v-else class="flex items-center justify-between gap-12px">
-        <n-space>
-          <n-button size="small" ghost type="primary" @click="openCreate">{{ t('common.add') }}</n-button>
-          <n-button size="small" ghost type="error" :disabled="checkedRowKeys.length === 0" @click="batchDelete">
-            {{ t('common.batchDelete') }}
-          </n-button>
-        </n-space>
-        <n-button size="small" @click="getData">{{ t('common.refresh') }}</n-button>
-      </div>
       <n-data-table
         remote
         striped
@@ -183,7 +170,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, h, onMounted, reactive, ref } from 'vue';
+import { computed, h, onMounted, reactive, ref } from 'vue';
+import * as VueNamespace from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   NButton,
@@ -203,22 +191,23 @@ import {
 } from 'naive-ui';
 import type { FormRules } from 'naive-ui';
 import { deleteRecord, fetchDictOptions, fetchPage, saveRecord } from './api';
+import { IconRefresh, IconSearch, PluginFormCard, TableHeaderOperation } from '@tt/plugin-ui';
 
 const { t } = useI18n();
 
 type PluginApi = {
   useTable?: any;
   useTableOperate?: any;
-  components?: {
-    TableHeaderOperation?: any;
-  };
 };
 
 const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
 
 const fallbackHooks = createFallbackTableHooks();
-const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
-const useTableOperateHook = pluginApi?.useTableOperate ?? fallbackHooks.useTableOperate;
+const isSharedVue = typeof window !== 'undefined' && (window as any).Vue && (window as any).Vue === VueNamespace;
+const allowHostHooks = !import.meta.env.DEV && isSharedVue;
+const useTableHook = allowHostHooks && pluginApi?.useTable ? pluginApi.useTable : fallbackHooks.useTable;
+const useTableOperateHook =
+  allowHostHooks && pluginApi?.useTableOperate ? pluginApi.useTableOperate : fallbackHooks.useTableOperate;
 
 const formModel = reactive({
 <#list columns as column>
@@ -234,7 +223,7 @@ const rules: FormRules = {
 <#if hasRule>
   ${column.fieldName}: [
   <#if column.required == "1">
-    { required: true, message: '${column.comment?js_string}不能为空', trigger: ['input', 'blur'] },
+    { required: true, message: '${column.comment?js_string}涓嶈兘涓虹┖', trigger: ['input', 'blur'] },
   </#if>
   <#if column.minLength?? || column.maxLength??>
     {
@@ -245,12 +234,12 @@ const rules: FormRules = {
     <#if column.maxLength??>
       max: ${column.maxLength},
     </#if>
-      message: '${column.comment?js_string}长度不符合要求',
+      message: '${column.comment?js_string}闀垮害涓嶇鍚堣姹?,
       trigger: ['input', 'blur']
     },
   </#if>
   <#if column.pattern?? && column.pattern?has_content>
-    { pattern: new RegExp('${column.pattern?js_string}'), message: '${column.comment?js_string}格式不正确', trigger: ['input', 'blur'] },
+    { pattern: new RegExp('${column.pattern?js_string}'), message: '${column.comment?js_string}鏍煎紡涓嶆纭?, trigger: ['input', 'blur'] },
   </#if>
   <#if column.javaType == "Integer" || column.javaType == "Long" || column.javaType == "Double" || column.javaType == "BigDecimal">
   <#if column.minValue?? || column.maxValue??>
@@ -262,7 +251,7 @@ const rules: FormRules = {
     <#if column.maxValue??>
       max: ${column.maxValue},
     </#if>
-      message: '${column.comment?js_string}超出范围',
+      message: '${column.comment?js_string}瓒呭嚭鑼冨洿',
       trigger: ['input', 'blur']
     },
   </#if>
@@ -349,12 +338,10 @@ const {
 
 const isEdit = computed(() => operateType.value === 'edit');
 const modalTitle = computed(() => (isEdit.value ? t('common.edit') : t('common.add')));
-const tableHeaderComponent = computed(() => {
-  const instance = getCurrentInstance();
-  return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
-});
 
 function createFallbackTableHooks() {
+  const vueRuntime = (typeof window !== 'undefined' && (window as any).Vue) ? (window as any).Vue : VueNamespace;
+  const { ref: hostRef, reactive: hostReactive, computed: hostComputed } = vueRuntime;
   function getColumnChecks(cols: any[]) {
     return cols.map(column => {
       if (column.type === 'selection') {
@@ -388,19 +375,19 @@ function createFallbackTableHooks() {
   }
 
   function useTable(config: any) {
-    const loading = ref(false);
-    const data = ref([]);
-    const searchParams = reactive({ ...(config.apiParams || {}) });
-    const rawColumns = computed(() => config.columns());
-    const columnChecks = ref([]);
-    const columns = computed(() => {
+    const loading = hostRef(false);
+    const data = hostRef([]);
+    const searchParams = hostReactive({ ...(config.apiParams || {}) });
+    const rawColumns = hostComputed(() => config.columns());
+    const columnChecks = hostRef([]);
+    const columns = hostComputed(() => {
       const cols = rawColumns.value || [];
       if (columnChecks.value.length === 0) {
         columnChecks.value = getColumnChecks(cols);
       }
       return buildColumns(cols, columnChecks.value);
     });
-    const pagination = reactive({
+    const pagination = hostReactive({
       page: searchParams.page ?? 1,
       pageSize: searchParams.pageSize ?? 10,
       itemCount: 0,
@@ -462,10 +449,10 @@ function createFallbackTableHooks() {
   }
 
   function useTableOperate(data: any, getData: () => Promise<void>) {
-    const drawerVisible = ref(false);
-    const operateType = ref('add');
-    const editingData = ref(null);
-    const checkedRowKeys = ref([]);
+    const drawerVisible = hostRef(false);
+    const operateType = hostRef('add');
+    const editingData = hostRef(null);
+    const checkedRowKeys = hostRef([]);
 
     function openDrawer() {
       drawerVisible.value = true;

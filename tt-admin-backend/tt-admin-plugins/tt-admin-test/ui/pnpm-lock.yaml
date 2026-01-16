@@ -11,6 +11,9 @@ importers:
       '@tt/plugin-sdk':
         specifier: file:../../../../tt-admin-frontend/packages/plugin-sdk
         version: file:../../../../tt-admin-frontend/packages/plugin-sdk
+      '@tt/plugin-ui':
+        specifier: file:../../../../tt-admin-frontend/packages/plugin-ui
+        version: file:../../../../tt-admin-frontend/packages/plugin-ui(@types/sortablejs@1.15.9)(typescript@5.9.3)
       naive-ui:
         specifier: 2.43.1
         version: 2.43.1(vue@3.5.26(typescript@5.9.3))
@@ -429,6 +432,9 @@ packages:
   '@tt/plugin-sdk@file:../../../../tt-admin-frontend/packages/plugin-sdk':
     resolution: {directory: ../../../../tt-admin-frontend/packages/plugin-sdk, type: directory}
 
+  '@tt/plugin-ui@file:../../../../tt-admin-frontend/packages/plugin-ui':
+    resolution: {directory: ../../../../tt-admin-frontend/packages/plugin-ui, type: directory}
+
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
@@ -446,6 +452,9 @@ packages:
 
   '@types/node@20.19.29':
     resolution: {integrity: sha512-YrT9ArrGaHForBaCNwFjoqJWmn8G1Pr7+BH/vwyLHciA9qT/wSiuOhxGCT50JA5xLvFBd6PIiGkE3afxcPE1nw==}
+
+  '@types/sortablejs@1.15.9':
+    resolution: {integrity: sha512-7HP+rZGE2p886PKV9c9OJzLBI6BBJu1O7lJGYnPyG3fS4/duUCcngkNCjsLwIMV+WMqANe3tt4irrXHSIe68OQ==}
 
   '@unocss/config@66.5.6':
     resolution: {integrity: sha512-awJSz9i1W6KpviNT+0l+xqHouW9naWg/ksiu/Dkko1QHo8a3RCJwZ/W6MBBOjQqbFNPPcD7f+6ffTMm+jXHsaw==}
@@ -919,6 +928,15 @@ packages:
   vscode-uri@3.1.0:
     resolution: {integrity: sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==}
 
+  vue-draggable-plus@0.6.1:
+    resolution: {integrity: sha512-FbtQ/fuoixiOfTZzG3yoPl4JAo9HJXRHmBQZFB9x2NYCh6pq0TomHf7g5MUmpaDYv+LU2n6BPq2YN9sBO+FbIg==}
+    peerDependencies:
+      '@types/sortablejs': ^1.15.0
+      '@vue/composition-api': '*'
+    peerDependenciesMeta:
+      '@vue/composition-api':
+        optional: true
+
   vue-flow-layout@0.2.0:
     resolution: {integrity: sha512-zKgsWWkXq0xrus7H4Mc+uFs1ESrmdTXlO0YNbR6wMdPaFvosL3fMB8N7uTV308UhGy9UvTrGhIY7mVz9eN+L0Q==}
 
@@ -1182,6 +1200,17 @@ snapshots:
     dependencies:
       '@sa/alova': file:../../../../tt-admin-frontend/packages/alova
 
+  '@tt/plugin-ui@file:../../../../tt-admin-frontend/packages/plugin-ui(@types/sortablejs@1.15.9)(typescript@5.9.3)':
+    dependencies:
+      naive-ui: 2.43.1(vue@3.5.26(typescript@5.9.3))
+      vue: 3.5.26(typescript@5.9.3)
+      vue-draggable-plus: 0.6.1(@types/sortablejs@1.15.9)
+      vue-i18n: 11.1.12(vue@3.5.26(typescript@5.9.3))
+    transitivePeerDependencies:
+      - '@types/sortablejs'
+      - '@vue/composition-api'
+      - typescript
+
   '@types/estree@1.0.8': {}
 
   '@types/katex@0.16.8': {}
@@ -1197,6 +1226,8 @@ snapshots:
   '@types/node@20.19.29':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/sortablejs@1.15.9': {}
 
   '@unocss/config@66.5.6':
     dependencies:
@@ -1724,6 +1755,10 @@ snapshots:
       vue: 3.5.26(typescript@5.9.3)
 
   vscode-uri@3.1.0: {}
+
+  vue-draggable-plus@0.6.1(@types/sortablejs@1.15.9):
+    dependencies:
+      '@types/sortablejs': 1.15.9
 
   vue-flow-layout@0.2.0: {}
 

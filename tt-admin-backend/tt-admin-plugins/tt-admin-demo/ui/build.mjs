@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 
 import path from 'node:path';
 
@@ -173,7 +173,8 @@ function createModuleConfig(pluginId, moduleName, entryPath) {
 
       alias: {
 
-        '@': path.resolve(__dirname, './src')
+        '@': path.resolve(__dirname, './src'),
+        '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src'),
 
       }
 
@@ -237,7 +238,7 @@ async function buildModules() {
 
   for (const [moduleName, entryPath] of Object.entries(moduleEntries)) {
 
-    console.info(`[plugin:build] 鏋勫缓妯″潡 ${moduleName} (${entryPath})`);
+    console.info(`[plugin:build] 閺嬪嫬缂撳Ο鈥虫健 ${moduleName} (${entryPath})`);
 
     await build(createModuleConfig(pluginId, moduleName, entryPath));
 
@@ -263,7 +264,7 @@ function copyI18nAssets() {
 
   fs.cpSync(sourceDir, targetDir, { recursive: true });
 
-  console.info('[plugin:build] 拷贝 i18n 资源 ->', targetDir);
+  console.info('[plugin:build] 鎷疯礉 i18n 璧勬簮 ->', targetDir);
 
 }
 
@@ -281,7 +282,7 @@ async function run() {
 
 run().catch(error => {
 
-  console.error('[plugin:build] 鏋勫缓澶辫触:', error);
+  console.error('[plugin:build] 閺嬪嫬缂撴径杈Е:', error);
 
   process.exit(1);
 

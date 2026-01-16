@@ -80,6 +80,9 @@ public class MenuApplicationService {
         ensureUniqueRoute(command.getRouteName(), command.getRoutePath(), id);
         SystemMenu menu = buildSystemMenu(command, id);
         menu.setCreateTime(existing.getCreateTime());
+        menu.setSourceType(existing.getSourceType());
+        menu.setSourceId(existing.getSourceId());
+        menu.setOriginData(existing.getOriginData());
         systemMenuRepository.update(menu);
     }
 

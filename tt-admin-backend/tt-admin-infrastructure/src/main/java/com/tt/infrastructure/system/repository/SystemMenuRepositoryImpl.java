@@ -47,6 +47,26 @@ public class SystemMenuRepositoryImpl implements SystemMenuRepository {
     }
 
     @Override
+    public Optional<SystemMenu> findByCode(String code) {
+        if (code == null || code.isBlank()) {
+            return Optional.empty();
+        }
+        SysMenuPO po = sysMenuMapper.selectOne(new LambdaQueryWrapper<SysMenuPO>()
+                .eq(SysMenuPO::getCode, code));
+        return Optional.ofNullable(SystemMenuConverter.toDomain(po));
+    }
+
+    @Override
+    public Optional<SystemMenu> findByRouteName(String routeName) {
+        if (routeName == null || routeName.isBlank()) {
+            return Optional.empty();
+        }
+        SysMenuPO po = sysMenuMapper.selectOne(new LambdaQueryWrapper<SysMenuPO>()
+                .eq(SysMenuPO::getRouteName, routeName));
+        return Optional.ofNullable(SystemMenuConverter.toDomain(po));
+    }
+
+    @Override
     public void insert(SystemMenu menu) {
         sysMenuMapper.insert(SystemMenuConverter.toPO(menu));
     }
@@ -139,5 +159,16 @@ public class SystemMenuRepositoryImpl implements SystemMenuRepository {
                 .eq(SysMenuPO::getPath, path)
                 .ne(excludeId != null, SysMenuPO::getId, excludeId));
         return count != null && count > 0;
+    }
+
+    @Override
+    public List<SystemMenu> findBySource(String sourceType, String sourceId) {
+        if (sourceType == null || sourceType.isBlank() || sourceId == null || sourceId.isBlank()) {
+            return Collections.emptyList();
+        }
+        List<SysMenuPO> list = sysMenuMapper.selectList(new LambdaQueryWrapper<SysMenuPO>()
+                .eq(SysMenuPO::getSourceType, sourceType)
+                .eq(SysMenuPO::getSourceId, sourceId));
+        return list.stream().map(SystemMenuConverter::toDomain).toList();
     }
 }

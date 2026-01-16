@@ -64,7 +64,7 @@ function exportData() {
         <slot name="default">
           <NButton v-if="addAuth && hasAuth(addAuth)" size="small" ghost type="primary" @click="add">
             <template #icon>
-              <icon-ic-round-plus class="text-icon" />
+              <IconIcRoundPlus class="text-icon" />
             </template>
             {{ $t('common.add') }}
           </NButton>
@@ -89,12 +89,12 @@ function exportData() {
         <slot name="default">
           <NButton v-if="exportAuth && hasAuth(exportAuth)" size="small" quaternary @click="exportData">
             <template #icon>
-              <icon-material-symbols:file-save-rounded class="text-icon" />
+              <icon-material-symbols-file-save-rounded class="text-icon" />
             </template>
           </NButton>
           <NButton size="small" quaternary @click="refresh">
             <template #icon>
-              <icon-ic:round-refresh class="text-icon" :class="{ 'animate-spin': loading }" />
+              <icon-ic-round-refresh class="text-icon" :class="{ 'animate-spin': loading }" />
             </template>
           </NButton>
           <TableColumnSetting v-model:columns="columns" />

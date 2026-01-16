@@ -2,13 +2,14 @@
 import type { Ref, VNodeChild } from 'vue';
 import { h, reactive, ref, shallowRef, watch } from 'vue';
 import { useBoolean } from '@sa/hooks';
-import { fetchDeleteMenu, fetchGetAllPages, fetchGetMenuDetail, fetchGetMenuTree } from '@/service/api';
+import { fetchDeleteMenu, fetchGetAllPages, fetchGetMenuTree } from '@/service/api';
 import { useAuth } from '@/hooks/business/auth';
 import { useDict } from '@/hooks/business/dict';
 import { transDeleteParams } from '@/utils/common';
 import { $t } from '@/locales';
 import SvgIcon from '@/components/custom/svg-icon.vue';
 import { useAppStore } from '@/store/modules/app';
+import { useRouteStore } from '@/store/modules/route';
 import MenuOperateDrawer, { type OperateType } from './modules/menu-operate-drawer.vue';
 import PermissionListTable from './modules/permission-list-table.vue';
 
@@ -27,6 +28,7 @@ const selectedId = ref<number | null>(null);
 const { hasAuth } = useAuth();
 const { dcitType, dictLabel } = useDict();
 const appStore = useAppStore();
+const routeStore = useRouteStore();
 
 const tree = shallowRef<MenuTreeModel[]>([]);
 const name: Ref<string> = ref('');
@@ -76,6 +78,16 @@ function recursiveTree(item: Api.SystemManage.MenuTreeData): MenuTreeModel {
   return result;
 }
 
+function updateMenuIconInMenus(detail: Api.SystemManage.MenuDetail | MenuTreeModel | null) {
+  if (!detail) return;
+  routeStore.updateMenuIcon({
+    routeName: detail.routeName,
+    routePath: detail.routePath,
+    icon: detail.icon,
+    iconType: detail.iconType
+  });
+}
+
 async function getAllPages() {
   const { data } = await fetchGetAllPages();
   allPages.value = data || [];
@@ -115,21 +127,47 @@ async function handleDeleteMenu() {
   }
 }
 
-async function loadDetail(id: number | null) {
-  if (!id) return;
-  const { data, error } = await fetchGetMenuDetail(id);
-  if (!error && data) {
-    Object.assign(showData, data);
+function findMenuNode(targetId: number | null, nodes: MenuTreeModel[]): MenuTreeModel | null {
+  if (!targetId) return null;
+  for (const node of nodes) {
+    if (Number(node.id) === targetId) return node;
+    if (node.children?.length) {
+      const found = findMenuNode(targetId, node.children);
+      if (found) return found;
+    }
   }
+  return null;
 }
 
-function init(detail: Api.SystemManage.MenuDetail | null) {
-  getTree();
-  getAllPages();
+function findMenuId(targetId: number | null, nodes: MenuTreeModel[]): boolean {
+  return Boolean(findMenuNode(targetId, nodes));
+}
+
+async function refreshAuthMenus() {
+  routeStore.setIsInitAuthRoute(false);
+  await routeStore.initAuthRoute();
+}
+
+async function init(detail: Api.SystemManage.MenuDetail | null, refreshMenu = false) {
+  await getTree();
+  await getAllPages();
   if (detail) {
     Object.assign(showData, detail);
+    if (detail.id) {
+      selectedId.value = Number(detail.id);
+    }
+    updateMenuIconInMenus(detail);
   } else {
-    loadDetail(selectedId.value);
+    const selectedNode = findMenuNode(selectedId.value, tree.value);
+    if (selectedNode) {
+      Object.assign(showData, selectedNode);
+      updateMenuIconInMenus(selectedNode);
+    } else {
+      selectedId.value = null;
+    }
+  }
+  if (refreshMenu) {
+    await refreshAuthMenus();
   }
 }
 
@@ -228,7 +266,7 @@ watch(
       :row-data="showData"
       :operate-type="operateType"
       :all-pages="allPages"
-      @submitted="data => init(data)"
+      @submitted="data => init(data, true)"
     />
   </div>
 </template>

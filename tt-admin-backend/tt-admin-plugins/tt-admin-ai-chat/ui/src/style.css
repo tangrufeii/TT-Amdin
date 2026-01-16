@@ -1,4 +1,4 @@
-
+﻿
 
 .ai-chat-app {
   color-scheme: light;
@@ -406,4 +406,8 @@
   .ai-message-bubble {
     max-width: 88%;
   }
+}
+
+.card-wrapper {
+  border-radius: 8px;
 }

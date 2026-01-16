@@ -120,7 +120,7 @@ public class PluginManagerImpl implements PluginManager {
                 reportProgress(ACTION_ENABLE, pluginId, "install_context", 20, "Preparing plugin context");
                 File pluginDir = getPluginDirById(pluginId)
                         .orElseThrow(() -> new PluginException("Plugin directory not found: " + pluginId));
-                pluginHandler.installPlugin(pluginDir);
+                pluginHandler.installPlugin(pluginDir, ACTION_ENABLE);
                 runPendingInstallLifecycle(pluginId);
             }
             pluginHandler.startPlugin(pluginId);

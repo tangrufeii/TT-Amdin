@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import com.tt.domain.plugin.PluginManager;
 import com.tt.domain.plugin.model.aggregate.PluginManagement;
+import com.tt.application.plugin.service.PluginMenuSyncService;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.aggregate.PluginInfoConfig;
 import com.tt.domain.plugin.model.aggregate.PluginAuthor;
@@ -48,6 +49,7 @@ public class PluginStartupLoader {
     private final PluginHandler pluginHandler;
     private final PluginManager pluginManager;
     private final DomainEventPublisher domainEventPublisher;
+    private final PluginMenuSyncService pluginMenuSyncService;
 
     @Value("${tt.plugin.dev.auto-register:false}")
     private boolean autoRegisterDevPlugins;
@@ -78,6 +80,9 @@ public class PluginStartupLoader {
 
             // 已加载过则跳过，避免重复安装
             if (PluginHolder.containsPlugin(pluginId)) {
+                if (plugin.isEnabled()) {
+                    pluginMenuSyncService.syncPluginMenus(plugin);
+                }
                 continue;
             }
 
@@ -112,6 +117,7 @@ public class PluginStartupLoader {
 
                 // 启用状态才启动（注册路由、菜单等）
                 pluginManager.startPlugin(pluginId);
+                pluginMenuSyncService.syncPluginMenus(plugin);
                 publishStartupEvent(pluginId, startedAt);
                 log.info("Plugin loaded on startup: {}", pluginId);
             } catch (Exception ex) {

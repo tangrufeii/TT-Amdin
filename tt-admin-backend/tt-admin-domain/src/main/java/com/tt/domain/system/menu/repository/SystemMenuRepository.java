@@ -15,6 +15,10 @@ public interface SystemMenuRepository {
 
     Optional<SystemMenu> findById(Long id);
 
+    Optional<SystemMenu> findByCode(String code);
+
+    Optional<SystemMenu> findByRouteName(String routeName);
+
     void insert(SystemMenu menu);
 
     void update(SystemMenu menu);
@@ -34,4 +38,6 @@ public interface SystemMenuRepository {
     boolean existsRouteName(String routeName, Long excludeId);
 
     boolean existsPath(String path, Long excludeId);
+
+    List<SystemMenu> findBySource(String sourceType, String sourceId);
 }

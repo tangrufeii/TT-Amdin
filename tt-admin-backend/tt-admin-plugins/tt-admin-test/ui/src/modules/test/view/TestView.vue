@@ -1,68 +1,62 @@
-<template>
-  <div>嘿嘿,黑你好</div>
-  <div class="h-full min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
-      <n-card :title="t('plugin.test.title')" size="small" :bordered="false" class="card-wrapper">
-        <n-form :model="searchParams" label-width="80" label-placement="left">
-          <n-grid cols="24" x-gap="16" y-gap="8" responsive="screen">
-            <n-form-item-gi :span="12" :label="t('plugin.test.name')">
-              <n-input v-model:value="searchParams.name" :placeholder="t('plugin.test.name')" />
+﻿<template>
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+    <PluginFormCard :model="searchParams" :label-width="80" :show-feedback="false">
+      <n-grid responsive="screen" item-responsive :x-gap="8" :y-gap="8" cols="1 s:1 m:5 l:5 xl:5 2xl:5">
+        <n-grid-item span="4">
+          <n-grid responsive="screen" item-responsive :x-gap="8">
+            <n-form-item-gi span="24 s:8 m:6" :label="t('plugin.test.name')" path="name">
+              <n-input v-model:value="searchParams.name" size="small" :placeholder="t('plugin.test.name')" />
             </n-form-item-gi>
-            <n-form-item-gi :span="12" :label="t('plugin.test.sex')">
-              <n-input v-model:value="searchParams.sex" :placeholder="t('plugin.test.sex')" />
-            </n-form-item-gi>
-            <n-form-item-gi span="24">
-              <n-space justify="end" class="w-full">
-                <n-button type="primary" ghost @click="getDataByPage(1)">
-                  <template #icon>
-                    <icon-ic-round-search class="text-icon" />
-                  </template>
-                  {{ t('common.search') }}
-                </n-button>
-                <n-button quaternary @click="resetSearchParams">
-                  <template #icon>
-                    <icon-ic-round-refresh class="text-icon" />
-                  </template>
-                  {{ t('common.reset') }}
-                </n-button>
-              </n-space>
+            <n-form-item-gi span="24 s:8 m:6" :label="t('plugin.test.sex')" path="sex">
+              <n-input v-model:value="searchParams.sex" size="small" :placeholder="t('plugin.test.sex')" />
             </n-form-item-gi>
           </n-grid>
-        </n-form>
-      </n-card>
-      <n-card :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
-        <component
-          :is="tableHeaderComponent"
-          v-if="tableHeaderComponent"
-          v-model:columns="columnChecks"
-          :loading="loading"
-          :disabled-delete="checkedRowKeys.length === 0"
-          @add="openCreate"
-          @delete="batchDelete"
-          @refresh="getData"
-        />
-        <div v-else class="toolbar">
-          <n-space>
-            <n-button size="small" ghost type="primary" @click="openCreate">{{ t('common.add') }}</n-button>
-            <n-button size="small" ghost type="error" :disabled="checkedRowKeys.length === 0" @click="batchDelete">
-              {{ t('common.batchDelete') }}
-            </n-button>
-          </n-space>
-          <n-button size="small" @click="getData">{{ t('common.refresh') }}</n-button>
-        </div>
-        <n-data-table
-          remote
-          size="small"
-          class="sm:h-full"
-          :columns="columns"
-          :data="data"
-          :loading="loading"
-          :pagination="pagination"
-          :row-key="row => row.id"
-          v-model:checked-row-keys="checkedRowKeys"
-          :single-line="false"
-          :flex-height="false"
-        />
-      </n-card>
+        </n-grid-item>
+        <n-grid-item>
+          <n-form-item-gi span="24 s:8 m:6">
+            <n-space class="w-full" justify="end">
+              <n-button type="primary" ghost @click="getDataByPage(1)">
+                <template #icon>
+                  <IconSearch class="text-icon" />
+                </template>
+                {{ t('common.search') }}
+              </n-button>
+              <n-button quaternary @click="resetSearchParams">
+                <template #icon>
+                  <IconRefresh class="text-icon" />
+                </template>
+                {{ t('common.reset') }}
+              </n-button>
+            </n-space>
+          </n-form-item-gi>
+        </n-grid-item>
+      </n-grid>
+    </PluginFormCard>
+    <n-card :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
+      <TableHeaderOperation
+        v-model:columns="columnChecks"
+        :checked-row-keys="checkedRowKeys"
+        :loading="loading"
+        @add="openCreate"
+        @delete="batchDelete"
+        @refresh="getData"
+      />
+      <n-data-table
+        v-model:checked-row-keys="checkedRowKeys"
+        remote
+        striped
+        size="small"
+        class="sm:h-full"
+        :data="data"
+        :scroll-x="800"
+        :columns="columns"
+        :pagination="mobilePagination"
+        :row-key="row => row.id"
+        :flex-height="!isMobile"
+        :loading="loading"
+        :single-line="false"
+      />
+    </n-card>
     <n-drawer v-model:show="drawerVisible" placement="right" :width="420">
       <n-drawer-content :title="modalTitle" closable>
         <n-form :model="formModel" :rules="rules" label-width="100">
@@ -89,7 +83,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, getCurrentInstance, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import * as VueNamespace from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   NButton,
@@ -100,6 +95,7 @@ import {
   NForm,
   NFormItemGi,
   NGrid,
+  NGridItem,
   NInput,
   NInputNumber,
   NSpace
@@ -107,6 +103,7 @@ import {
 import type { FormRules } from 'naive-ui';
 import { deleteTestRecord, deleteTestRecords, fetchTestPage, saveTestRecord } from '../api';
 import type { TestPageQuery, TestRecord } from '../api';
+import { IconRefresh, IconSearch, PluginFormCard, TableHeaderOperation } from '@tt/plugin-ui';
 const { t } = useI18n();
 const isMobile = ref(false);
 let mobileQuery: MediaQueryList | null = null;
@@ -144,14 +141,14 @@ onBeforeUnmount(() => {
 type PluginApi = {
   useTable?: any;
   useTableOperate?: any;
-  components?: {
-    TableHeaderOperation?: any;
-  };
 };
 const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
+// 仅当宿主与插件共享同一份 Vue 运行时，才允许复用宿主的表格钩子与组件。
+const hostVue = typeof window !== 'undefined' ? (window as any).Vue : null;
+const allowHostHooks = Boolean(hostVue && hostVue === VueNamespace);
 const fallbackHooks = createFallbackTableHooks();
-const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
-const useTableOperateHook = pluginApi?.useTableOperate ?? fallbackHooks.useTableOperate;
+const useTableHook = allowHostHooks && pluginApi?.useTable ? pluginApi.useTable : fallbackHooks.useTable;
+const useTableOperateHook = allowHostHooks && pluginApi?.useTableOperate ? pluginApi.useTableOperate : fallbackHooks.useTableOperate;
 const formModel = reactive<TestRecord>({
   name: '',
   sex: '',
@@ -179,15 +176,15 @@ const createColumns = () => [
     width: 200,
     fixed: 'right',
     render: (row: any) =>
-      h(NSpace, {}, {
-        default: () => [
-          h(NButton, { size: 'small', type: 'primary', quaternary: true, onClick: () => openEdit(row) }, { default: () => t('common.edit') }),
-          h(NButton, { size: 'small', type: 'error', quaternary: true, onClick: () => removeRow(row) }, { default: () => t('common.delete') })
-        ]
-      })
+        h(NSpace, {}, {
+          default: () => [
+            h(NButton, { size: 'small', type: 'primary', quaternary: true, onClick: () => openEdit(row) }, { default: () => t('common.edit') }),
+            h(NButton, { size: 'small', type: 'error', quaternary: true, onClick: () => removeRow(row) }, { default: () => t('common.delete') })
+          ]
+        })
   }
 ];
-const { loading, data, columns, columnChecks, pagination, getData, getDataByPage, searchParams, resetSearchParams } = useTableHook({
+const { loading, data, columns, columnChecks, pagination, mobilePagination, getData, getDataByPage, searchParams, resetSearchParams } = useTableHook({
   apiFn: fetchTestPage,
   apiParams: baseSearchParams,
   columns: createColumns,
@@ -215,10 +212,6 @@ const {
   handleEdit
 } = useTableOperateHook(data, getData);
 const modalTitle = computed(() => (operateType.value === 'edit' ? t('common.edit') : t('common.add')));
-const tableHeaderComponent = computed(() => {
-  const instance = getCurrentInstance();
-  return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
-});
 function resetForm(row?: any) {
   formModel.name = row?.name ?? '';
   formModel.sex = row?.sex ?? '';
@@ -253,6 +246,9 @@ async function batchDelete() {
   await onBatchDeleted();
 }
 function createFallbackTableHooks() {
+  const vueRuntime = (typeof window !== 'undefined' && (window as any).Vue) ? (window as any).Vue : VueNamespace;
+  const { ref: hostRef, reactive: hostReactive, computed: hostComputed } = vueRuntime;
+
   function getColumnChecks(cols: any[]) {
     return cols.map(column => {
       if (column.type === 'selection') {
@@ -284,19 +280,19 @@ function createFallbackTableHooks() {
     return checks.filter((item: any) => item.checked).map((item: any) => columnMap.get(item.key));
   }
   function useTable(config: any) {
-    const loading = ref(false);
-    const data = ref<any[]>([]);
-    const searchParams = reactive({ ...(config.apiParams || {}) });
-    const rawColumns = computed(() => config.columns());
-    const columnChecks = ref<any[]>([]);
-    const columns = computed(() => {
+    const loading = hostRef(false);
+    const data = hostRef<any[]>([]);
+    const searchParams = hostReactive({ ...(config.apiParams || {}) });
+    const rawColumns = hostComputed(() => config.columns());
+    const columnChecks = hostRef<any[]>([]);
+    const columns = hostComputed(() => {
       const cols = rawColumns.value || [];
       if (columnChecks.value.length === 0) {
         columnChecks.value = getColumnChecks(cols);
       }
       return buildColumns(cols, columnChecks.value);
     });
-    const pagination = reactive({
+    const pagination = hostReactive({
       page: searchParams.page ?? 1,
       pageSize: searchParams.pageSize ?? 20,
       itemCount: 0,
@@ -339,22 +335,28 @@ function createFallbackTableHooks() {
     if (config.immediate !== false) {
       getData();
     }
-    return {
-      loading,
-      data,
-      columns,
-      columnChecks,
-      pagination,
-      getData,
-      getDataByPage,
-      searchParams,
-      resetSearchParams
-    };
+  const mobilePagination = hostComputed(() => ({
+    ...pagination,
+    pageSlot: isMobile.value ? 3 : 9,
+    showQuickJumper: !isMobile.value
+  }));
+  return {
+    loading,
+    data,
+    columns,
+    columnChecks,
+    pagination,
+    mobilePagination,
+    getData,
+    getDataByPage,
+    searchParams,
+    resetSearchParams
+  };
   }
   function useTableOperate(_data: any, getData: () => Promise<void>) {
-    const drawerVisible = ref(false);
-    const operateType = ref('add');
-    const checkedRowKeys = ref<any[]>([]);
+    const drawerVisible = hostRef(false);
+    const operateType = hostRef('add');
+    const checkedRowKeys = hostRef<any[]>([]);
     function openDrawer() {
       drawerVisible.value = true;
     }

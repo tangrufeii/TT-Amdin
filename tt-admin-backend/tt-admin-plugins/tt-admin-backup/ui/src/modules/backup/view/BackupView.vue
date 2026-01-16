@@ -1,53 +1,51 @@
 ﻿<template>
-  <div class="h-full min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
-      <n-card :title="t('plugin.backup.config')" size="small" :bordered="false" class="card-wrapper">
-        <n-form label-placement="left" label-width="120" :model="config" size="small">
-          <n-grid cols="2" x-gap="16" y-gap="8" responsive="screen">
-            <n-form-item-gi :label="t('plugin.backup.enabled')">
-              <n-switch v-model:value="config.enabled" checked-value="Y" unchecked-value="N" />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.backup.cron')">
-              <n-input v-model:value="config.cron" placeholder="0 0 2 * * ?" />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.backup.dbType')">
-              <n-select v-model:value="config.dbType" :options="dbTypeOptions" />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.backup.backupType')">
-              <n-select v-model:value="config.backupType" :options="backupTypeOptions" />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.backup.targetDir')">
-              <n-input v-model:value="config.targetDir" placeholder="C:\\backup" />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.backup.retentionDays')">
-              <n-input-number v-model:value="config.retentionDays" :min="1" :max="365" />
-            </n-form-item-gi>
-            <n-form-item-gi v-if="config.backupType === 'custom'" :label="t('plugin.backup.customCommand')" span="2">
-              <n-input
-                v-model:value="config.customCommand"
-                placeholder="mysqldump -h {host} -P {port} -u {user} {database} --result-file={file}"
-                type="textarea"
-                :autosize="{ minRows: 2, maxRows: 4 }"
-              />
-            </n-form-item-gi>
-            <n-form-item-gi :label="t('plugin.backup.lastRunTime')">
-              <n-input :value="formatDateTime(config.lastRunTime)" readonly />
-            </n-form-item-gi>
-          </n-grid>
-        </n-form>
-        <n-space justify="end" class="action-row">
-          <n-button type="primary" @click="saveConfig" :loading="saving">
-            {{ t('plugin.backup.save') }}
-          </n-button>
-          <n-button type="success" @click="runBackup" :loading="running">
-            {{ t('plugin.backup.run') }}
-          </n-button>
-        </n-space>
-      </n-card>
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+      <PluginFormCard :title="t('plugin.backup.config')" :model="config" :label-width="120">
+        <n-grid cols="2" x-gap="16" y-gap="8" responsive="screen">
+          <n-form-item-gi :label="t('plugin.backup.enabled')">
+            <n-switch v-model:value="config.enabled" checked-value="Y" unchecked-value="N" />
+          </n-form-item-gi>
+          <n-form-item-gi :label="t('plugin.backup.cron')">
+            <n-input v-model:value="config.cron" placeholder="0 0 2 * * ?" />
+          </n-form-item-gi>
+          <n-form-item-gi :label="t('plugin.backup.dbType')">
+            <n-select v-model:value="config.dbType" :options="dbTypeOptions" />
+          </n-form-item-gi>
+          <n-form-item-gi :label="t('plugin.backup.backupType')">
+            <n-select v-model:value="config.backupType" :options="backupTypeOptions" />
+          </n-form-item-gi>
+          <n-form-item-gi :label="t('plugin.backup.targetDir')">
+            <n-input v-model:value="config.targetDir" placeholder="C:\\backup" />
+          </n-form-item-gi>
+          <n-form-item-gi :label="t('plugin.backup.retentionDays')">
+            <n-input-number v-model:value="config.retentionDays" :min="1" :max="365" />
+          </n-form-item-gi>
+          <n-form-item-gi v-if="config.backupType === 'custom'" :label="t('plugin.backup.customCommand')" span="2">
+            <n-input
+              v-model:value="config.customCommand"
+              placeholder="mysqldump -h {host} -P {port} -u {user} {database} --result-file={file}"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi :label="t('plugin.backup.lastRunTime')">
+            <n-input :value="formatDateTime(config.lastRunTime)" readonly />
+          </n-form-item-gi>
+        </n-grid>
+        <template #actions>
+          <n-space justify="end">
+            <n-button type="primary" @click="saveConfig" :loading="saving">
+              {{ t('plugin.backup.save') }}
+            </n-button>
+            <n-button type="success" @click="runBackup" :loading="running">
+              {{ t('plugin.backup.run') }}
+            </n-button>
+          </n-space>
+        </template>
+      </PluginFormCard>
 
       <n-card :title="t('plugin.backup.records')" size="small" :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
-        <component
-          :is="tableHeaderComponent"
-          v-if="tableHeaderComponent"
+        <TableHeaderOperation
           v-model:columns="columnChecks"
           :loading="loading"
           :disabled-add="true"
@@ -71,17 +69,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { h, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import * as VueNamespace from 'vue';
 import { useI18n } from 'vue-i18n';
-import { NButton, NCard, NDataTable, NForm, NFormItemGi, NGrid, NInput, NInputNumber, NSelect, NSpace, NSwitch, NTag } from 'naive-ui';
+import { NButton, NCard, NDataTable, NFormItemGi, NGrid, NInput, NInputNumber, NSelect, NSpace, NSwitch, NTag } from 'naive-ui';
 import { fetchBackupConfig, fetchBackupRecords, runBackupTask, saveBackupConfig } from '../api';
 import type { BackupConfig, BackupRecord } from '../api';
+import { PluginFormCard, TableHeaderOperation } from '@tt/plugin-ui';
 
 type PluginApi = {
   useTable?: any;
-  components?: {
-    TableHeaderOperation?: any;
-  };
 };
 
 const pluginApi = (window as any).__TT_PLUGIN_API__ as PluginApi | undefined;
@@ -198,7 +195,9 @@ async function runBackup() {
 }
 
 const fallbackHooks = createFallbackTableHooks();
-const useTableHook = pluginApi?.useTable ?? fallbackHooks.useTable;
+const isSharedVue = typeof window !== 'undefined' && (window as any).Vue && (window as any).Vue === VueNamespace;
+const allowHostHooks = !import.meta.env.DEV && isSharedVue;
+const useTableHook = allowHostHooks && pluginApi?.useTable ? pluginApi.useTable : fallbackHooks.useTable;
 
 const { loading, data, columns, columnChecks, pagination, getData, getDataByPage } = useTableHook({
   apiFn: fetchBackupRecords,
@@ -216,10 +215,6 @@ const { loading, data, columns, columnChecks, pagination, getData, getDataByPage
   }
 });
 
-const tableHeaderComponent = computed(() => {
-  const instance = getCurrentInstance();
-  return pluginApi?.components?.TableHeaderOperation || instance?.appContext.components['TableHeaderOperation'] || null;
-});
 
 function formatBytes(size?: number) {
   if (!size) return '0 B';
@@ -238,6 +233,9 @@ function formatDateTime(value?: string) {
 }
 
 function createFallbackTableHooks() {
+  const vueRuntime = (typeof window !== 'undefined' && (window as any).Vue) ? (window as any).Vue : VueNamespace;
+  const { ref: hostRef, reactive: hostReactive, computed: hostComputed } = vueRuntime;
+
   function getColumnChecks(cols: any[]) {
     return cols.map(column => {
       if (column.type === 'selection') {
@@ -271,13 +269,13 @@ function createFallbackTableHooks() {
   }
 
   function useTable(config: any) {
-    const loading = ref(false);
-    const data = ref<any[]>([]);
-    const searchParams = reactive({ ...(config.apiParams || {}) });
-    const rawColumns = computed(() => config.columns());
-    const columnChecks = ref<any[]>([]);
+    const loading = hostRef(false);
+    const data = hostRef<any[]>([]);
+    const searchParams = hostReactive({ ...(config.apiParams || {}) });
+    const rawColumns = hostComputed(() => config.columns());
+    const columnChecks = hostRef<any[]>([]);
 
-    const columns = computed(() => {
+    const columns = hostComputed(() => {
       const cols = rawColumns.value || [];
       if (columnChecks.value.length === 0) {
         columnChecks.value = getColumnChecks(cols);
@@ -285,7 +283,7 @@ function createFallbackTableHooks() {
       return buildColumns(cols, columnChecks.value);
     });
 
-    const pagination = reactive({
+    const pagination = hostReactive({
       page: searchParams.page ?? 1,
       pageSize: searchParams.pageSize ?? 10,
       itemCount: 0,

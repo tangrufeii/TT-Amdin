@@ -6,22 +6,25 @@ export default (moduleInfo: PluginModuleInfo, name: string) => {
     setTimeout(() => reject(new Error('Import timed out')), timeout)
   );
 
+  const tryImport = (base: string) =>
+    import(/* @vite-ignore */ `${base}.ts`)
+      .catch(() => import(/* @vite-ignore */ `${base}.tsx`))
+      .catch(() => import(/* @vite-ignore */ `${base}.js`))
+      .catch(() => import(/* @vite-ignore */ `${base}.jsx`));
+
   let importPromise: Promise<any>;
-  if (moduleInfo.pluginId && moduleInfo.pluginIsDev && moduleInfo.frontDevAddress) {
-    // 开发态优先从插件 dev 服务直连模块源码。
-    // 有的插件挂载在 /plugin/<id>，有的直接从根路径提供，所以两种都尝试。
-    const withBase = `${moduleInfo.frontDevAddress}/plugin/${moduleInfo.pluginId}/src/modules/${name}/index`;
-    const withoutBase = `${moduleInfo.frontDevAddress}/src/modules/${name}/index`;
-    const tryImport = (base: string) =>
-      // 按优先级尝试常见入口扩展名。
-      import(/* @vite-ignore */ `${base}.ts`)
-        .catch(() => import(/* @vite-ignore */ `${base}.tsx`))
-        .catch(() => import(/* @vite-ignore */ `${base}.js`))
-        .catch(() => import(/* @vite-ignore */ `${base}.jsx`));
-    importPromise = tryImport(withBase)
-      .catch(() => tryImport(withoutBase))
+  if (moduleInfo.pluginId && moduleInfo.pluginIsDev) {
+    // 优先从宿主 dev server 读取本地插件源码（/plugin-dev/<id>）。
+    const localBase = `/plugin-dev/${moduleInfo.pluginId}/src/modules/${name}/index`;
+    const remoteBaseWithPrefix = moduleInfo.frontDevAddress
+      ? `${moduleInfo.frontDevAddress}/plugin/${moduleInfo.pluginId}/src/modules/${name}/index`
+      : '';
+    const remoteBase = moduleInfo.frontDevAddress ? `${moduleInfo.frontDevAddress}/src/modules/${name}/index` : '';
+
+    importPromise = tryImport(localBase)
+      .catch(() => (remoteBaseWithPrefix ? tryImport(remoteBaseWithPrefix) : Promise.reject()))
+      .catch(() => (remoteBase ? tryImport(remoteBase) : Promise.reject()))
       .catch(() => {
-        // 最终兜底：使用后端静态资源的打包产物。
         const version = moduleInfo.pluginVersion ? encodeURIComponent(moduleInfo.pluginVersion) : '';
         const suffix = version ? `?v=${version}` : '';
         return import(
@@ -29,7 +32,7 @@ export default (moduleInfo: PluginModuleInfo, name: string) => {
         );
       });
   } else if (moduleInfo.pluginId) {
-    // 生产态固定从打包产物加载。
+    // 生产态固定从后端静态资源加载。
     const version = moduleInfo.pluginVersion ? encodeURIComponent(moduleInfo.pluginVersion) : '';
     const suffix = version ? `?v=${version}` : '';
     importPromise = import(
