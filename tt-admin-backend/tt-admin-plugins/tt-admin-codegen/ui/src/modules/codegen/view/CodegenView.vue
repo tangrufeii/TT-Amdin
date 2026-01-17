@@ -45,7 +45,7 @@
           :row-key="row => row.id"
           v-model:checked-row-keys="checkedRowKeys"
           :single-line="false"
-          :scroll-x="1200"
+          :scroll-x="800"
           :flex-height="!isMobile"
         />
       </n-card>
@@ -173,6 +173,7 @@ import {
   NDataTable,
   NDrawer,
   NDrawerContent,
+  NForm,
   NFormItemGi,
   NGrid,
   NInput,
@@ -311,7 +312,7 @@ const modalTitle = computed(() =>
 
 const createTableColumns = (): DataTableColumns<CodegenTable> => [
   { type: 'selection', width: 48, align: 'center' },
-  { title: t('plugin.codegen.fields.tableName'), key: 'tableName', width: 160, ellipsis: { tooltip: true } },
+  { title: t('plugin.codegen.fields.tableName'), key: 'tableName', width: 120, ellipsis: { tooltip: true } },
   { title: t('plugin.codegen.fields.tableComment'), key: 'tableComment', width: 120, ellipsis: { tooltip: true } },
   { title: t('plugin.codegen.fields.tablePrefix'), key: 'tablePrefix', width: 120 },
   { title: t('plugin.codegen.fields.parentPackage'), key: 'parentPackage', width: 120, ellipsis: { tooltip: true } },
@@ -332,7 +333,7 @@ const createTableColumns = (): DataTableColumns<CodegenTable> => [
   {
     title: t('plugin.codegen.fields.createTime'),
     key: 'createTime',
-    width: 180,
+    width: 220,
     render: row => formatDateTime(row.createTime)
   },
   {

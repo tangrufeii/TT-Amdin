@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineComponent, h } from 'vue';
 import { useRoute } from 'vue-router';
 import { LAYOUT_SCROLL_EL_ID } from '@sa/materials';
 import { useAppStore } from '@/store/modules/app';
@@ -36,8 +36,25 @@ const transitionMode = computed(() => {
   const metaMode = route.meta?.transitionMode as string | undefined;
   if (metaMode) return metaMode;
   if (isPluginRoute.value) return undefined;
-  return 'out-in';
+  return undefined;
 });
+const pluginWrapperCache = new WeakMap<object, any>();
+function wrapPluginComponent(component: any) {
+  if (!component || typeof component !== 'object') return component;
+  if (pluginWrapperCache.has(component)) return pluginWrapperCache.get(component);
+  const name = component.name || component.__name || 'PluginViewWrapper';
+  const wrapper = defineComponent({
+    name,
+    setup() {
+      return () =>
+        h('div', { class: 'plugin-view-wrapper flex flex-col flex-1 min-h-0 w-full' }, [
+          h(component, { class: 'plugin-view-root flex flex-col flex-1 min-h-0 w-full' })
+        ]);
+    }
+  });
+  pluginWrapperCache.set(component, wrapper);
+  return wrapper;
+}
 
 function resetScroll() {
   const el = document.querySelector(`#${LAYOUT_SCROLL_EL_ID}`);
@@ -57,17 +74,17 @@ function resetScroll() {
     >
       <KeepAlive :include="routeStore.cacheRoutes" :exclude="routeStore.excludeCacheRoutes">
         <component
-          :is="Component"
+          :is="isPluginRoute ? wrapPluginComponent(Component) : Component"
           v-if="appStore.reloadFlag"
           :key="tabStore.getTabIdByRoute(route)"
           :class="{ 'p-16px': showPadding }"
           class="flex-grow bg-layout transition-300"
         />
-        
+
       </KeepAlive>
     </Transition>
   </RouterView>
-  
+
 </template>
 
 <style></style>

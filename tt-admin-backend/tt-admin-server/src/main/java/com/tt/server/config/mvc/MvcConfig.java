@@ -61,7 +61,7 @@ public class MvcConfig implements WebMvcConfigurer {
         String pathPattern = "/api/plugin-static/**";
         ResourceHandlerRegistration resourceHandlerRegistration = registry.addResourceHandler(pathPattern);
         resourceHandlerRegistration.setCachePeriod(0)
-                .setCacheControl(CacheControl.noCache().mustRevalidate());
+                .setCacheControl(CacheControl.noStore().cachePrivate().mustRevalidate());
         resourceHandlerRegistration.resourceChain(false).addResolver(new PluginResourceResolver());
         WebMvcConfigurer.super.addResourceHandlers(registry);
 

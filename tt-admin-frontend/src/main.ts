@@ -24,6 +24,7 @@ type PluginHostWindow = typeof window & {
   VueUse?: typeof VueUse;
   __TT_PLUGIN_API_BASE__?: string;
   __TT_PLUGIN_HMR_RELOAD__?: () => void;
+  __TT_PLUGIN_HMR_MODE__?: 'host' | 'external' | 'static';
 };
 
 function exposePluginGlobals() {
@@ -57,7 +58,10 @@ async function setupApp() {
   // 供插件开发态的 HMR 使用：当插件热更新时触发页面软刷新。
   const appStore = useAppStore();
   (window as PluginHostWindow).__TT_PLUGIN_HMR_RELOAD__ = () => {
-    appStore.reloadPage(60);
+    const mode = (window as PluginHostWindow).__TT_PLUGIN_HMR_MODE__;
+    if (mode === 'external') {
+      appStore.reloadPage(60);
+    }
   };
 
   await setupRouter(app);

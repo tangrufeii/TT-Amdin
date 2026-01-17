@@ -1,5 +1,7 @@
 ﻿<template>
+  <div>abcde</div>
   <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
+
     <PluginFormCard :model="searchParams" :label-width="80" :show-feedback="false">
       <n-grid responsive="screen" item-responsive :x-gap="8" :y-gap="8" cols="1 s:1 m:5 l:5 xl:5 2xl:5">
         <n-grid-item span="4">
@@ -335,23 +337,23 @@ function createFallbackTableHooks() {
     if (config.immediate !== false) {
       getData();
     }
-  const mobilePagination = hostComputed(() => ({
-    ...pagination,
-    pageSlot: isMobile.value ? 3 : 9,
-    showQuickJumper: !isMobile.value
-  }));
-  return {
-    loading,
-    data,
-    columns,
-    columnChecks,
-    pagination,
-    mobilePagination,
-    getData,
-    getDataByPage,
-    searchParams,
-    resetSearchParams
-  };
+    const mobilePagination = hostComputed(() => ({
+      ...pagination,
+      pageSlot: isMobile.value ? 3 : 9,
+      showQuickJumper: !isMobile.value
+    }));
+    return {
+      loading,
+      data,
+      columns,
+      columnChecks,
+      pagination,
+      mobilePagination,
+      getData,
+      getDataByPage,
+      searchParams,
+      resetSearchParams
+    };
   }
   function useTableOperate(_data: any, getData: () => Promise<void>) {
     const drawerVisible = hostRef(false);
@@ -400,6 +402,7 @@ function createFallbackTableHooks() {
   }
   return { useTable, useTableOperate };
 }
+
 </script>
 <style scoped>
 .toolbar {

@@ -337,6 +337,9 @@ const local: App.I18n.Schema = {
         author: 'Author',
         status: 'Status',
         isDev: 'Dev Mode',
+        frontDevMode: 'Dev Load Mode',
+        frontDevModeHost: 'Host Vite (Default)',
+        frontDevModeExternal: 'External Address',
         createTime: 'Create Time',
         updateTime: 'Update Time',
         action: 'Action',
@@ -370,8 +373,8 @@ const local: App.I18n.Schema = {
         isDev: 'Dev Mode',
         frontDevAddress: 'Frontend Dev Address',
         frontDevAddressPlaceholder: 'Please enter frontend dev address',
-        frontDevAddressTip: 'In dev mode, plugin modules are loaded from this address',
-        frontDevAddressHint: 'Example: http://127.0.0.1:5173 (start plugin UI dev first)'
+        frontDevAddressTip: 'Dev mode supports host Vite source loading (recommended) or external address loading (optional)',
+        frontDevAddressHint: 'Provide an external address only if plugin UI dev server is running; leave empty to use host Vite source loading'
       },
       statistics: {
         title: 'Plugin Statistics',

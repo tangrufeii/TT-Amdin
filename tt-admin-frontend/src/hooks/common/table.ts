@@ -78,12 +78,13 @@ export function useTable<A extends NaiveUI.TableApiFn>(config: NaiveUI.NaiveTabl
       const columnMap = new Map<string, TableColumn<GetTableData<A>>>();
 
       cols.forEach(column => {
+        const normalized = normalizeFixedColumn(column);
         if (isTableColumnHasKey(column)) {
-          columnMap.set(column.key as string, column);
+          columnMap.set(column.key as string, normalized);
         } else if (column.type === 'selection') {
-          columnMap.set(SELECTION_KEY, column);
+          columnMap.set(SELECTION_KEY, normalized);
         } else if (column.type === 'expand') {
-          columnMap.set(EXPAND_KEY, column);
+          columnMap.set(EXPAND_KEY, normalized);
         }
       });
 
@@ -305,4 +306,16 @@ export function useTableOperate<T extends TableData = TableData>(data: Ref<T[]>,
 
 function isTableColumnHasKey<T>(column: TableColumn<T>): column is NaiveUI.TableColumnWithKey<T> {
   return Boolean((column as NaiveUI.TableColumnWithKey<T>).key);
+}
+
+function normalizeFixedColumn<T>(column: TableColumn<T>): TableColumn<T> {
+  if (!isTableColumnHasKey(column)) return column;
+  const key = String(column.key || '');
+  if (key === 'operate' || key === 'action') {
+    return {
+      ...column,
+      fixed: 'right'
+    };
+  }
+  return column;
 }

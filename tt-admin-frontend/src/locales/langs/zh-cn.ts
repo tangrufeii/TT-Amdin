@@ -334,6 +334,9 @@ const local: App.I18n.Schema = {
         author: '作者',
         status: '状态',
         isDev: '开发模式',
+        frontDevMode: '开发加载方式',
+        frontDevModeHost: '宿主 Vite（默认）',
+        frontDevModeExternal: '外部地址',
         createTime: '创建时间',
         updateTime: '更新时间',
         action: '操作',
@@ -367,8 +370,8 @@ const local: App.I18n.Schema = {
         isDev: '开发模式',
         frontDevAddress: '前端开发地址',
         frontDevAddressPlaceholder: '请输入前端开发地址',
-        frontDevAddressTip: '开发模式时，插件模块将从该地址加载',
-        frontDevAddressHint: '例如 http://127.0.0.1:5173，需先启动插件 UI dev'
+        frontDevAddressTip: '开发模式支持两种加载方式：宿主 Vite 源码加载（推荐）或外部地址加载（可选）',
+        frontDevAddressHint: '填写外部地址时需先启动插件 UI dev；不填写则默认宿主 Vite 源码加载'
       },
       statistics: {
         title: '插件统计',

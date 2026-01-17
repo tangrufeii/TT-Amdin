@@ -22,7 +22,9 @@ import {
   NUploadDragger,
   NModal,
   NIcon,
-  NText
+  NText,
+  NRadioGroup,
+  NRadioButton
 } from 'naive-ui';
 import { $t } from '@/locales';
 import { formatDateTime } from '@/utils/date';
@@ -179,7 +181,8 @@ const editForm = reactive({
   email: '',
   website: '',
   isDev: false,
-  frontDevAddress: ''
+  frontDevAddress: '',
+  devMode: 'host'
 });
 // 插件统计信息
 interface PluginStatistics {
@@ -626,6 +629,7 @@ function openEdit(row: any) {
   editForm.website = row.website || '';
   editForm.isDev = Boolean(row.isDev);
   editForm.frontDevAddress = row.frontDevAddress || '';
+  editForm.devMode = editForm.frontDevAddress ? 'external' : 'host';
   editVisible.value = true;
 }
 
@@ -638,7 +642,7 @@ async function saveEdit() {
     window.$message?.warning($t('page.pluginManagement.form.namePlaceholder'));
     return;
   }
-  if (editForm.isDev && !editForm.frontDevAddress.trim()) {
+  if (editForm.isDev && editForm.devMode === 'external' && !editForm.frontDevAddress.trim()) {
     window.$message?.warning($t('page.pluginManagement.form.frontDevAddressPlaceholder'));
     return;
   }
@@ -653,7 +657,7 @@ async function saveEdit() {
       email: editForm.email.trim(),
       website: editForm.website.trim(),
       isDev: editForm.isDev,
-      frontDevAddress: editForm.frontDevAddress.trim()
+      frontDevAddress: editForm.isDev && editForm.devMode === 'external' ? editForm.frontDevAddress.trim() : ''
     };
     const { error } = await fetchPluginUpdate(payload);
     if (!error) {
@@ -884,6 +888,16 @@ onBeforeUnmount(() => {
           <NFormItem :label="$t('page.pluginManagement.form.isDev')">
             <NSwitch v-model:value="editForm.isDev" />
           </NFormItem>
+          <NFormItem v-if="editForm.isDev" :label="$t('page.pluginManagement.table.frontDevMode')">
+            <NRadioGroup v-model:value="editForm.devMode">
+              <NRadioButton value="host">
+                {{ $t('page.pluginManagement.table.frontDevModeHost') }}
+              </NRadioButton>
+              <NRadioButton value="external">
+                {{ $t('page.pluginManagement.table.frontDevModeExternal') }}
+              </NRadioButton>
+            </NRadioGroup>
+          </NFormItem>
           <NFormItem :label="$t('page.pluginManagement.form.frontDevAddress')">
             <template #label>
               <div class="flex items-center gap-6px">
@@ -906,10 +920,10 @@ onBeforeUnmount(() => {
             <NInput
               v-model:value="editForm.frontDevAddress"
               :placeholder="$t('page.pluginManagement.form.frontDevAddressPlaceholder')"
-              :disabled="!editForm.isDev"
+              :disabled="!editForm.isDev || editForm.devMode === 'host'"
             />
           </NFormItem>
-          <NText depth="3" class="text-xs">
+          <NText v-if="editForm.isDev && editForm.devMode === 'external'" depth="3" class="text-xs">
             {{ $t('page.pluginManagement.form.frontDevAddressHint') }}
           </NText>
         </NForm>
