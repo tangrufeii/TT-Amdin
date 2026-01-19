@@ -1,0 +1,144 @@
+// 响应式适配
+
+// 桌面端断点
+$desktop-lg: 1440px;
+$desktop: 1200px;
+$tablet: 992px;
+$mobile: 768px;
+$mobile-sm: 480px;
+
+// 大屏幕
+@media (min-width: #{$desktop-lg}) {
+  .ai-messages {
+    padding: 32px 48px;
+  }
+
+  .ai-input-footer {
+    padding: 24px 48px;
+  }
+
+  .ai-message-bubble {
+    max-width: 800px;
+  }
+}
+
+// 平板和小屏桌面
+@media (max-width: #{$tablet}) {
+  .ai-content-header {
+    padding: 12px 16px;
+  }
+
+  .ai-messages {
+    padding: 16px;
+  }
+
+  .ai-input-footer {
+    padding: 12px 16px;
+  }
+
+  .ai-welcome-input {
+    padding: 16px;
+  }
+
+  .ai-message-row {
+    &--user .ai-message-bubble {
+      margin-left: 24px;
+    }
+
+    &--assistant .ai-message-bubble {
+      margin-right: 24px;
+    }
+  }
+}
+
+// 移动端
+@media (max-width: #{$mobile}) {
+  .ai-empty-title {
+    font-size: 22px;
+    flex-direction: column;
+  }
+
+  .ai-suggestions {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+
+  .ai-input-panel {
+    .n-input__textarea-el {
+      padding: 12px 16px 6px;
+      font-size: 14px;
+    }
+  }
+
+  .ai-input-actions {
+    padding: 6px 10px 10px;
+  }
+
+  .ai-tool-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .ai-message-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  .ai-message-bubble {
+    max-width: calc(100% - 56px);
+    padding: 10px 14px;
+  }
+
+  .ai-message-content {
+    font-size: 14px;
+  }
+
+  .ai-features {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .ai-config-tip {
+    margin: 12px 16px;
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+// 小屏手机
+@media (max-width: #{$mobile-sm}) {
+  .ai-empty-title {
+    font-size: 18px;
+  }
+
+  .ai-input-tools {
+    gap: 4px;
+  }
+
+  .ai-tool-btn {
+    padding: 4px 8px;
+
+    span:not(.ai-tool-icon) {
+      display: none;
+    }
+  }
+
+  .ai-send-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+// 安全区域适配（iOS）
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .ai-input-footer {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  @media (max-width: #{$mobile}) {
+    .ai-input-footer {
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+  }
+}

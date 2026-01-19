@@ -1,0 +1,124 @@
+// 侧边栏样式
+
+.ai-sider {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--ai-sider-bg) !important;
+  border-right: 1px solid var(--ai-border-color) !important;
+  transition: width var(--ai-transition-normal);
+}
+
+.ai-sider-header {
+  padding: 20px 16px 12px;
+  flex-shrink: 0;
+}
+
+.ai-brand {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ai-text-color);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before {
+    content: '✦';
+    color: var(--ai-primary-color);
+  }
+}
+
+.ai-new-session {
+  width: 100%;
+  height: 40px;
+  border-radius: var(--ai-radius-md) !important;
+  background-color: var(--ai-content-bg) !important;
+  border: 1px solid var(--ai-border-color) !important;
+  transition: all var(--ai-transition-fast);
+
+  &:hover {
+    border-color: var(--ai-primary-color) !important;
+    color: var(--ai-primary-color) !important;
+  }
+}
+
+.ai-sider-search {
+  padding: 0 16px 12px;
+  flex-shrink: 0;
+
+  .n-input {
+    border-radius: var(--ai-radius-md);
+  }
+}
+
+.ai-sider-sub {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--ai-text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ai-sessions {
+  flex: 1;
+  overflow: hidden;
+  padding: 0 8px 16px;
+}
+
+.ai-session-group {
+  margin-bottom: 8px;
+
+  .n-list {
+    background: transparent;
+
+    .n-list-item {
+      padding: 4px 8px;
+      border-radius: var(--ai-radius-md);
+    }
+  }
+}
+
+.ai-session-group-title {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--ai-text-secondary);
+  font-weight: 500;
+}
+
+.ai-session-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+// 侧边栏折叠状态
+.ai-sider-collapsed {
+  .ai-sider-header {
+    padding: 16px 8px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .ai-new-session {
+    width: 40px;
+    height: 40px;
+  }
+
+  .ai-session-group-title,
+  .ai-sider-search {
+    display: none;
+  }
+
+  .ai-sessions {
+    padding: 0 4px;
+  }
+
+  .n-list-item {
+    padding: 8px 4px !important;
+    display: flex;
+    justify-content: center;
+  }
+}

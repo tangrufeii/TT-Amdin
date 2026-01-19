@@ -1,0 +1,137 @@
+// 输入区样式
+
+.ai-input {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.ai-input-panel {
+  background-color: var(--ai-input-bg);
+  border-radius: var(--ai-radius-xl);
+  box-shadow: var(--ai-shadow-md);
+  border: 1px solid var(--ai-border-color);
+  overflow: hidden;
+  transition: all var(--ai-transition-fast);
+
+  &:focus-within {
+    border-color: var(--ai-primary-color);
+    box-shadow: var(--ai-shadow-lg), 0 0 0 2px rgba(var(--ai-primary-color), 0.1);
+  }
+
+  .n-input {
+    --n-border: none !important;
+    --n-border-hover: none !important;
+    --n-border-focus: none !important;
+    --n-box-shadow-focus: none !important;
+    --n-color: transparent !important;
+    --n-color-focus: transparent !important;
+
+    .n-input__textarea-el {
+      padding: 16px 20px 8px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+  }
+}
+
+.ai-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 12px;
+}
+
+.ai-input-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--ai-radius-lg);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--ai-transition-fast);
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--ai-text-secondary);
+
+  &:hover {
+    background-color: var(--ai-border-color);
+    color: var(--ai-text-color);
+  }
+
+  &.active {
+    background-color: var(--ai-primary-color);
+    border-color: var(--ai-primary-color);
+
+    &:hover {
+      background-color: var(--ai-primary-color-hover);
+    }
+  }
+
+  .ai-tool-icon {
+    font-size: 14px;
+  }
+}
+
+.ai-send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50% !important;
+  transition: all var(--ai-transition-fast);
+
+  &:not(:disabled):hover {
+    transform: scale(1.05);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// 停止生成按钮
+.ai-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: var(--ai-content-bg);
+  border: 1px solid var(--ai-border-color);
+  border-radius: var(--ai-radius-lg);
+  color: var(--ai-text-color);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--ai-transition-fast);
+
+  &:hover {
+    border-color: #e74c3c;
+    color: #e74c3c;
+  }
+}
+
+// 提示标签
+.ai-input-hint {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--ai-text-tertiary);
+
+  kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    background-color: var(--ai-border-color);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 11px;
+    margin: 0 4px;
+  }
+}

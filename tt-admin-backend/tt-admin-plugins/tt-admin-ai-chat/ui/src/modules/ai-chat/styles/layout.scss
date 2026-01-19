@@ -1,0 +1,91 @@
+// 三段式布局
+
+.ai-chat-app {
+  width: 100%;
+  height: 100%;
+}
+
+// 欢迎页
+.ai-welcome-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+}
+
+.ai-welcome-input {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+  flex-shrink: 0;
+}
+
+// 对话模式 - 头部
+.ai-content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background-color: var(--ai-content-bg);
+
+  .ai-content-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ai-content-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ai-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ai-content-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+}
+
+// 消息列表区域
+.ai-messages-wrapper {
+  flex: 1;
+  overflow: hidden;
+}
+
+.ai-messages-scroll {
+  height: 100%;
+}
+
+.ai-messages {
+  padding: 24px;
+}
+
+// 底部输入区
+.ai-input-footer {
+  padding: 16px 24px;
+  background-color: var(--ai-content-bg);
+}
+
+// 菜单按钮（移动端显示）
+.ai-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--ai-text-color);
+  font-size: 18px;
+}

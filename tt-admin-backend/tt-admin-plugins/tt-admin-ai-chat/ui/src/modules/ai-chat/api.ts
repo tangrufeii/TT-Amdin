@@ -52,6 +52,10 @@ export interface SendMessageRequest {
   sessionId?: number | null;
   /** 用户消息 */
   message: string;
+  /** 深度思考模式 */
+  deepThink?: boolean;
+  /** 联网搜索 */
+  webSearch?: boolean;
 }
 
 export interface SendMessageResponse {
@@ -113,6 +117,12 @@ export function buildStreamUrl(requestPayload: SendMessageRequest) {
     params.set('sessionId', String(requestPayload.sessionId));
   }
   params.set('message', requestPayload.message);
+  if (requestPayload.deepThink) {
+    params.set('deepThink', 'true');
+  }
+  if (requestPayload.webSearch) {
+    params.set('webSearch', 'true');
+  }
   const token = resolveToken();
   if (token) {
     const rawToken = token.startsWith('Bearer ') ? token.slice(7) : token;

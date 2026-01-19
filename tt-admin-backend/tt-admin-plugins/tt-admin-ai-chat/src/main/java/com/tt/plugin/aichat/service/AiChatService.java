@@ -218,8 +218,16 @@ public class AiChatService {
             ensureSessionOwner(sessionId, userId);
         }
         saveUserMessage(sessionId, userId, trimmedMessage);
+
+        // 处理深度思考模式：对于 DeepSeek，切换到 deepseek-reasoner 模型
+        boolean deepThink = Boolean.TRUE.equals(request.getDeepThink());
+        boolean webSearch = Boolean.TRUE.equals(request.getWebSearch());
+        if (deepThink && PROVIDER_DEEPSEEK.equalsIgnoreCase(config.getProvider())) {
+            config.setModel("deepseek-reasoner");
+        }
+
         ChatModel chatModel = createChatModel(config);
-        return new AiChatContext(userId, sessionId, config, chatModel);
+        return new AiChatContext(userId, sessionId, config, chatModel, deepThink, webSearch);
     }
 
     private String callChat(AiChatContext context) {
@@ -239,9 +247,33 @@ public class AiChatService {
 
     private Prompt buildPrompt(AiChatContext context) {
         List<Message> messages = new ArrayList<>();
+
+        // 构建系统提示
+        StringBuilder systemPromptBuilder = new StringBuilder();
         if (hasText(context.config.getSystemPrompt())) {
-            messages.add(new SystemMessage(context.config.getSystemPrompt()));
+            systemPromptBuilder.append(context.config.getSystemPrompt());
         }
+
+        // 深度思考模式提示
+        if (context.deepThink()) {
+            if (systemPromptBuilder.length() > 0) {
+                systemPromptBuilder.append("\n\n");
+            }
+            systemPromptBuilder.append("请进行深度思考，分析问题的各个方面，提供详细、全面的回答。在回答前，先展示你的思考过程。");
+        }
+
+        // 联网搜索模式提示
+        if (context.webSearch()) {
+            if (systemPromptBuilder.length() > 0) {
+                systemPromptBuilder.append("\n\n");
+            }
+            systemPromptBuilder.append("请根据你的知识库提供最新、最准确的信息。如果涉及时效性信息，请说明你的知识截止日期。");
+        }
+
+        if (systemPromptBuilder.length() > 0) {
+            messages.add(new SystemMessage(systemPromptBuilder.toString()));
+        }
+
         List<AiChatMessagePO> history = messageMapper.selectList(new LambdaQueryWrapper<AiChatMessagePO>()
                 .eq(AiChatMessagePO::getSessionId, context.sessionId)
                 .eq(AiChatMessagePO::getUserId, context.userId)
@@ -578,7 +610,8 @@ public class AiChatService {
         return error.getMessage();
     }
 
-    private record AiChatContext(Long userId, Long sessionId, AiChatConfigPO config, ChatModel chatModel) {
+    private record AiChatContext(Long userId, Long sessionId, AiChatConfigPO config, ChatModel chatModel,
+                                   boolean deepThink, boolean webSearch) {
     }
 }
 

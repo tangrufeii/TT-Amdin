@@ -27,17 +27,7 @@ const tabStore = useTabStore();
 const route = useRoute();
 const isPluginRoute = computed(() => Boolean(route.meta?.moduleName));
 const disableTransition = computed(() => Boolean(route.meta?.disableTransition));
-const transitionName = computed(() => {
-  if (!themeStore.page.animate || disableTransition.value) return '';
-  return themeStore.page.animateMode;
-});
-const transitionMode = computed(() => {
-  if (disableTransition.value) return undefined;
-  const metaMode = route.meta?.transitionMode as string | undefined;
-  if (metaMode) return metaMode;
-  if (isPluginRoute.value) return undefined;
-  return undefined;
-});
+const transitionName = computed(() => (themeStore.page.animate && !disableTransition.value ? themeStore.page.animateMode : ''));
 const pluginWrapperCache = new WeakMap<object, any>();
 function wrapPluginComponent(component: any) {
   if (!component || typeof component !== 'object') return component;
@@ -67,7 +57,7 @@ function resetScroll() {
   <RouterView v-slot="{ Component, route }">
     <Transition
       :name="transitionName"
-      :mode="transitionMode"
+      mode="out-in"
       @before-leave="appStore.setContentXScrollable(true)"
       @after-leave="resetScroll"
       @after-enter="appStore.setContentXScrollable(false)"

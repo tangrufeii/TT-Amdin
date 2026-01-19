@@ -1,0 +1,77 @@
+// AI Chat 样式入口
+
+@import './variables.scss';
+@import './layout.scss';
+@import './sider.scss';
+@import './message.scss';
+@import './input.scss';
+@import './welcome.scss';
+@import './responsive.scss';
+
+// 全局重置
+.ai-chat-app {
+  * {
+    box-sizing: border-box;
+  }
+
+  // 优化滚动条
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--ai-border-color);
+    border-radius: 3px;
+
+    &:hover {
+      background-color: var(--ai-text-tertiary);
+    }
+  }
+
+  // 选中文本颜色
+  ::selection {
+    background-color: var(--ai-primary-color);
+  }
+}
+
+// 抽屉设置面板
+.ai-config-drawer {
+  .n-drawer-body-content-wrapper {
+    padding: 20px;
+  }
+
+  .ai-form-hint {
+    font-size: 12px;
+    color: var(--ai-text-secondary);
+    margin-top: 4px;
+  }
+}
+
+// 动画
+.ai-fade-enter-active,
+.ai-fade-leave-active {
+  transition: opacity var(--ai-transition-normal);
+}
+
+.ai-fade-enter-from,
+.ai-fade-leave-to {
+  opacity: 0;
+}
+
+.ai-slide-enter-active,
+.ai-slide-leave-active {
+  transition: transform var(--ai-transition-normal);
+}
+
+.ai-slide-enter-from {
+  transform: translateX(-100%);
+}
+
+.ai-slide-leave-to {
+  transform: translateX(-100%);
+}

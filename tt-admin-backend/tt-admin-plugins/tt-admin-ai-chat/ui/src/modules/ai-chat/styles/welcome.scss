@@ -1,0 +1,145 @@
+// 欢迎页样式
+
+.ai-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.ai-empty-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--ai-text-color);
+  margin-bottom: 48px;
+  text-align: center;
+}
+
+.ai-empty-logo {
+  font-size: 32px;
+  color: var(--ai-primary-color);
+  animation: ai-float 3s ease-in-out infinite;
+}
+
+@keyframes ai-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+// 快捷提示卡片
+.ai-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  max-width: 800px;
+  width: 100%;
+  margin-bottom: 48px;
+  padding: 0 24px;
+}
+
+.ai-suggestion-card {
+  padding: 16px 20px;
+  background-color: var(--ai-input-bg);
+  border: 1px solid var(--ai-border-color);
+  border-radius: var(--ai-radius-lg);
+  cursor: pointer;
+  transition: all var(--ai-transition-fast);
+
+  &:hover {
+    border-color: var(--ai-primary-color);
+    box-shadow: var(--ai-shadow-md);
+    transform: translateY(-2px);
+  }
+
+  .ai-suggestion-icon {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .ai-suggestion-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ai-text-color);
+    margin-bottom: 4px;
+  }
+
+  .ai-suggestion-desc {
+    font-size: 12px;
+    color: var(--ai-text-secondary);
+    line-height: 1.5;
+  }
+}
+
+// 功能介绍
+.ai-features {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 48px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ai-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ai-text-secondary);
+
+  .ai-feature-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--ai-input-bg);
+    border-radius: 50%;
+    font-size: 12px;
+  }
+}
+
+// 配置提示
+.ai-config-tip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 16px 24px;
+  background-color: rgba(250, 173, 20, 0.1);
+  border: 1px solid rgba(250, 173, 20, 0.3);
+  border-radius: var(--ai-radius-md);
+  color: #d48806;
+  font-size: 13px;
+}
+
+// 模型选择器
+.ai-model-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: var(--ai-input-bg);
+  border-radius: var(--ai-radius-md);
+  cursor: pointer;
+  transition: all var(--ai-transition-fast);
+  font-size: 13px;
+  color: var(--ai-text-secondary);
+
+  &:hover {
+    background-color: var(--ai-border-color);
+  }
+
+  .ai-model-name {
+    font-weight: 500;
+    color: var(--ai-text-color);
+  }
+}

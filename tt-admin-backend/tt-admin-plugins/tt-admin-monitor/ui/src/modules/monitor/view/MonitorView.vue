@@ -16,12 +16,12 @@
         </n-form-item-gi>
       </n-grid>
       <template #actions>
-        <n-space justify="end">
+        <n-space justify="end" align="center">
+          <n-tag :type="connected ? 'success' : 'warning'" size="small">
+            {{ connected ? '实时连接' : '连接中...' }}
+          </n-tag>
           <n-button type="primary" @click="saveConfig" :loading="saving">
             {{ t('plugin.monitor.save') }}
-          </n-button>
-          <n-button @click="fetchMetrics" :loading="metricsLoading">
-            {{ t('plugin.monitor.refresh') }}
           </n-button>
         </n-space>
       </template>
@@ -32,18 +32,18 @@
         <n-card size="small" :bordered="false" class="card-wrapper">
           <n-space align="center" justify="space-between">
             <div>{{ t('plugin.monitor.cpu') }}</div>
-            <n-tag :type="alertType(metrics.alerts?.cpu)">{{ metrics.cpuUsage ?? 0 }}%</n-tag>
+            <n-tag :type="alertType(metrics.alerts?.cpu)">{{ Math.round(metrics.cpuUsage ?? 0) }}%</n-tag>
           </n-space>
-          <n-progress type="line" :percentage="metrics.cpuUsage || 0" :status="progressStatus(metrics.alerts?.cpu)" />
+          <n-progress type="line" :percentage="Math.round(metrics.cpuUsage || 0)" :status="progressStatus(metrics.alerts?.cpu)" />
         </n-card>
       </n-grid-item>
       <n-grid-item>
         <n-card size="small" :bordered="false" class="card-wrapper">
           <n-space align="center" justify="space-between">
             <div>{{ t('plugin.monitor.memory') }}</div>
-            <n-tag :type="alertType(metrics.alerts?.memory)">{{ metrics.memoryUsage ?? 0 }}%</n-tag>
+            <n-tag :type="alertType(metrics.alerts?.memory)">{{ Math.round(metrics.memoryUsage ?? 0) }}%</n-tag>
           </n-space>
-          <n-progress type="line" :percentage="metrics.memoryUsage || 0" :status="progressStatus(metrics.alerts?.memory)" />
+          <n-progress type="line" :percentage="Math.round(metrics.memoryUsage || 0)" :status="progressStatus(metrics.alerts?.memory)" />
         </n-card>
       </n-grid-item>
       <n-grid-item>
@@ -59,9 +59,9 @@
         <n-card size="small" :bordered="false" class="card-wrapper">
           <n-space align="center" justify="space-between">
             <div>{{ t('plugin.monitor.jvm') }}</div>
-            <n-tag type="info">{{ metrics.jvmMemoryUsage ?? 0 }}%</n-tag>
+            <n-tag type="info">{{ Math.round(metrics.jvmMemoryUsage ?? 0) }}%</n-tag>
           </n-space>
-          <n-progress type="line" :percentage="metrics.jvmMemoryUsage || 0" />
+          <n-progress type="line" :percentage="Math.round(metrics.jvmMemoryUsage || 0)" />
         </n-card>
       </n-grid-item>
     </n-grid>
@@ -77,7 +77,7 @@
       <n-data-table
         :columns="diskColumns"
         :data="metrics.disks || []"
-        :loading="metricsLoading"
+        :loading="!connected && !metrics.disks?.length"
         :row-key="row => row.path"
         class="disk-table"
       />
@@ -101,7 +101,7 @@ import {
   NSwitch,
   NTag
 } from 'naive-ui';
-import { fetchMonitorConfig, fetchMonitorMetrics, saveMonitorConfig } from '../api';
+import { fetchMonitorConfig, saveMonitorConfig } from '../api';
 import type { DiskUsage, MonitorConfig, MonitorMetrics } from '../api';
 import { PluginFormCard } from '@tt/plugin-ui';
 
@@ -116,9 +116,13 @@ const config = reactive<MonitorConfig>({
 
 const metrics = reactive<MonitorMetrics>({});
 const saving = ref(false);
-const metricsLoading = ref(false);
+const connected = ref(false);
 const lastUpdate = ref('--');
-let timer: number | null = null;
+
+// WebSocket 相关
+let ws: WebSocket | null = null;
+let reconnectTimer: number | null = null;
+const RECONNECT_DELAY = 3000;
 
 const diskUsageValue = computed(() => {
   if (!metrics.disks?.length) return 0;
@@ -150,15 +154,73 @@ async function saveConfig() {
   }
 }
 
-async function fetchMetrics() {
-  metricsLoading.value = true;
-  try {
-    const data = await fetchMonitorMetrics();
-    Object.assign(metrics, data);
-    lastUpdate.value = new Date(metrics.timestamp || Date.now()).toLocaleString();
-  } finally {
-    metricsLoading.value = false;
+// 获取 WebSocket URL
+function getWebSocketUrl(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  // 检查主前端是否使用代理模式（通过全局变量判断）
+  const apiBase = (window as any).__TT_PLUGIN_API_BASE__ || '';
+  const proxyPrefix = apiBase.startsWith('/proxy') ? apiBase : '';
+  return `${protocol}//${window.location.host}${proxyPrefix}/ws/plugin/monitor`;
+}
+
+// WebSocket 连接
+function connectWebSocket() {
+  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+    return;
   }
+
+  const wsUrl = getWebSocketUrl();
+
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    connected.value = true;
+    console.log('Monitor WebSocket connected');
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data) as MonitorMetrics;
+      Object.assign(metrics, data);
+      lastUpdate.value = new Date(data.timestamp || Date.now()).toLocaleString();
+    } catch (e) {
+      console.warn('Failed to parse monitor metrics:', e);
+    }
+  };
+
+  ws.onclose = () => {
+    connected.value = false;
+    console.log('Monitor WebSocket disconnected');
+    scheduleReconnect();
+  };
+
+  ws.onerror = (error) => {
+    console.warn('Monitor WebSocket error:', error);
+    connected.value = false;
+  };
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) {
+    return;
+  }
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    connectWebSocket();
+  }, RECONNECT_DELAY);
+}
+
+function disconnectWebSocket() {
+  if (reconnectTimer) {
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (ws) {
+    ws.onclose = null; // 防止触发重连
+    ws.close();
+    ws = null;
+  }
+  connected.value = false;
 }
 
 function alertType(alert?: boolean) {
@@ -192,14 +254,11 @@ function formatUptime(value?: number) {
 
 onMounted(async () => {
   await loadConfig();
-  await fetchMetrics();
-  timer = window.setInterval(fetchMetrics, 2000);
+  connectWebSocket();
 });
 
 onBeforeUnmount(() => {
-  if (timer) {
-    window.clearInterval(timer);
-  }
+  disconnectWebSocket();
 });
 </script>
 

@@ -1,0 +1,246 @@
+// 消息气泡样式
+
+.ai-message-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 100%;
+
+  &--user {
+    flex-direction: row-reverse;
+
+    .ai-message-bubble {
+      background-color: var(--ai-user-bubble-bg);
+
+      border-radius: var(--ai-radius-lg) var(--ai-radius-lg) var(--ai-radius-sm) var(--ai-radius-lg);
+      margin-left: 48px;
+    }
+
+    .ai-message-avatar {
+      background-color: var(--ai-primary-color);
+
+    }
+  }
+
+  &--assistant {
+    .ai-message-bubble {
+      background-color: var(--ai-assistant-bubble-bg);
+      color: var(--ai-assistant-bubble-text);
+      border-radius: var(--ai-radius-lg) var(--ai-radius-lg) var(--ai-radius-lg) var(--ai-radius-sm);
+      margin-right: 48px;
+    }
+
+    .ai-message-avatar {
+      background: linear-gradient(135deg, var(--ai-primary-color), var(--ai-primary-color-hover));
+    }
+  }
+}
+
+.ai-message-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-shadow: var(--ai-shadow-sm);
+}
+
+.ai-message-bubble {
+  position: relative;
+  max-width: 720px;
+  padding: 12px 16px;
+  box-shadow: var(--ai-shadow-sm);
+  transition: box-shadow var(--ai-transition-fast);
+
+  &:hover {
+    box-shadow: var(--ai-shadow-md);
+
+    .ai-message-toolbar {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+}
+
+.ai-message-content {
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: break-word;
+
+  p {
+    margin: 0 0 8px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  pre {
+    margin: 8px 0;
+    padding: 12px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: var(--ai-radius-md);
+    overflow-x: auto;
+
+    code {
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 13px;
+    }
+  }
+
+  code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  ul,
+  ol {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+
+  blockquote {
+    margin: 8px 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--ai-primary-color);
+    color: var(--ai-text-secondary);
+  }
+}
+
+.ai-message-plain {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+}
+
+.ai-message-markdown {
+  background: transparent !important;
+
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: inherit !important;
+  }
+}
+
+.ai-message-toolbar {
+  position: absolute;
+  top: -32px;
+  right: 0;
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--ai-content-bg);
+  border-radius: var(--ai-radius-md);
+  box-shadow: var(--ai-shadow-md);
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--ai-transition-fast);
+}
+
+.ai-typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 16px;
+  background-color: var(--ai-primary-color);
+  margin-left: 2px;
+  animation: ai-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes ai-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+// 思考过程样式
+.ai-thinking-block {
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: rgba(var(--ai-primary-color), 0.05);
+  border-radius: var(--ai-radius-md);
+  border-left: 3px solid var(--ai-primary-color);
+
+  .ai-thinking-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ai-primary-color);
+    font-weight: 500;
+    margin-bottom: 8px;
+    cursor: pointer;
+
+    .ai-thinking-icon {
+      animation: ai-pulse 2s ease-in-out infinite;
+    }
+  }
+
+  .ai-thinking-content {
+    font-size: 13px;
+    color: var(--ai-text-secondary);
+    line-height: 1.6;
+  }
+}
+
+@keyframes ai-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+// 搜索结果样式
+.ai-search-results {
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: rgba(24, 160, 88, 0.05);
+  border-radius: var(--ai-radius-md);
+
+  .ai-search-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ai-primary-color);
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .ai-search-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--ai-border-color);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    a {
+      color: var(--ai-primary-color);
+      text-decoration: none;
+      font-size: 13px;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}

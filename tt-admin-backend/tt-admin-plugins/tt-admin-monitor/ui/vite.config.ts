@@ -95,6 +95,14 @@ export default defineConfig(({ command }) => {
       // 开发态允许宿主跨域拉取插件资源。
       headers: {
         'Access-Control-Allow-Origin': '*'
+      },
+      // WebSocket 代理到后端
+      proxy: {
+        '/ws': {
+          target: 'http://localhost:8080',
+          ws: true,
+          changeOrigin: true
+        }
       }
     },
     optimizeDeps: {

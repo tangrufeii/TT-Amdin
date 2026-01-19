@@ -17,10 +17,5 @@ spring:
       - classpath:config/mybatis-plus.yml
       - classpath:config/swagger.yml
       - classpath:config/sa-token.yml
-
-plugin:
-  menu:
-    root-name: 插件
-    root-icon: mdi:puzzle-outline
-
+      - optional:classpath:application-local.yml
 

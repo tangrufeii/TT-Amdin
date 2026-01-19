@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -87,16 +88,22 @@ public class AiChatController {
 
     @GetMapping(value = "/message/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Stream chat message")
-    public Flux<String> streamMessage(@RequestParam(required = false) Long sessionId,
-                                      @RequestParam("message") String message) {
+    public Flux<ServerSentEvent<String>> streamMessage(
+            @RequestParam(required = false) Long sessionId,
+            @RequestParam("message") String message,
+            @RequestParam(required = false) Boolean deepThink,
+            @RequestParam(required = false) Boolean webSearch) {
         AiChatSendRequest request = new AiChatSendRequest();
         request.setSessionId(sessionId);
         request.setMessage(message);
+        request.setDeepThink(deepThink);
+        request.setWebSearch(webSearch);
         try {
-            if (request == null || request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+            if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
                 return buildErrorStream("message is required");
             }
-            return aiChatService.streamMessage(request);
+            return aiChatService.streamMessage(request)
+                    .map(chunk -> ServerSentEvent.builder(chunk).build());
         } catch (Exception ex) {
             String errMessage = ex.getMessage();
             if (errMessage == null || errMessage.isBlank()) {
@@ -106,8 +113,8 @@ public class AiChatController {
         }
     }
 
-    private Flux<String> buildErrorStream(String message) {
+    private Flux<ServerSentEvent<String>> buildErrorStream(String message) {
         String safeMessage = message == null ? "stream request failed" : message;
-        return Flux.just(safeMessage);
+        return Flux.just(ServerSentEvent.builder(safeMessage).build());
     }
 }
