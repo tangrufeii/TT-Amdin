@@ -12,7 +12,12 @@ public class PluginMenuProperties {
     /**
      * 插件根菜单名称
      */
-    private String rootName = "插件";
+    private String rootName = "Plugin";
+
+    /**
+     * 插件根菜单 i18n key
+     */
+    private String rootI18nKey = "route.pluginRoot";
 
     /**
      * 插件根菜单图标

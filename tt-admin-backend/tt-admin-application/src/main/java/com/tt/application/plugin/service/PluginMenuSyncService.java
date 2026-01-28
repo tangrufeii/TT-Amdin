@@ -49,7 +49,8 @@ public class PluginMenuSyncService {
     private static final String PLUGIN_ROOT_ROUTE = "plugin-root";
     private static final String PLUGIN_ROOT_PATH = "/plugin-root";
     private static final String PLUGIN_ROOT_COMPONENT = "layout.base";
-    private static final String PLUGIN_ROOT_NAME = "插件";
+    private static final String PLUGIN_ROOT_NAME = "Plugin";
+    private static final String PLUGIN_ROOT_I18N_KEY = "route.pluginRoot";
     private static final List<String> DEFAULT_ROLE_CODES = List.of("super_admin");
 
     private final PluginFrontendDefinitionRepository pluginFrontendDefinitionRepository;
@@ -262,8 +263,26 @@ public class PluginMenuSyncService {
     }
 
     private SystemMenu ensurePluginRoot() {
+        String rootName = Optional.ofNullable(pluginMenuProperties.getRootName())
+                .filter(StringUtils::hasText)
+                .orElse(PLUGIN_ROOT_NAME);
+        String rootI18nKey = Optional.ofNullable(pluginMenuProperties.getRootI18nKey())
+                .filter(StringUtils::hasText)
+                .orElse(PLUGIN_ROOT_I18N_KEY);
         SystemMenu root = systemMenuRepository.findByCode(PLUGIN_ROOT_CODE).orElse(null);
         if (root != null) {
+            boolean changed = false;
+            if (!StringUtils.hasText(root.getName())) {
+                root.setName(rootName);
+                changed = true;
+            }
+            if (!StringUtils.hasText(root.getI18nKey())) {
+                root.setI18nKey(rootI18nKey);
+                changed = true;
+            }
+            if (changed) {
+                systemMenuRepository.update(root);
+            }
             return root;
         }
         Long parentId = resolveRootParentId();
@@ -271,7 +290,8 @@ public class PluginMenuSyncService {
                 .id(IdWorker.getId())
                 .parentId(parentId)
                 .type(DIR_TYPE)
-                .name(Optional.ofNullable(pluginMenuProperties.getRootName()).orElse(PLUGIN_ROOT_NAME))
+                .name(rootName)
+                .i18nKey(rootI18nKey)
                 .code(PLUGIN_ROOT_CODE)
                 .routeName(PLUGIN_ROOT_ROUTE)
                 .path(PLUGIN_ROOT_PATH)

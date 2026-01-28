@@ -230,6 +230,7 @@ const local: App.I18n.Schema = {
     500: 'Server Error',
     'iframe-page': 'Iframe',
     home: 'Home',
+    pluginRoot: 'Plugins',
     pluginManagement: 'Plugin Management',
     'plugin-management': 'Plugin Management',
     docs: 'Docs',

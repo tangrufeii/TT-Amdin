@@ -17,5 +17,18 @@ modules:
           hideInMenu: false
           keepAlive: true
           layout: base
+      - name: plugin-demo-advanced
+        path: /plugin-demo/advanced
+        component: /view/PluginDemoAdvancedView
+        componentName: plugin-demo-advanced
+        meta:
+          title: 示例进阶
+          i18nKey: plugin.demo.advanced
+          icon: mdi:puzzle-plus
+          order: 2
+          hideInMenu: false
+          keepAlive: true
+          layout: base
 menus:
   - routeName: plugin-demo-index
+  - routeName: plugin-demo-advanced

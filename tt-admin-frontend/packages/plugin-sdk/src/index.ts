@@ -93,6 +93,7 @@ const jsonCache = new WeakMap<Response, any>();
 
 export function getPluginApi() {
   if (typeof window === 'undefined') return undefined;
+  // eslint-disable-next-line no-underscore-dangle
   return (window as PluginWindow).__TT_PLUGIN_API__;
 }
 
@@ -112,12 +113,13 @@ async function readJson(response: Response) {
 
 export function getPluginBaseURL() {
   if (typeof window !== 'undefined') {
+    // eslint-disable-next-line no-underscore-dangle
     const globalBase = (window as PluginWindow).__TT_PLUGIN_API_BASE__;
     if (globalBase !== undefined && globalBase !== null) {
       return globalBase;
     }
   }
-  const env = import.meta.env as unknown as {
+  const env = import.meta?.env as unknown as {
     DEV?: boolean;
     VITE_HTTP_PROXY?: string;
     VITE_SERVICE_BASE_URL?: string;

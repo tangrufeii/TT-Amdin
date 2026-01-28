@@ -227,6 +227,7 @@ const local: App.I18n.Schema = {
     500: '服务器错误',
     'iframe-page': '外链页面',
     home: '首页',
+    pluginRoot: '插件',
     pluginManagement: '插件管理',
     'plugin-management': '插件管理',
     docs: '说明文档',

@@ -2,6 +2,7 @@
   "plugin": {
     "demo": {
       "title": "示例插件",
+      "advanced": "示例进阶",
       "description": "这是一个用于验证插件能力的示例页面"
     }
   }

@@ -2,6 +2,7 @@
   "plugin": {
     "demo": {
       "title": "Plugin Demo",
+      "advanced": "Plugin Demo Advanced",
       "description": "A sample page to verify plugin integration"
     }
   }
