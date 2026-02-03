@@ -102,7 +102,6 @@ export default function useHookTable<A extends ApiFn, T, C>(config: TableConfig<
 
 
     data.value = transformed.data;
-    console.error('tt',transformed.data)
     setEmpty(transformed.data.length === 0);
 
     await config.onFetched?.(transformed);

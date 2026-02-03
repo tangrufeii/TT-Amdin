@@ -1,6 +1,6 @@
 const local: App.I18n.Schema = {
   system: {
-    title: 'TT Admin',
+    title: '',
     updateTitle: 'System Version Update Notification',
     updateContent: 'A new version of the system has been detected. Do you want to refresh the page immediately?',
     updateConfirm: 'Refresh immediately',
@@ -292,8 +292,8 @@ const local: App.I18n.Schema = {
     },
     home: {
       branchDesc:
-        'TT Admin is a plugin-oriented admin framework with dynamic loading, unified menus, and permission management for multi-business growth.',
-      greeting: 'Good morning, {userName}. Welcome to the TT Admin console!',
+        'This system is a plugin-oriented admin framework with dynamic loading, unified menus, and permission management for multi-business growth.',
+      greeting: 'Good morning, {userName}. Welcome to the console!',
       weatherDesc: 'Plugin status, system metrics, and notices are surfaced here.',
       projectCount: 'Project Count',
       todo: 'Todo',
@@ -311,7 +311,7 @@ const local: App.I18n.Schema = {
       projectNews: {
         title: 'Project News',
         moreNews: 'More News',
-        desc1: 'TT Admin completed pluginization: module build and on-demand loading.',
+        desc1: 'The system completed pluginization: module build and on-demand loading.',
         desc2: 'Dynamic routes and menus are fully driven by backend data.',
         desc3: 'Plugin build supports one-click build + assembly packaging.',
         desc4: 'System management now covers dict, menu, user, role, and notices.',

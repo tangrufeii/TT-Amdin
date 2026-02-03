@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { APP_TITLE } from '@/constants/app';
+
 defineOptions({
   name: 'GlobalFooter'
 });
@@ -7,7 +9,7 @@ defineOptions({
 <template>
   <DarkModeContainer class="h-full flex-center">
     <a href="https://github.com/tt-admin/tt-admin/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">
-      Copyright MIT © 2021 TT Admin
+      Copyright MIT © 2021 {{ APP_TITLE }}
     </a>
   </DarkModeContainer>
 </template>

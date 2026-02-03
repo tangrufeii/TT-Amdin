@@ -1,6 +1,6 @@
 <div align="center">
 	<img src="./public/favicon.svg" width="160" />
-	<h1>TT Admin</h1>
+	<h1>管理系统</h1>
   <span>中文 | <a href="./README.en_US.md">English</a></span>
 </div>
 
@@ -11,11 +11,11 @@
 [![github forks](https://img.shields.io/github/forks/honghuangdc/soybean-admin)](https://github.com/trf/tt-admin)
 
 > [!NOTE]
-> 如果您觉得 `TT Admin`对您有所帮助，或者您喜欢我们的项目，请在 GitHub 上给我们一个 ⭐️。您的支持是我们持续改进和增加新功能的动力！感谢您的支持！
+> 如果您觉得本系统对您有所帮助，或者您喜欢我们的项目，请在 GitHub 上给我们一个 ⭐️。您的支持是我们持续改进和增加新功能的动力！感谢您的支持！
 
 ## 简介
 
-`TT Admin` 是一个基于 [`SoybeanAdmin`](https://github.com/soybeanjs/soybean-admin) 的后台管理系统，采用清新优雅、高颜值的设计，基于最新的前端技术栈，包括 Vue3, Vite7, TypeScript, Pinia 和 UnoCSS。它内置了丰富的主题配置和组件，代码规范严谨，实现了自动化的文件路由系统。`TT Admin` 为您提供了一站式的后台管理解决方案，无需额外配置，开箱即用。
+本系统是一个基于 [`SoybeanAdmin`](https://github.com/soybeanjs/soybean-admin) 的后台管理系统，采用清新优雅、高颜值的设计，基于最新的前端技术栈，包括 Vue3, Vite7, TypeScript, Pinia 和 UnoCSS。它内置了丰富的主题配置和组件，代码规范严谨，实现了自动化的文件路由系统。本系统为您提供了一站式的后台管理解决方案，无需额外配置，开箱即用。
 
 ## 特性
 

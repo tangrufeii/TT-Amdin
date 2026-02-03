@@ -16,7 +16,7 @@
     <artifactId>tt-admin-backend</artifactId>
     <version>1.0.0</version>
     <name>admin-backend</name>
-    <description>TT Admin Backend System</description>
+    <description>Admin Backend System</description>
     <modules>
         <module>tt-admin-server</module>
         <module>tt-admin-common</module>

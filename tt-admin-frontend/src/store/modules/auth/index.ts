@@ -1,10 +1,10 @@
 import { computed, reactive, ref } from 'vue';
-import { useRoute } from 'vue-router';
 import { defineStore } from 'pinia';
 import { useLoading } from '@sa/hooks';
 import { fetchGetUserInfo, fetchLogin } from '@/service/api';
 import { useRouterPush } from '@/hooks/common/router';
 import { localStg } from '@/utils/storage';
+import { router } from '@/router';
 import { SetupStoreId } from '@/enum';
 import { $t } from '@/locales';
 import { useRouteStore } from '../route';
@@ -13,7 +13,7 @@ import { useDictStore } from '../dict';
 import { clearAuthStorage, getToken } from './shared';
 
 export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
-  const route = useRoute();
+  const route = computed(() => router.currentRoute.value);
   const authStore = useAuthStore();
   const routeStore = useRouteStore();
   const tabStore = useTabStore();
@@ -50,7 +50,7 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
     authStore.$reset();
 
-    if (!route?.meta?.constant) {
+    if (!route.value?.meta?.constant) {
       await toLogin();
     }
 

@@ -1,4 +1,4 @@
-# TT Admin Backend System
+# Admin Backend System
 
 基于 DDD 架构的 Spring Boot 后台管理系统，支持动态插件扩展。
 

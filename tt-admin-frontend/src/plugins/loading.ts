@@ -4,7 +4,7 @@ import { DARK_CLASS } from '@/constants/app';
 import { localStg } from '@/utils/storage';
 import { toggleHtmlClass } from '@/utils/common';
 import systemLogo from '@/assets/svg-icon/logo.svg?raw';
-import { $t } from '@/locales';
+import { APP_TITLE } from '@/constants/app';
 
 export function setupLoading() {
   const themeColor = localStg.get('themeColor') || '#646cff';
@@ -40,7 +40,7 @@ export function setupLoading() {
       ${dot}
     </div>
   </div>
-  <h2 class="text-28px font-500 text-primary">${$t('system.title')}</h2>
+  <h2 class="text-28px font-500 text-primary">${APP_TITLE}</h2>
 </div>`;
 
   const app = document.getElementById('app');

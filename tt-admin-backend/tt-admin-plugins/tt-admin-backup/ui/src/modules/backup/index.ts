@@ -14,10 +14,16 @@ export default () => {
       const router: any[] = [];
       menusRouter.forEach(item => {
         if (item.path && item.component) {
+          const componentKey = `.${item.component}.vue`;
+          const component = modules[componentKey];
+          if (!component) {
+            console.warn('[plugin] view component not found:', componentKey);
+            return;
+          }
           router.push({
             name: item.componentName || item.name,
             path: item.path,
-            component: modules[`.${item.component}.vue`],
+            component,
             meta: {
               moduleName,
               title: item.meta?.title || item.name,

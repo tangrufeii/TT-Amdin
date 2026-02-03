@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { watermarkTimeFormatOptions } from '@/constants/app';
+import { APP_TITLE, watermarkTimeFormatOptions } from '@/constants/app';
 import { useThemeStore } from '@/store/modules/theme';
 import { $t } from '@/locales';
 import SettingItem from '../../../components/setting-item.vue';
@@ -47,7 +47,7 @@ const isWatermarkTextVisible = computed(
         type="text"
         size="small"
         class="w-120px"
-        placeholder="TT Admin"
+        :placeholder="APP_TITLE"
       />
     </SettingItem>
   </TransitionGroup>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineComponent, h } from 'vue';
+import { computed, defineComponent, h, mergeProps } from 'vue';
 import { useRoute } from 'vue-router';
 import { LAYOUT_SCROLL_EL_ID } from '@sa/materials';
 import { useAppStore } from '@/store/modules/app';
@@ -35,10 +35,11 @@ function wrapPluginComponent(component: any) {
   const name = component.name || component.__name || 'PluginViewWrapper';
   const wrapper = defineComponent({
     name,
-    setup() {
+    inheritAttrs: false,
+    setup(_props, { attrs }) {
       return () =>
-        h('div', { class: 'plugin-view-wrapper flex flex-col flex-1 min-h-0 w-full' }, [
-          h(component, { class: 'plugin-view-root flex flex-col flex-1 min-h-0 w-full' })
+        h('div', mergeProps(attrs, { class: 'plugin-view-wrapper flex flex-col flex-1 min-h-0 w-full' }), [
+          h('div', { class: 'plugin-view-root flex flex-col flex-1 min-h-0 w-full' }, [h(component)])
         ]);
     }
   });

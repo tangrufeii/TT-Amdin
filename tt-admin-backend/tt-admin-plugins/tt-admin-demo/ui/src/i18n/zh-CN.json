@@ -3,7 +3,37 @@
     "demo": {
       "title": "示例插件",
       "advanced": "示例进阶",
-      "description": "这是一个用于验证插件能力的示例页面"
+      "ide": "在线 IDE",
+      "description": "这是一个用于验证插件能力的示例页面",
+      "ideSearch": "搜索文件",
+      "ideRun": "运行",
+      "ideSave": "保存",
+      "ideLoad": "加载编辑器",
+      "ideLoadHint": "点击加载编辑器，避免页面卡顿",
+      "ideLanguageService": "LSP",
+      "ideRunHint": "演示模式：已触发运行操作",
+      "ideSaveHint": "已保存到插件目录",
+      "ideSaveFailed": "保存失败",
+      "ideLoadFailed": "文件列表加载失败，已进入空白模式",
+      "ideNewFile": "新建文件",
+      "ideNewDir": "新建文件夹",
+      "ideRename": "重命名",
+      "ideDelete": "删除",
+      "ideNewFilePrompt": "请输入文件名",
+      "ideNewDirPrompt": "请输入文件夹名称",
+      "ideRenamePrompt": "请输入新名称",
+      "ideDeleteConfirm": "确认删除该文件或目录？",
+      "ideModeAdvanced": "高级",
+      "ideModeBasic": "基础",
+      "ideEditorPlaceholder": "在此编辑文件内容...",
+      "ideLspDisconnected": "LSP 未连接",
+      "ideLspConnecting": "LSP 加载中",
+      "ideLspConnected": "LSP 已连接",
+      "ideLspFailed": "LSP 连接失败",
+      "ideLspDisabled": "LSP 未启用",
+      "ideTabClose": "关闭",
+      "ideTabCloseOthers": "关闭其他",
+      "ideTabCloseRight": "关闭右侧"
     }
   }
 }

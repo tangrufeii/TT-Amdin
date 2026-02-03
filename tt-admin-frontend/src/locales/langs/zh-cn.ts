@@ -1,6 +1,6 @@
 const local: App.I18n.Schema = {
   system: {
-    title: 'TT Admin 管理系统',
+    title: '',
     updateTitle: '系统版本更新通知',
     updateContent: '检测到系统有新版本发布，是否立即刷新页面？',
     updateConfirm: '立即刷新',
@@ -98,7 +98,7 @@ const local: App.I18n.Schema = {
         applySuccess: '预设应用成功',
         default: {
           name: '默认预设',
-          desc: 'TT Admin 默认主题预设'
+          desc: '默认主题预设'
         },
         dark: {
           name: '暗色预设',
@@ -289,8 +289,8 @@ const local: App.I18n.Schema = {
     },
     home: {
       branchDesc:
-        'TT Admin 是面向插件化扩展的后台管理框架，支持前后端插件动态加载、菜单与权限统一配置，适合多业务线快速接入与持续演进。',
-      greeting: '早安，{userName}，欢迎进入 TT Admin 控制台！',
+        '本系统面向插件化扩展，支持前后端插件动态加载、菜单与权限统一配置，适合多业务线快速接入与持续演进。',
+      greeting: '早安，{userName}，欢迎进入系统控制台！',
       weatherDesc: '插件状态、系统指标与公告会在此实时呈现。',
       projectCount: '项目数',
       todo: '待办',
@@ -308,7 +308,7 @@ const local: App.I18n.Schema = {
       projectNews: {
         title: '项目动态',
         moreNews: '更多动态',
-        desc1: 'TT Admin 已完成插件化改造：支持模块级构建与按需加载。',
+        desc1: '系统已完成插件化改造：支持模块级构建与按需加载。',
         desc2: '动态路由与菜单已对接后端数据，权限模型统一管理。',
         desc3: '插件打包流程稳定支持一键构建与 assembly 发布。',
         desc4: '系统管理模块补齐字典、菜单、用户、角色与公告入口。',

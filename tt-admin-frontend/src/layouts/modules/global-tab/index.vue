@@ -106,6 +106,12 @@ function switchTab(e: MouseEvent, tab: App.Global.Tab) {
   tabStore.switchRouteByTab(tab);
 }
 
+function handleTabWheel(e: WheelEvent) {
+  if (!bsScroll.value?.instance) return;
+  if (bsScroll.value.instance.maxScrollX >= 0) return;
+  bsScroll.value.instance.scrollBy(-e.deltaY, 0, 0);
+}
+
 async function refresh() {
   appStore.reloadPage(500);
 }
@@ -186,7 +192,7 @@ init();
 
 <template>
   <DarkModeContainer class="size-full flex-y-center px-16px shadow-tab">
-    <div ref="bsWrapper" class="h-full flex-1-hidden">
+    <div ref="bsWrapper" class="h-full flex-1-hidden" @wheel.prevent="handleTabWheel">
       <BetterScroll ref="bsScroll" :options="{ scrollX: true, scrollY: false, click: !isPCFlag }" @click="removeFocus">
         <div
           ref="tabRef"

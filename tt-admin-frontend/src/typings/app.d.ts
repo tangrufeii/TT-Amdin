@@ -317,6 +317,10 @@ declare namespace App {
         updateCancel: string;
       };
       common: {
+        createUser:string;
+        createTime:string;
+        checkAll:string;
+        uncheckAll:string;
         action: string;
         add: string;
         addSuccess: string;

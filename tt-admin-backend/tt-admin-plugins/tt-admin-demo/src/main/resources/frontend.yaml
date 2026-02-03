@@ -10,7 +10,7 @@ modules:
         component: /view/PluginDemoView
         componentName: plugin-demo-index
         meta:
-          title: 示例插件
+          title: 绀轰緥鎻掍欢
           i18nKey: plugin.demo.title
           icon: mdi:puzzle
           order: 1
@@ -22,13 +22,26 @@ modules:
         component: /view/PluginDemoAdvancedView
         componentName: plugin-demo-advanced
         meta:
-          title: 示例进阶
+          title: 绀轰緥杩涢樁
           i18nKey: plugin.demo.advanced
           icon: mdi:puzzle-plus
           order: 2
           hideInMenu: false
           keepAlive: true
           layout: base
+      - name: plugin-demo-ide
+        path: /plugin-demo/ide
+        component: /view/PluginDemoIdeView
+        componentName: plugin-demo-ide
+        meta:
+          title: 鍦ㄧ嚎 IDE
+          i18nKey: plugin.demo.ide
+          icon: mdi:code-braces
+          order: 3
+          hideInMenu: false
+          keepAlive: true
+          layout: base
 menus:
   - routeName: plugin-demo-index
   - routeName: plugin-demo-advanced
+  - routeName: plugin-demo-ide

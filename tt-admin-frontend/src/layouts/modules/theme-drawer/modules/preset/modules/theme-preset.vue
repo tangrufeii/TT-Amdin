@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { APP_TITLE } from '@/constants/app';
 import { useThemeStore } from '@/store/modules/theme';
 import { $t } from '@/locales';
 
@@ -76,13 +77,19 @@ const getPresetDesc = (preset: ThemePreset): string => {
   }
 };
 
+const normalizeWatermarkText = (text?: string) => {
+  if (!text || !text.trim() || text.trim() === APP_TITLE) return APP_TITLE;
+  return text;
+};
+
 const applyPreset = ({ themeScheme, grayscale, colourWeakness, layout, watermark, ...rest }: ThemePreset): void => {
+  const nextWatermark = { ...watermark, text: normalizeWatermarkText(watermark.text) };
   themeStore.setThemeScheme(themeScheme);
   themeStore.setGrayscale(grayscale);
   themeStore.setColourWeakness(colourWeakness);
   themeStore.setThemeLayout(layout.mode);
-  themeStore.setWatermarkEnableUserName(watermark.enableUserName);
-  themeStore.setWatermarkEnableTime(watermark.enableTime);
+  themeStore.setWatermarkEnableUserName(nextWatermark.enableUserName);
+  themeStore.setWatermarkEnableTime(nextWatermark.enableTime);
 
   Object.assign(themeStore, {
     ...rest,
@@ -92,7 +99,7 @@ const applyPreset = ({ themeScheme, grayscale, colourWeakness, layout, watermark
     tab: { ...rest.tab },
     sider: { ...rest.sider },
     footer: { ...rest.footer },
-    watermark: { ...watermark },
+    watermark: { ...nextWatermark },
     tokens: { ...rest.tokens }
   });
 

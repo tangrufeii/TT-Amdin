@@ -60,6 +60,10 @@ export const themePageAnimationModeOptions = transformRecordToOption(themePageAn
 
 export const DARK_CLASS = 'dark';
 
+export const APP_TITLE = import.meta.env.VITE_APP_TITLE ?? '';
+
+export const APP_DESC = import.meta.env.VITE_APP_DESC ?? '';
+
 export const watermarkTimeFormatOptions = [
   { label: 'YYYY-MM-DD HH:mm', value: 'YYYY-MM-DD HH:mm' },
   { label: 'YYYY-MM-DD HH:mm:ss', value: 'YYYY-MM-DD HH:mm:ss' },

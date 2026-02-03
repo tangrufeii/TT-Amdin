@@ -16,10 +16,16 @@ export default () => {
         if (!item) return;
         const componentPath = item.component || '';
         if (item.path && componentPath) {
+          const componentKey = `.${componentPath}.vue`;
+          const component = modules[componentKey];
+          if (!component) {
+            console.warn('[plugin] view component not found:', componentKey);
+            return;
+          }
           router.push({
             name: item.componentName || item.name,
             path: item.path,
-            component: modules['.' + componentPath + '.vue'],
+            component,
             meta: {
               moduleName,
               title: item.meta?.title || item.name,

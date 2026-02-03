@@ -616,7 +616,7 @@ CREATE TABLE `sys_notice`  (
 -- Records of sys_notice
 -- ----------------------------
 INSERT INTO `sys_notice` (`id`,`category`,`title`,`content`,`release_time`,`status`,`remark`,`create_user`,`create_user_id`,`create_time`,`update_time`,`update_user_id`,`is_deleted`) VALUES
-(1,'1','Welcome','Welcome to TT Admin',NULL,'1',NULL,'system',1,'2025-12-10 09:39:13','2025-12-10 09:39:13',NULL,0);
+(1,'1','Welcome','Welcome to the system',NULL,'1',NULL,'system',1,'2025-12-10 09:39:13','2025-12-10 09:39:13',NULL,0);
 
 -- ----------------------------
 -- Table structure for tool_generator_table

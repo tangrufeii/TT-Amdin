@@ -19,9 +19,9 @@ import java.util.Optional;
 /**
  * 插件管理仓储实现
  * <p>
- * 实现领域层定义的 PluginManagementRepository 接口
- * 使用 MyBatis-Plus 进行数��访问
- * 负责在领域对象与持久化对象之间转换
+ * 实现领域层定义的 PluginManagementRepository 接口。
+ * 使用 MyBatis-Plus 进行数据库访问。
+ * 负责在领域对象与持久化对象之间转换。
  *
  * @author tt
  * @date 2025/12/24
@@ -36,7 +36,7 @@ public class PluginManagementRepositoryImpl implements PluginManagementRepositor
     @Override
     public void save(PluginManagement pluginManagement) {
         if (pluginManagement == null) {
-            throw new IllegalArgumentException("��件管理对象不能为空");
+            throw new IllegalArgumentException("插件管理对象不能为空");
         }
 
         PluginManagementPO po = PluginManagementConvert.toPO(pluginManagement);
@@ -49,7 +49,6 @@ public class PluginManagementRepositoryImpl implements PluginManagementRepositor
             if (pluginManagement.getPluginInfo() != null) {
                 pluginManagement.getPluginInfo().setId(po.getPluginId());
             }
-            // 使用反射或直接设置dbId（这里需要在聚合根添加setter）
             log.debug("新增插件记录: dbId={}, pluginId={}", po.getId(), po.getPluginId());
         } else {
             // 更新操作

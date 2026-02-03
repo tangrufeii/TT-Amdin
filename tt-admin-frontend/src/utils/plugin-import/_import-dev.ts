@@ -2,6 +2,17 @@ import type { PluginModuleInfo } from './types';
 
 type HmrMode = 'host' | 'external' | 'static';
 
+const localModuleMap = import.meta.glob('../modules/**/index.{ts,tsx,js,jsx}');
+const resolveLocalModule = (name: string) => {
+  const base = `../modules/${name}/index`;
+  const candidates = [`${base}.ts`, `${base}.tsx`, `${base}.js`, `${base}.jsx`];
+  for (const candidate of candidates) {
+    const loader = localModuleMap[candidate] as (() => Promise<any>) | undefined;
+    if (loader) return loader();
+  }
+  return Promise.reject(new Error(`Local module not found: ${name}`));
+};
+
 export default (moduleInfo: PluginModuleInfo, name: string) => {
   const timeout = 3000;
   const timeoutPromise = new Promise((_, reject) =>
@@ -63,7 +74,7 @@ export default (moduleInfo: PluginModuleInfo, name: string) => {
     );
   } else {
     setHmrMode('static');
-    importPromise = import(/* @vite-ignore */ `../modules/${name}/index.js`);
+    importPromise = resolveLocalModule(name);
   }
 
   return Promise.race([importPromise, timeoutPromise]);

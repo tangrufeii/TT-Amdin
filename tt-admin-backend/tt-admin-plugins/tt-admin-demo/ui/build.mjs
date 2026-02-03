@@ -164,7 +164,10 @@ function createModuleConfig(pluginId, moduleName, entryPath) {
     configFile: false,
 
     envFile: false,
-
+    define: {
+      'process.env': '{}',
+      'process.env.NODE_ENV': '"production"'
+    },
     base: `/plugin/${pluginId}`,
 
     plugins: [vue(), UnoCSS(), viteExternalsPlugin(SHARED_EXTERNALS), cssInjectedByJsPlugin()],
@@ -175,6 +178,8 @@ function createModuleConfig(pluginId, moduleName, entryPath) {
 
         '@': path.resolve(__dirname, './src'),
         '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src'),
+        'monaco-editor/esm/vs/platform/product/common/productService.js': path.resolve(__dirname, './src/monaco-shims/productService.js'),
+        'monaco-editor/esm/vs/platform/product/common/productService': path.resolve(__dirname, './src/monaco-shims/productService.js'),
 
       }
 
@@ -238,7 +243,7 @@ async function buildModules() {
 
   for (const [moduleName, entryPath] of Object.entries(moduleEntries)) {
 
-    console.info(`[plugin:build] 閺嬪嫬缂撳Ο鈥虫健 ${moduleName} (${entryPath})`);
+    console.info(`[plugin:build] 构建模块 ${moduleName} (${entryPath})`);
 
     await build(createModuleConfig(pluginId, moduleName, entryPath));
 
@@ -264,7 +269,7 @@ function copyI18nAssets() {
 
   fs.cpSync(sourceDir, targetDir, { recursive: true });
 
-  console.info('[plugin:build] 鎷疯礉 i18n 璧勬簮 ->', targetDir);
+  console.info('[plugin:build] 复制 i18n 资源 ->', targetDir);
 
 }
 
@@ -281,10 +286,6 @@ async function run() {
 
 
 run().catch(error => {
-
-  console.error('[plugin:build] 閺嬪嫬缂撴径杈Е:', error);
-
+  console.error('[plugin:build] 构建失败:', error);
   process.exit(1);
-
 });
-

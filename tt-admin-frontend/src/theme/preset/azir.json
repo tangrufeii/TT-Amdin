@@ -61,7 +61,7 @@
   },
   "watermark": {
     "visible": false,
-    "text": "TT Admin",
+    "text": "",
     "enableUserName": false,
     "enableTime": true,
     "timeFormat": "YYYY-MM-DD HH:mm:ss"

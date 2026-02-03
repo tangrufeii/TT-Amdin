@@ -3,7 +3,37 @@
     "demo": {
       "title": "Plugin Demo",
       "advanced": "Plugin Demo Advanced",
-      "description": "A sample page to verify plugin integration"
+      "ide": "Online IDE",
+      "description": "A sample page to verify plugin integration",
+      "ideSearch": "Search files",
+      "ideRun": "Run",
+      "ideSave": "Save",
+      "ideLoad": "Load editor",
+      "ideLoadHint": "Click to load editor to avoid page freeze",
+      "ideLanguageService": "LSP",
+      "ideRunHint": "Demo mode: run triggered",
+      "ideSaveHint": "Saved to plugin directory",
+      "ideSaveFailed": "Save failed",
+      "ideLoadFailed": "Failed to load file list, switched to blank mode",
+      "ideNewFile": "New file",
+      "ideNewDir": "New folder",
+      "ideRename": "Rename",
+      "ideDelete": "Delete",
+      "ideNewFilePrompt": "Enter file name",
+      "ideNewDirPrompt": "Enter folder name",
+      "ideRenamePrompt": "Enter new name",
+      "ideDeleteConfirm": "Confirm delete this item?",
+      "ideModeAdvanced": "Advanced",
+      "ideModeBasic": "Basic",
+      "ideEditorPlaceholder": "Edit file content here...",
+      "ideLspDisconnected": "LSP disconnected",
+      "ideLspConnecting": "LSP connecting",
+      "ideLspConnected": "LSP connected",
+      "ideLspFailed": "LSP connection failed",
+      "ideLspDisabled": "LSP disabled",
+      "ideTabClose": "Close",
+      "ideTabCloseOthers": "Close Others",
+      "ideTabCloseRight": "Close Right"
     }
   }
 }

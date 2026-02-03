@@ -1,7 +1,7 @@
 <template>
   <div class="plugin-container">
     <header class="plugin-header">
-      <h2>TT Admin Demo Plugin</h2>
+      <h2>插件演示</h2>
       <p>This is a minimal Web Component page for verifying plugin loading, style injection, and messaging.</p>
     </header>
 
