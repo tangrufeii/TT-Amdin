@@ -1,0 +1,1 @@
+-- web-component react demo plugin install sql

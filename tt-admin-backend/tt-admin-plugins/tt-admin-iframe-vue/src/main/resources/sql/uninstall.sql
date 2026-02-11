@@ -1,0 +1,1 @@
+-- iframe vue demo plugin uninstall sql

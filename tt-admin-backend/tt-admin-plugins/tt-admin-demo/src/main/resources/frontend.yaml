@@ -10,7 +10,7 @@ modules:
         component: /view/PluginDemoView
         componentName: plugin-demo-index
         meta:
-          title: 绀轰緥鎻掍欢
+          title: 示例插件
           i18nKey: plugin.demo.title
           icon: mdi:puzzle
           order: 1
@@ -22,7 +22,7 @@ modules:
         component: /view/PluginDemoAdvancedView
         componentName: plugin-demo-advanced
         meta:
-          title: 绀轰緥杩涢樁
+          title: 示例进阶
           i18nKey: plugin.demo.advanced
           icon: mdi:puzzle-plus
           order: 2
@@ -34,7 +34,7 @@ modules:
         component: /view/PluginDemoIdeView
         componentName: plugin-demo-ide
         meta:
-          title: 鍦ㄧ嚎 IDE
+          title: 在线 IDE
           i18nKey: plugin.demo.ide
           icon: mdi:code-braces
           order: 3

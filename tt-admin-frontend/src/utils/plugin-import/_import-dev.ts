@@ -3,6 +3,7 @@ import type { PluginModuleInfo } from './types';
 type HmrMode = 'host' | 'external' | 'static';
 
 const localModuleMap = import.meta.glob('../modules/**/index.{ts,tsx,js,jsx}');
+const pluginDevEnabled = import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
 const resolveLocalModule = (name: string) => {
   const base = `../modules/${name}/index`;
   const candidates = [`${base}.ts`, `${base}.tsx`, `${base}.js`, `${base}.jsx`];
@@ -14,7 +15,7 @@ const resolveLocalModule = (name: string) => {
 };
 
 export default (moduleInfo: PluginModuleInfo, name: string) => {
-  const timeout = 3000;
+  const timeout = 8000;
   const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('Import timed out')), timeout)
   );
@@ -25,27 +26,50 @@ export default (moduleInfo: PluginModuleInfo, name: string) => {
     }
   };
 
-  const tryImport = (base: string, mode: HmrMode) =>
-    import(/* @vite-ignore */ `${base}.ts`)
-      .then(mod => {
-        setHmrMode(mode);
-        return mod;
-      })
-      .catch(() => import(/* @vite-ignore */ `${base}.tsx`).then(mod => {
-        setHmrMode(mode);
-        return mod;
-      }))
-      .catch(() => import(/* @vite-ignore */ `${base}.js`).then(mod => {
-        setHmrMode(mode);
-        return mod;
-      }))
-      .catch(() => import(/* @vite-ignore */ `${base}.jsx`).then(mod => {
-        setHmrMode(mode);
-        return mod;
-      }));
+  const probeLoadableModule = async (base: string) => {
+    const candidates = ['ts', 'tsx', 'js', 'jsx'];
+
+    for (const ext of candidates) {
+      const target = `${base}.${ext}`;
+
+      try {
+        const resp = await fetch(target, { method: 'GET' });
+        if (!resp.ok) {
+          continue;
+        }
+
+        const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+        const isScriptLike =
+          contentType.includes('typescript') ||
+          contentType.includes('javascript') ||
+          contentType.includes('ecmascript') ||
+          contentType.includes('text/plain') ||
+          contentType === '';
+
+        if (isScriptLike) {
+          return target;
+        }
+      } catch {
+        // ignore and try next extension
+      }
+    }
+
+    return '';
+  };
+
+  const tryImport = async (base: string, mode: HmrMode) => {
+    const loadable = await probeLoadableModule(base);
+    if (!loadable) {
+      throw new Error(`Module entry not found: ${base}`);
+    }
+
+    const mod = await import(/* @vite-ignore */ loadable);
+    setHmrMode(mode);
+    return mod;
+  };
 
   let importPromise: Promise<any>;
-  if (moduleInfo.pluginId && moduleInfo.pluginIsDev) {
+  if (moduleInfo.pluginId && moduleInfo.pluginIsDev && pluginDevEnabled) {
     // Prefer host Vite (plugin-dev) and fall back to external dev server or static assets.
     const localBase = `/plugin-dev/${moduleInfo.pluginId}/src/modules/${name}/index`;
     const remoteBaseWithPrefix = moduleInfo.frontDevAddress
@@ -79,3 +103,4 @@ export default (moduleInfo: PluginModuleInfo, name: string) => {
 
   return Promise.race([importPromise, timeoutPromise]);
 };
+

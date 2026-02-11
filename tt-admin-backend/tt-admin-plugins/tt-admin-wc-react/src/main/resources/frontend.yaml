@@ -1,0 +1,25 @@
+renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: wc-react
+    routes:
+      - name: plugin-wc-react-home
+        path: /plugin/wc-react
+        component: /view/WcReactView
+        componentName: plugin-wc-react-home
+        meta:
+          title: WC React
+          i18nKey: plugin.wcReact.menu
+          icon: mdi:react
+          order: 95
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-wc-react-home
+    parent: system
+    i18nKey: plugin.wcReact.menu
+    icon: mdi:react
+    order: 95

@@ -150,6 +150,7 @@ declare namespace Api {
     }
 
     interface PluginFrontendModule {
+      renderer?: 'web-component' | 'iframe' | string;
       moduleName: string;
       pluginId: string;
       pluginName?: string;

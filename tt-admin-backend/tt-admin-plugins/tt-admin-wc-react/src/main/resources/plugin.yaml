@@ -1,0 +1,14 @@
+plugin:
+  id: tt-plugin-wc-react
+  name: WebComponent React Demo
+  description: Web-Component React plugin template for plugin-dev mode
+  minimalVersion: 2.2.0
+  version: 1.0.0
+  staticLocations: /ui/
+  isDev: true
+  frontDevAddress: http://127.0.0.1:5177
+  updateUrl:
+author:
+  name: tt
+  email: 1042731605@qq.com
+  webSite: http://localhost

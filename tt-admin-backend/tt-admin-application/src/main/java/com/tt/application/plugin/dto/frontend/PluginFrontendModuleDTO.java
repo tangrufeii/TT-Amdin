@@ -11,6 +11,11 @@ import java.util.Map;
 @Data
 public class PluginFrontendModuleDTO {
 
+    /**
+     * 渲染模式：web-component / iframe
+     */
+    private String renderer;
+
     private String moduleName;
 
     private String pluginId;

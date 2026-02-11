@@ -1,0 +1,8 @@
+{
+  "plugin": {
+    "wcReact": {
+      "menu": "WC React 示例",
+      "title": "Web-Component React 示例"
+    }
+  }
+}

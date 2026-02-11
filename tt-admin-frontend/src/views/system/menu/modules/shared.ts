@@ -6,10 +6,29 @@ export function getLayoutAndPage(component?: string | null) {
   if (!component) {
     return { layout: '', page: '' };
   }
+
+  if (!component.includes(SPLIT) && component.startsWith(VIEW_PREFIX)) {
+    return {
+      layout: '',
+      page: component.replace(VIEW_PREFIX, '')
+    };
+  }
+
   const [layoutPart, viewPart] = component.split(SPLIT);
+
+  const normalizedLayout = layoutPart?.replace(LAYOUT_PREFIX, '') || '';
+  const normalizedPage = viewPart?.replace(VIEW_PREFIX, '') || '';
+
+  if (normalizedLayout.startsWith(VIEW_PREFIX) || normalizedLayout.startsWith('view.')) {
+    return {
+      layout: '',
+      page: normalizedPage || normalizedLayout.replace(VIEW_PREFIX, '')
+    };
+  }
+
   return {
-    layout: layoutPart?.replace(LAYOUT_PREFIX, '') || '',
-    page: viewPart?.replace(VIEW_PREFIX, '') || ''
+    layout: normalizedLayout,
+    page: normalizedPage
   };
 }
 

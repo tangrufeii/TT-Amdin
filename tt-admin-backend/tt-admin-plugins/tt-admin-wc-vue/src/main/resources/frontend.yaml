@@ -1,0 +1,25 @@
+renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: wc-vue
+    routes:
+      - name: plugin-wc-vue-home
+        path: /plugin/wc-vue
+        component: /view/WcVueView
+        componentName: plugin-wc-vue-home
+        meta:
+          title: WC Vue
+          i18nKey: plugin.wcVue.menu
+          icon: mdi:vuejs
+          order: 94
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: plugin-wc-vue-home
+    parent: system
+    i18nKey: plugin.wcVue.menu
+    icon: mdi:vuejs
+    order: 94

@@ -1,0 +1,7 @@
+{
+  "plugin": {
+    "iframeReact": {
+      "menu": "React Iframe Demo"
+    }
+  }
+}

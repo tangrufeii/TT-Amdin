@@ -23,16 +23,16 @@ import java.util.List;
 /**
  * 插件管理控制器
  * <p>
- * 提供插件管理的HTTP接口，包括：
- * 1. 插件列表查询（分页）
- * 2. 插件详情查询
- * 3. 插件创建
- * 4. 插件更新
- * 5. 插件删除
- * 6. 插件启用/禁用
- * 7. 插件统计信息
+ * 提供插件管理的 HTTP 接口：
+ * 1. 插件分页查询
+ * 2. 插件安装
+ * 3. 插件列表
+ * 4. 插件详情
+ * 5. 插件创建
+ * 6. 插件更新/删除
+ * 7. 插件启用/禁用
  * <p>
- * 所有接口遵循 RESTful 风格设计
+ * 暴露插件管理的 RESTful 接口
  *
  * @author tt
  * @date 2025/12/24
@@ -46,76 +46,78 @@ public class PluginManagementController {
     private final PluginManagementApplicationService pluginManagementApplicationService;
 
     /**
-     * 分页查询插件列表
+     * 插件分页查询
      * <p>
-     * 支持按名称模糊查询和状态筛选
+     * 分页查询插件列表
      *
      * @param command 查询条件
-     * @return 分页结果
+     * @return 分页数据
      */
     @PostMapping("/page")
-    @Operation(summary = "分页查询插件列表", description = "支持按名称和状态筛选")
+    @Operation(summary = "插件分页查询", description = "分页查询插件列表")
     public Result<RPage<PluginManagementDTO>> page(@RequestBody PluginPageQueryCommand command) {
         IPage<PluginManagementDTO> page = pluginManagementApplicationService.page(command);
-        return Result.data(RPage.build(page,PluginManagementDTO::new));
+        return Result.data(RPage.build(page, PluginManagementDTO::new));
     }
+
     @PostMapping("/installPlugin")
-    @Operation(summary = "插件安装")
+    @Operation(summary = "安装插件")
     @PermissionResource("plugin:install")
     public Result install(PluginInstallCommand command) {
         pluginManagementApplicationService.installPlugin(command);
         return Result.success();
     }
+
     /**
-     * 查询所有插件列表
+     * 插件列表
      *
      * @return 插件列表
      */
     @GetMapping("/list")
-    @Operation(summary = "查询所有插件", description = "获取所有插件列表")
+    @Operation(summary = "插件列表", description = "查询全部插件")
     public Result<List<PluginManagementDTO>> listAll() {
         List<PluginManagementDTO> list = pluginManagementApplicationService.listAll();
         return Result.data(list);
     }
 
     /**
-     * 根据状态查询插件列表
+     * 按状态查询
      *
-     * @param status 状态：0-禁用，1-启用
+     * @param status 插件状态 0-禁用 1-启用
      * @return 插件列表
      */
     @GetMapping("/list/byStatus")
-    @Operation(summary = "按状态查询插件", description = "根据状态查询插件列表")
+    @Operation(summary = "按状态查询", description = "按状态查询插件列表")
     public Result<List<PluginManagementDTO>> listByStatus(
-            @Parameter(description = "状态：0-禁用，1-启用")
+            @Parameter(description = "插件状态 0-禁用 1-启用")
             @RequestParam Integer status) {
         List<PluginManagementDTO> list = pluginManagementApplicationService.listByStatus(status);
         return Result.data(list);
     }
 
     /**
-     * 根据ID查询插件详情
+     * 获取插件详情
      *
-     * @param id 插件主键ID
+     * @param id 插件ID
      * @return 插件详情
      */
     @GetMapping("/{id}")
-    @Operation(summary = "查询插件详情", description = "根据ID查询插件详细信息")
+    @Operation(summary = "获取插件详情", description = "根据ID查询插件详情")
     public Result<PluginManagementDTO> getById(
-            @Parameter(description = "插件主键ID")
+            @Parameter(description = "插件ID")
             @PathVariable Long id) {
         PluginManagementDTO dto = pluginManagementApplicationService.getById(id);
         return Result.data(dto);
     }
 
     /**
-     * 根据插件ID查询详情
+     * 按插件ID查询
      *
-     * @param pluginId 插件ID（唯一标识）
+     * @param pluginId 插件ID
      * @return 插件详情
      */
     @GetMapping("/byPluginId/{pluginId}")
-    @Operation(summary = "根据插件ID查询", description = "根据插件ID查询详细信息")
+    @Operation(summary = "按插件ID查询", description = "根据插件ID查询插件详情")
     public Result<PluginManagementDTO> getByPluginId(
             @Parameter(description = "插件ID")
             @PathVariable String pluginId) {
@@ -124,25 +126,25 @@ public class PluginManagementController {
     }
 
     /**
-     * 创建插件记录
+     * 创建插件
      * <p>
-     * 用于安装插件后创建数据库记录
+     * 创建插件信息
      *
      * @param command 创建命令
-     * @return 插件详情
+     * @return 插件信息
      */
     @PostMapping
-    @Operation(summary = "创建插件", description = "创建新的插件记录")
+    @Operation(summary = "创建插件", description = "创建插件信息")
     public Result<PluginManagementDTO> create(@Valid @RequestBody PluginCreateCommand command) {
         PluginManagementDTO dto = pluginManagementApplicationService.create(command);
         return Result.data(dto);
     }
 
     /**
-     * 更新插件信息
+     * 更新插件
      *
      * @param command 更新命令
-     * @return 插件详情
+     * @return 插件信息
      */
     @PutMapping
     @Operation(summary = "更新插件", description = "更新插件信息")
@@ -154,15 +156,15 @@ public class PluginManagementController {
     /**
      * 删除插件
      * <p>
-     * 删除前会验证插件是否已禁用
+     * 删除插件信息
      *
-     * @param id 插件主键ID
-     * @return 操作结果
+     * @param id 插件ID
+     * @return 处理结果
      */
     @DeleteMapping("/{id}")
-    @Operation(summary = "删除插件", description = "删除指定插件（需先禁用）")
+    @Operation(summary = "删除插件", description = "删除插件信息")
     public Result<Void> delete(
-            @Parameter(description = "插件主键ID")
+            @Parameter(description = "插件ID")
             @PathVariable Long id) {
         pluginManagementApplicationService.delete(id);
         return Result.success();
@@ -171,74 +173,75 @@ public class PluginManagementController {
     /**
      * 启用插件
      *
-     * @param id 插件主键ID
-     * @return 插件详情
+     * @param id 插件ID
+     * @return 插件信息
      */
     @PutMapping("/{id}/enable")
-    @Operation(summary = "启用插件", description = "启用指定插件")
+    @Operation(summary = "启用插件", description = "启用插件")
     @PermissionResource("plugin:enable")
     public Result<PluginManagementDTO> enable(
-            @Parameter(description = "插件主键ID")
+            @Parameter(description = "插件ID")
             @PathVariable Long id) {
         PluginManagementDTO dto = pluginManagementApplicationService.enable(id);
         return Result.data(dto);
     }
 
     /**
-     * 禁用插件
+     * 停用插件
      *
-     * @param id 插件主键ID
-     * @return 插件详情
+     * @param id 插件ID
+     * @return 插件信息
      */
     @PutMapping("/{id}/disable")
-    @Operation(summary = "禁用插件", description = "禁用指定插件")
+    @Operation(summary = "停用插件", description = "停用插件")
     @PermissionResource("plugin:disable")
     public Result<PluginManagementDTO> disable(
-            @Parameter(description = "插件主键ID")
+            @Parameter(description = "插件ID")
             @PathVariable Long id) {
         PluginManagementDTO dto = pluginManagementApplicationService.disable(id);
         return Result.data(dto);
     }
 
     /**
-     * 变更插件状态
+     * 变更状态
      *
-     * @param command 状态变更命令
-     * @return 插件详情
+     * @param command 变更命令
+     * @return 插件信息
      */
     @PutMapping("/status")
-    @Operation(summary = "变更插件状态", description = "变更插件的启用/禁用状态")
+    @Operation(summary = "变更状态", description = "启用/停用插件")
     public Result<PluginManagementDTO> changeStatus(@Valid @RequestBody PluginStatusChangeCommand command) {
         PluginManagementDTO dto = pluginManagementApplicationService.changeStatus(command);
         return Result.data(dto);
     }
 
     /**
-     * 获取插件统计信息
+     * 插件统计
      *
      * @return 统计信息
      */
     @GetMapping("/statistics")
-    @Operation(summary = "插件统计", description = "获取插件统计信息（总数、启用数、禁用数）")
+    @Operation(summary = "统计信息", description = "插件统计信息")
     public Result<PluginStatisticsDTO> getStatistics() {
         PluginStatisticsDTO statistics = pluginManagementApplicationService.getStatistics();
         return Result.data(statistics);
     }
 
     /**
-     * 鑾峰彇宸插紑鍚彃浠剁殑鍓嶇妯″潡鎺ュ彛
+     * 获取插件前端模块
      */
     @GetMapping("/frontend/modules")
-    @Operation(summary = "鑾峰彇鍓嶇鎻掍欢妯″潡", description = "鑾峰彇宸茬粡鍚敤鎻掍欢鐨勫墠绔瓙妯″潡鍜屽彛鐩」缁撴灉")
+    @Operation(summary = "前端模块", description = "获取插件前端模块信息")
     public Result<List<PluginFrontendModuleDTO>> getFrontendModules() {
         List<PluginFrontendModuleDTO> modules = pluginManagementApplicationService.listFrontendModules();
         return Result.data(modules);
     }
+
     /**
-     * 获取当前插件进度快照（WS 断线兜底）
+     * 获取插件状态快照
      */
     @GetMapping("/progress/snapshots")
-    @Operation(summary = "插件进度快照", description = "获取当前插件进度快照列表")
+    @Operation(summary = "进度快照", description = "获取插件状态快照")
     public Result<Collection<String>> getProgressSnapshots() {
         return Result.data(PluginStatusSnapshotStore.values());
     }

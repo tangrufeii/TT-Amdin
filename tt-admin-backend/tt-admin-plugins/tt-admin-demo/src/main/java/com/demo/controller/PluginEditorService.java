@@ -61,13 +61,13 @@ public class PluginEditorService {
                             .thenComparing(PluginFileNode::getPath))
                     .collect(Collectors.toList());
         } catch (IOException e) {
-            throw new IllegalStateException("读取插件文件失败: " + e.getMessage(), e);
+            throw new IllegalStateException("读取文件列表失败: " + e.getMessage(), e);
         }
     }
 
     public String readFile(String relativePath) {
         if (!isAllowedRelativePath(relativePath)) {
-            throw new IllegalArgumentException("不允许访问该路径: " + relativePath);
+            throw new IllegalArgumentException("不允许访问的路径: " + relativePath);
         }
         Path filePath = resolveSafePath(relativePath);
         if (!Files.exists(filePath) || Files.isDirectory(filePath)) {
@@ -79,11 +79,11 @@ public class PluginEditorService {
         try {
             long size = Files.size(filePath);
             if (size > MAX_FILE_SIZE) {
-                throw new IllegalArgumentException("文件过大，限制 1MB 内: " + relativePath);
+                throw new IllegalArgumentException("文件大小超过 1MB: " + relativePath);
             }
             byte[] bytes = Files.readAllBytes(filePath);
             if (looksBinary(bytes)) {
-                throw new IllegalArgumentException("检测到二进制文件，禁止读取: " + relativePath);
+                throw new IllegalArgumentException("不支持的二进制文件: " + relativePath);
             }
             return new String(bytes, StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -96,11 +96,11 @@ public class PluginEditorService {
             throw new IllegalArgumentException("文件路径不能为空");
         }
         if (!isAllowedRelativePath(relativePath)) {
-            throw new IllegalArgumentException("不允许访问该路径: " + relativePath);
+            throw new IllegalArgumentException("不允许访问的路径: " + relativePath);
         }
         Path filePath = resolveSafePath(relativePath);
         if (Files.isDirectory(filePath)) {
-            throw new IllegalArgumentException("不能写入目录: " + relativePath);
+            throw new IllegalArgumentException("目标是目录: " + relativePath);
         }
         if (!isAllowedFile(filePath)) {
             throw new IllegalArgumentException("不支持的文件类型: " + relativePath);
@@ -123,10 +123,10 @@ public class PluginEditorService {
             throw new IllegalArgumentException("文件名不能为空");
         }
         if (!isSafeName(name)) {
-            throw new IllegalArgumentException("非法文件名");
+            throw new IllegalArgumentException("文件名不合法");
         }
         if (!isAllowedDirectory(dirPath) && StringUtils.hasText(dirPath)) {
-            throw new IllegalArgumentException("不允许访问该目录: " + dirPath);
+            throw new IllegalArgumentException("目录不允许: " + dirPath);
         }
         Path root = resolvePluginRoot();
         Path dir = StringUtils.hasText(dirPath) ? resolveSafePath(dirPath) : root;
@@ -135,7 +135,7 @@ public class PluginEditorService {
             throw new IllegalArgumentException("非法路径");
         }
         if (!isAllowedRelativePath(root.relativize(target).toString().replace('\\', '/'))) {
-            throw new IllegalArgumentException("不允许创建该文件");
+            throw new IllegalArgumentException("不允许的文件路径");
         }
         try {
             if (!Files.exists(dir)) {
@@ -153,10 +153,10 @@ public class PluginEditorService {
     public void createDirectory(String relativeDir, String name) {
         String dirPath = normalizePath(relativeDir);
         if (!StringUtils.hasText(name)) {
-            throw new IllegalArgumentException("目录名不能为空");
+            throw new IllegalArgumentException("文件夹名不能为空");
         }
         if (!isSafeName(name)) {
-            throw new IllegalArgumentException("非法目录名");
+            throw new IllegalArgumentException("文件夹名不合法");
         }
         Path root = resolvePluginRoot();
         Path base = StringUtils.hasText(dirPath) ? resolveSafePath(dirPath) : root;
@@ -166,27 +166,27 @@ public class PluginEditorService {
         }
         String relPath = root.relativize(target).toString().replace('\\', '/');
         if (!isAllowedDirectory(relPath)) {
-            throw new IllegalArgumentException("不允许创建该目录");
+            throw new IllegalArgumentException("不允许的目录");
         }
         try {
             if (Files.exists(target)) {
-                throw new IllegalArgumentException("目录已存在");
+                throw new IllegalArgumentException("文件夹已存在");
             }
             Files.createDirectories(target);
         } catch (IOException e) {
-            throw new IllegalStateException("创建目录失败: " + e.getMessage(), e);
+            throw new IllegalStateException("创建文件夹失败: " + e.getMessage(), e);
         }
     }
 
     public void rename(String relativePath, String newName) {
         if (!StringUtils.hasText(relativePath) || !StringUtils.hasText(newName)) {
-            throw new IllegalArgumentException("路径与新名称不能为空");
+            throw new IllegalArgumentException("路径或名称不能为空");
         }
         if (!isSafeName(newName)) {
-            throw new IllegalArgumentException("非法名称");
+            throw new IllegalArgumentException("名称不合法");
         }
         if (!isAllowedRelativePath(relativePath) && !isAllowedDirectory(relativePath)) {
-            throw new IllegalArgumentException("不允许访问该路径: " + relativePath);
+            throw new IllegalArgumentException("不允许访问的路径: " + relativePath);
         }
         Path root = resolvePluginRoot();
         Path target = resolveSafePath(relativePath);
@@ -201,11 +201,11 @@ public class PluginEditorService {
         String relPath = root.relativize(renamed).toString().replace('\\', '/');
         if (Files.isDirectory(target)) {
             if (!isAllowedDirectory(relPath)) {
-                throw new IllegalArgumentException("不允许重命名为该目录");
+                throw new IllegalArgumentException("不允许的目录");
             }
         } else {
             if (!isAllowedRelativePath(relPath)) {
-                throw new IllegalArgumentException("不允许重命名为该文件");
+                throw new IllegalArgumentException("不允许的文件路径");
             }
         }
         try {
@@ -220,7 +220,7 @@ public class PluginEditorService {
             throw new IllegalArgumentException("路径不能为空");
         }
         if (!isAllowedRelativePath(relativePath) && !isAllowedDirectory(relativePath)) {
-            throw new IllegalArgumentException("不允许访问该路径: " + relativePath);
+            throw new IllegalArgumentException("不允许访问的路径: " + relativePath);
         }
         Path target = resolveSafePath(relativePath);
         if (!Files.exists(target)) {
@@ -263,7 +263,7 @@ public class PluginEditorService {
                 return pluginRoot;
             }
         }
-        throw new IllegalStateException("未找到插件目录，请确认服务启动目录");
+        throw new IllegalStateException("未找到插件根目录");
     }
 
     private Path resolveSafePath(String relativePath) {
@@ -281,7 +281,7 @@ public class PluginEditorService {
         }
         String normalized = normalizePath(relativePath);
         if (!isAllowedDirectory(normalized) && !"".equals(normalized)) {
-            throw new IllegalArgumentException("不允许访问该目录: " + normalized);
+            throw new IllegalArgumentException("目录不允许: " + normalized);
         }
         Path dir = resolveSafePath(normalized);
         if (!Files.exists(dir) || !Files.isDirectory(dir)) {

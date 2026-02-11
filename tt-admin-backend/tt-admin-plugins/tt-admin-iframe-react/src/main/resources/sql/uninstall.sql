@@ -1,0 +1,1 @@
+-- iframe react demo plugin uninstall sql

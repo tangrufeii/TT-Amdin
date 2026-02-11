@@ -474,6 +474,7 @@ public class PluginManagementApplicationService {
         }
 
         PluginFrontendModuleDTO moduleDTO = new PluginFrontendModuleDTO();
+        moduleDTO.setRenderer(definition != null ? definition.getRenderer() : null);
         moduleDTO.setModuleName(moduleDefinition.getModuleName());
         moduleDTO.setPluginId(plugin.getPluginId());
         moduleDTO.setPluginName(plugin.getName());

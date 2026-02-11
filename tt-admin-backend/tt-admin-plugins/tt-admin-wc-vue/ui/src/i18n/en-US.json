@@ -1,0 +1,8 @@
+{
+  "plugin": {
+    "wcVue": {
+      "menu": "WC Vue Demo",
+      "title": "Web-Component Vue Demo"
+    }
+  }
+}

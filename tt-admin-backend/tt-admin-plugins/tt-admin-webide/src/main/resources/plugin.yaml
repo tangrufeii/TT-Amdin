@@ -1,0 +1,15 @@
+plugin:
+  id: webide
+  name: 在线IDE
+  mapperLocation:
+  description: 在线编辑插件
+  minimalVersion: 2.2.0
+  version: 1.0.0
+  staticLocations: /ui/
+  isDev: false
+  frontDevAddress: http://127.0.0.1:4303
+  updateUrl:
+author:
+  name: tt
+  email: dev@tt.com
+  webSite: https://example.com

@@ -97,7 +97,7 @@
                 </executions>
             </plugin>
 
-            <!--assembly鎻掍欢-->
+            <!--assembly??-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>

@@ -18,6 +18,11 @@
         <module>tt-admin-codegen</module>
         <module>tt-admin-ai-chat</module>
         <module>tt-admin-test</module>
+        <module>tt-admin-iframe-vue</module>
+        <module>tt-admin-iframe-react</module>
+        <module>tt-admin-wc-vue</module>
+        <module>tt-admin-wc-react</module>
+        <module>tt-admin-webide</module>
     </modules>
     <dependencies>
         <dependency>

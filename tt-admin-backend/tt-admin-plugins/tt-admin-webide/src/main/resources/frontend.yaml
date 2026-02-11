@@ -1,0 +1,21 @@
+renderer: web-component
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: webide
+    routes:
+      - name: webide-index
+        path: /web-ide
+        component: /view/WebIdeView
+        componentName: webide-index
+        meta:
+          title: 在线IDE
+          i18nKey: plugin.webide.title
+          icon: mdi:laptop
+          order: 1
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+menus:
+  - routeName: webide-index

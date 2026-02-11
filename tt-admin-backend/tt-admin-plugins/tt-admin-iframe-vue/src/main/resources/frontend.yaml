@@ -1,0 +1,25 @@
+renderer: iframe
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: iframe-vue-demo
+    routes:
+      - name: plugin-iframe-vue-home
+        path: /plugin/iframe-vue
+        component: /iframe/index
+        componentName: plugin-iframe-vue-home
+        meta:
+          title: Iframe Vue
+          i18nKey: plugin.iframeVue.menu
+          icon: mdi:vuejs
+          order: 92
+          hideInMenu: false
+          keepAlive: false
+          layout: base
+menus:
+  - routeName: plugin-iframe-vue-home
+    parent: system
+    i18nKey: plugin.iframeVue.menu
+    icon: mdi:vuejs
+    order: 92

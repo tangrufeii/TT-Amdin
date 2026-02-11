@@ -17,10 +17,16 @@ interface ExtraPluginOptions {
   externals?: Record<string, string>;
 }
 
+const pluginDevJsxExclude = [
+  /[\\/]tt-admin-backend[\\/]tt-admin-plugins[\\/].*react.*[\\/]ui[\\/]src[\\/]modules[\\/].*\.[jt]sx($|\?)/
+];
+
 export function setupVitePlugins(viteEnv: Env.ImportMeta, buildTime: string, options?: ExtraPluginOptions) {
   const plugins: PluginOption = [
     vue(),
-    vueJsx(),
+    vueJsx({
+      exclude: pluginDevJsxExclude
+    }),
     setupDevtoolsPlugin(viteEnv),
     setupElegantRouter(),
     setupUnocss(viteEnv),

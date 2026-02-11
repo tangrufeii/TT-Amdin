@@ -29,3 +29,8 @@ export function mergeLocaleMessages(locale: string, messages: Record<string, any
   if (!messages || typeof messages !== 'object') return;
   i18n.global.mergeLocaleMessage(locale as App.I18n.LangType, messages);
 }
+
+export function hasLocaleMessage(key: string, locale?: string) {
+  if (!key) return false;
+  return i18n.global.te(key as never, locale as never);
+}

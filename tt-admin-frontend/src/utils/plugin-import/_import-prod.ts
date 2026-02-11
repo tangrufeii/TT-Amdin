@@ -1,7 +1,9 @@
 import type { PluginModuleInfo } from './types';
 
+const pluginDevEnabled = import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
+
 export default (moduleInfo: PluginModuleInfo, name: string) => {
-  if (moduleInfo.pluginId && moduleInfo.pluginIsDev && moduleInfo.frontDevAddress) {
+  if (moduleInfo.pluginId && moduleInfo.pluginIsDev && pluginDevEnabled && moduleInfo.frontDevAddress) {
     return import(
       /* @vite-ignore */ `${moduleInfo.frontDevAddress}/plugin/${moduleInfo.pluginId}/src/modules/${name}/index.js`
     );

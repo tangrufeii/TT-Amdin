@@ -1,0 +1,25 @@
+renderer: iframe
+i18n:
+  zh-CN: i18n/zh-CN.json
+  en-US: i18n/en-US.json
+modules:
+  - moduleName: iframe-react-demo
+    routes:
+      - name: plugin-iframe-react-home
+        path: /plugin/iframe-react
+        component: /iframe/index
+        componentName: plugin-iframe-react-home
+        meta:
+          title: Iframe React
+          i18nKey: plugin.iframeReact.menu
+          icon: mdi:react
+          order: 93
+          hideInMenu: false
+          keepAlive: false
+          layout: base
+menus:
+  - routeName: plugin-iframe-react-home
+    parent: system
+    i18nKey: plugin.iframeReact.menu
+    icon: mdi:react
+    order: 93

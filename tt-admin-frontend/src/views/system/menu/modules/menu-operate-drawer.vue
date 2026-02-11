@@ -109,8 +109,10 @@ async function handleInitModel() {
 function applyDetail(detail: Api.SystemManage.MenuDetail) {
   const { layout, page } = getLayoutAndPage(detail.component);
   const { path, param } = getPathParamFromRoutePath(detail.routePath);
+  const hasComponentConfig = Boolean(layout || page);
+
   Object.assign(model, detail, {
-    layout: layout || 'base',
+    layout: hasComponentConfig ? layout : 'base',
     page,
     pathParam: param,
     routePath: path

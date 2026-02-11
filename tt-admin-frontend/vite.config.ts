@@ -4,6 +4,7 @@ import path from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import type { HtmlTagDescriptor } from 'vite';
+import { transform as esbuildTransform } from 'esbuild';
 import { setupVitePlugins } from './build/plugins';
 import { createViteProxy, getBuildTime } from './build/config';
 
@@ -55,8 +56,7 @@ function parseSimpleYaml(filePath: string) {
   return result;
 }
 
-function collectPluginDevSources(): PluginDevSourceMap {
-  const pluginRoot = resolveProjectPath('../tt-admin-backend/tt-admin-plugins');
+function collectPluginDevSources(pluginRoot = resolveProjectPath('../tt-admin-backend/tt-admin-plugins')): PluginDevSourceMap {
   if (!existsSync(pluginRoot)) return {};
 
   const entries = readdirSync(pluginRoot, { withFileTypes: true });
@@ -80,9 +80,32 @@ function collectPluginDevSources(): PluginDevSourceMap {
   return map;
 }
 
-function createPluginDevSourcePlugin(pluginSources: PluginDevSourceMap) {
+function resolvePluginUiSourceById(pluginRoot: string, pluginId: string) {
+  if (!pluginId || !existsSync(pluginRoot)) return '';
+
+  const entries = readdirSync(pluginRoot, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const pluginDir = path.join(pluginRoot, entry.name);
+    const pluginYamlPath = path.join(pluginDir, 'src/main/resources/plugin.yaml');
+    const uiRoot = path.join(pluginDir, 'ui');
+
+    if (!existsSync(pluginYamlPath) || !existsSync(uiRoot)) continue;
+
+    const yaml = parseSimpleYaml(pluginYamlPath);
+    if (yaml.plugin?.id === pluginId) {
+      return uiRoot;
+    }
+  }
+
+  return '';
+}
+
+function createPluginDevSourcePlugin(pluginSources: PluginDevSourceMap, pluginRoot: string) {
   const prefix = '/plugin-dev/';
-  const sourceRoots = Object.values(pluginSources).map(source => toPosixPath(source));
+  const sourceRoots = [pluginRoot, ...Object.values(pluginSources)].map(source => toPosixPath(source));
 
   return {
     name: 'plugin-dev-source',
@@ -94,7 +117,7 @@ function createPluginDevSourcePlugin(pluginSources: PluginDevSourceMap) {
       config.server.fs = { ...(config.server.fs || {}), allow: merged };
     },
     configureServer(server: any) {
-      server.middlewares.use((req: any, _res: any, next: any) => {
+      server.middlewares.use((req: any, res: any, next: any) => {
         const url = req.url || '';
         if (!url.startsWith(prefix)) return next();
 
@@ -104,13 +127,56 @@ function createPluginDevSourcePlugin(pluginSources: PluginDevSourceMap) {
 
         const pluginId = segments[1];
         const relativePath = segments.slice(2).join('/');
-        const sourceRoot = pluginSources[pluginId];
-        if (!sourceRoot) return next();
+        let sourceRoot = pluginSources[pluginId];
+        if (!sourceRoot) {
+          sourceRoot = resolvePluginUiSourceById(pluginRoot, pluginId);
+          if (sourceRoot) {
+            pluginSources[pluginId] = sourceRoot;
+          }
+        }
+
+        if (!sourceRoot) {
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.end(
+            `throw new Error('[plugin-dev] Source for plugin ${pluginId} not found. Please check plugin.yaml id or restart host dev server.');`
+          );
+          return;
+        }
 
         const fsPath = `/@fs/${toPosixPath(path.join(sourceRoot, relativePath))}`;
         req.url = queryPart ? `${fsPath}?${queryPart}` : fsPath;
         next();
       });
+    }
+  };
+}
+
+function createPluginDevReactEsbuildPlugin() {
+  const reactTsxRE = /[\\/]tt-admin-backend[\\/]tt-admin-plugins[\\/].*react.*[\\/]ui[\\/]src[\\/]modules[\\/].*\.[jt]sx($|\?)/;
+
+  return {
+    name: 'plugin-dev-react-esbuild',
+    async transform(code: string, id: string) {
+      if (!reactTsxRE.test(id)) {
+        return null;
+      }
+
+      const loader = id.includes('.tsx') ? 'tsx' : 'jsx';
+      const result = await esbuildTransform(code, {
+        loader,
+        jsx: 'automatic',
+        jsxImportSource: 'react',
+        sourcefile: id,
+        sourcemap: true,
+        format: 'esm',
+        target: 'es2020'
+      });
+
+      return {
+        code: result.code,
+        map: result.map
+      };
     }
   };
 }
@@ -225,16 +291,33 @@ export default defineConfig(configEnv => {
     }
   }
 
-  const pluginDevSources = configEnv.command === 'serve' ? collectPluginDevSources() : {};
-  const pluginDevSourcePlugin = configEnv.command === 'serve' ? createPluginDevSourcePlugin(pluginDevSources) : null;
+  const enablePluginDevSource = configEnv.command === 'serve' && viteEnv.VITE_PLUGIN_DEV_SOURCE !== 'N';
+  const pluginDevRoot = resolveProjectPath('../tt-admin-backend/tt-admin-plugins');
+  const pluginDevSources =
+    configEnv.command === 'serve' && enablePluginDevSource ? collectPluginDevSources(pluginDevRoot) : {};
+  const pluginDevSourcePlugin =
+    configEnv.command === 'serve' && enablePluginDevSource
+      ? createPluginDevSourcePlugin(pluginDevSources, pluginDevRoot)
+      : null;
+  const pluginDevReactPlugin =
+    configEnv.command === 'serve' && enablePluginDevSource ? createPluginDevReactEsbuildPlugin() : null;
 
   return {
     base: viteEnv.VITE_BASE_URL,
     resolve: {
       alias: {
         '~': fileURLToPath(new URL('./', import.meta.url)),
-        '@': fileURLToPath(new URL('./src', import.meta.url))
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+        vscode: fileURLToPath(new URL('./src/shims/vscode.ts', import.meta.url))
       }
+    },
+    optimizeDeps: {
+      exclude: [
+        'monaco-languageclient',
+        'vscode-ws-jsonrpc',
+        'vscode-jsonrpc',
+        'vscode-languageclient'
+      ]
     },
     css: {
       preprocessorOptions: {
@@ -244,7 +327,11 @@ export default defineConfig(configEnv => {
         }
       }
     },
-    plugins: [...setupVitePlugins(viteEnv, buildTime, pluginOptions), ...(pluginDevSourcePlugin ? [pluginDevSourcePlugin] : [])],
+    plugins: [
+      ...setupVitePlugins(viteEnv, buildTime, pluginOptions),
+      ...(pluginDevSourcePlugin ? [pluginDevSourcePlugin] : []),
+      ...(pluginDevReactPlugin ? [pluginDevReactPlugin] : [])
+    ],
     define: {
       BUILD_TIME: JSON.stringify(buildTime)
     },

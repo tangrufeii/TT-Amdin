@@ -84,8 +84,7 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-        '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src'),
-        vscode: path.resolve(__dirname, './src/shims/vscode.ts')
+        '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src')
       }
     },
     server: {
@@ -100,7 +99,7 @@ export default defineConfig(({ command }) => {
     },
     optimizeDeps: {
       // 避免预打包外部依赖，保证构建与开发行为一致。
-      exclude: useExternals ? [...sharedDeps, 'vscode'] : ['vscode']
+      exclude: useExternals ? [...sharedDeps] : []
     }
   };
 });

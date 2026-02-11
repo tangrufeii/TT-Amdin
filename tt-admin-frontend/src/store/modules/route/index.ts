@@ -30,6 +30,8 @@ import {
   updateLocaleOfGlobalMenus
 } from './shared';
 
+const pluginDevEnabled = import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
+
 export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   const authStore = useAuthStore();
   const tabStore = useTabStore();
@@ -512,8 +514,10 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         };
         try {
           await registerPluginLocales(moduleInfo, module.i18n);
-          const moduleLoader = await importPluginModule(moduleInfo, module.moduleName);
-          const moduleRouters = moduleLoader.router(module.routes || [], module.moduleName);
+          const moduleRouters =
+            module.renderer?.toLowerCase() === 'iframe'
+              ? createIframeModuleRoutes(module)
+              : (await importPluginModule(moduleInfo, module.moduleName)).router(module.routes || [], module.moduleName);
           const routeMap = new Map<string, RouteRecordRaw>();
 
           moduleRouters.forEach(routeRecord => {
@@ -547,6 +551,50 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     cacheRoutes.value = Array.from(cacheNameSet);
     pluginMenus.value = pluginMenuList;
     syncMenus();
+  }
+
+  function createIframeModuleRoutes(module: Api.Plugin.PluginFrontendModule) {
+    const routes = module.routes || [];
+
+    return routes.map(routeItem => {
+      const routePath = routeItem.path?.startsWith('/') ? routeItem.path : `/${routeItem.path || ''}`;
+      const iframeSrc = resolvePluginIframeUrl(module, routePath);
+
+      return {
+        name: routeItem.componentName || routeItem.name,
+        path: routePath,
+        component: () => import('@/views/_builtin/iframe-page/[url].vue'),
+        props: {
+          url: iframeSrc
+        },
+        meta: {
+          moduleName: module.moduleName,
+          title: routeItem.meta?.title || routeItem.name,
+          keepAlive: routeItem.meta?.keepAlive ?? false,
+          ...(routeItem.meta || {})
+        }
+      } as RouteRecordRaw;
+    });
+  }
+
+  function resolvePluginIframeUrl(module: Api.Plugin.PluginFrontendModule, routePath: string) {
+    const routeSegment = routePath.startsWith('/') ? routePath : `/${routePath}`;
+
+    if (module.pluginIsDev && pluginDevEnabled) {
+      const externalBase = module.frontDevAddress?.trim();
+      if (externalBase) {
+        const normalizedBase = externalBase.replace(/\/$/, '');
+        if (normalizedBase.includes('#')) {
+          return `${normalizedBase}${routeSegment}`;
+        }
+        return `${normalizedBase}/#${routeSegment}`;
+      }
+    }
+
+    const version = module.pluginVersion ? encodeURIComponent(module.pluginVersion) : '';
+    const suffix = version ? `?v=${version}` : '';
+
+    return `/api/plugin-static/${module.pluginId}/index.html${suffix}#${routeSegment}`;
   }
 
   let pluginRouteSequence = 0;
@@ -743,17 +791,38 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
 
     await Promise.all(
       entries.map(async ([locale, filePath]) => {
-        if (loadedLocales.has(locale)) return;
+        const localeAliases = getLocaleAliases(locale);
+        if (localeAliases.every(alias => loadedLocales.has(alias))) {
+          return;
+        }
         try {
-          const url = resolvePluginAssetUrl(moduleInfo, filePath);
-          if (!url) return;
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+          const urls = resolvePluginAssetUrls(moduleInfo, filePath);
+          if (!urls.length) return;
+
+          let messages: Record<string, any> | null = null;
+          let loadedUrl = '';
+
+          for (const url of urls) {
+            const json = await tryLoadLocaleJson(url);
+            if (json) {
+              messages = json;
+              loadedUrl = url;
+              break;
+            }
           }
-          const messages = await response.json();
-          mergeLocaleMessages(locale, messages);
-          loadedLocales.add(locale);
+
+          if (!messages) {
+            throw new Error(`No valid locale json found: ${urls.join(', ')}`);
+          }
+
+          localeAliases.forEach(alias => {
+            mergeLocaleMessages(alias, messages);
+            loadedLocales.add(alias);
+          });
+
+          if (import.meta.env.DEV) {
+            console.debug('[plugin] locale loaded:', moduleInfo.pluginId, locale, loadedUrl);
+          }
         } catch (error) {
           console.error('[plugin] load i18n failed:', moduleInfo.pluginId, locale, error);
         }
@@ -763,28 +832,99 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     pluginLocaleLoaded.set(moduleInfo.pluginId, loadedLocales);
   }
 
-  function resolvePluginAssetUrl(
+  async function tryLoadLocaleJson(url: string) {
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) {
+        return null;
+      }
+
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      const text = await response.text();
+      const trimmed = text.trim();
+
+      if (!trimmed) {
+        return null;
+      }
+
+      const maybeJson = contentType.includes('json') || trimmed.startsWith('{') || trimmed.startsWith('[');
+      if (!maybeJson) {
+        return null;
+      }
+
+      return JSON.parse(trimmed) as Record<string, any>;
+    } catch {
+      return null;
+    }
+  }
+
+  function resolvePluginAssetUrls(
     moduleInfo: {
       pluginId?: string;
+      pluginVersion?: string;
       pluginIsDev?: boolean;
       frontDevAddress?: string;
     },
     assetPath: string
   ) {
-    if (!moduleInfo.pluginId || !assetPath) return '';
+    if (!moduleInfo.pluginId || !assetPath) return [] as string[];
     if (/^https?:\/\//i.test(assetPath)) {
-      return assetPath;
+      return [assetPath];
     }
     const sanitizedPath = assetPath.replace(/^\/+/, '');
-    if (moduleInfo.pluginIsDev) {
+    if (moduleInfo.pluginIsDev && pluginDevEnabled) {
       // 开发态统一走主应用的 /plugin-dev 代理，避免跨域与 CORS。
       const devPath = sanitizedPath.startsWith('src/') ? sanitizedPath : `src/${sanitizedPath}`;
-      return `/plugin-dev/${moduleInfo.pluginId}/${devPath}`;
+     const hostBase = `/plugin-dev/${moduleInfo.pluginId}`;
+      const candidates = new Set<string>();
+
+      candidates.add(`${hostBase}/${sanitizedPath}`);
+      candidates.add(`${hostBase}/${devPath}`);
+
+      if (!sanitizedPath.startsWith('public/') && !sanitizedPath.startsWith('src/')) {
+        candidates.add(`${hostBase}/public/${sanitizedPath}`);
+        candidates.add(`${hostBase}/src/${sanitizedPath}`);
+      }
+
+      const externalBase = moduleInfo.frontDevAddress?.trim()?.replace(/\/$/, '');
+      if (externalBase) {
+        candidates.add(`${externalBase}/${sanitizedPath}`);
+        candidates.add(`${externalBase}/${devPath}`);
+        if (!sanitizedPath.startsWith('public/') && !sanitizedPath.startsWith('src/')) {
+          candidates.add(`${externalBase}/public/${sanitizedPath}`);
+          candidates.add(`${externalBase}/src/${sanitizedPath}`);
+        }
+      }
+
+      return Array.from(candidates);
     }
 
     const version = moduleInfo.pluginVersion ? encodeURIComponent(moduleInfo.pluginVersion) : '';
     const suffix = version ? `?v=${version}` : '';
-    return `/api/plugin-static/${moduleInfo.pluginId}/${sanitizedPath}${suffix}`;
+    return [`/api/plugin-static/${moduleInfo.pluginId}/${sanitizedPath}${suffix}`];
+  }
+
+  function getLocaleAliases(locale: string) {
+    const normalized = locale.trim();
+    const lower = normalized.toLowerCase();
+
+    if (lower === 'zh-cn') {
+      return ['zh-CN', 'zh'];
+    }
+
+    if (lower === 'en-us') {
+      return ['en-US', 'en'];
+    }
+
+    if (lower === 'zh') {
+      return ['zh', 'zh-CN'];
+    }
+
+    if (lower === 'en') {
+      return ['en', 'en-US'];
+    }
+
+    return [normalized];
   }
 
   return {

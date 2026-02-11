@@ -178,9 +178,7 @@ function createModuleConfig(pluginId, moduleName, entryPath) {
 
         '@': path.resolve(__dirname, './src'),
         '@tt/plugin-ui': path.resolve(__dirname, '../../../../tt-admin-frontend/packages/plugin-ui/src'),
-        'monaco-editor/esm/vs/platform/product/common/productService.js': path.resolve(__dirname, './src/monaco-shims/productService.js'),
-        'monaco-editor/esm/vs/platform/product/common/productService': path.resolve(__dirname, './src/monaco-shims/productService.js'),
-
+                
       }
 
     },

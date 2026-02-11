@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("api/demo/editor")
-@Tag(name = "插件编辑器", description = "插件源码在线编辑接口")
+@Tag(name = "插件编辑器", description = "插件编辑器相关接口")
 public class PluginEditorController {
 
     private final PluginEditorService pluginEditorService;
@@ -21,54 +21,54 @@ public class PluginEditorController {
     }
 
     @GetMapping("/files")
-    @Operation(summary = "文件列表", description = "获取插件源码目录下的文件列表")
+    @Operation(summary = "列出文件", description = "获取插件目录文件列表")
     public Result listFiles(@RequestParam(value = "path", required = false) String path) {
         List<PluginFileNode> files = pluginEditorService.listChildren(path);
         return Result.data(files);
     }
 
     @GetMapping("/file")
-    @Operation(summary = "读取文件", description = "读取插件源码文件内容")
+    @Operation(summary = "读取文件", description = "读取插件文件内容")
     public Result readFile(@RequestParam("path") String path) {
         return Result.data(pluginEditorService.readFile(path));
     }
 
     @GetMapping("/root")
-    @Operation(summary = "根目录", description = "获取插件编辑根目录绝对路径")
+    @Operation(summary = "获取根目录", description = "获取插件根目录")
     public Result rootPath() {
         return Result.data(pluginEditorService.getRootPath());
     }
 
     @PostMapping("/file")
-    @Operation(summary = "保存文件", description = "保存插件源码文件内容")
+    @Operation(summary = "保存文件", description = "保存插件文件内容")
     public Result saveFile(@RequestBody PluginFileSaveCommand command) {
         pluginEditorService.saveFile(command.getPath(), command.getContent());
         return Result.success();
     }
 
     @PostMapping("/file/create")
-    @Operation(summary = "新建文件", description = "在指定目录创建文件")
+    @Operation(summary = "新建文件", description = "在插件目录新建文件")
     public Result createFile(@RequestBody PluginPathCommand command) {
         pluginEditorService.createFile(command.getPath(), command.getName());
         return Result.success();
     }
 
     @PostMapping("/dir/create")
-    @Operation(summary = "新建目录", description = "在指定目录创建文件夹")
+    @Operation(summary = "新建文件夹", description = "在插件目录新建文件夹")
     public Result createDirectory(@RequestBody PluginPathCommand command) {
         pluginEditorService.createDirectory(command.getPath(), command.getName());
         return Result.success();
     }
 
     @PostMapping("/rename")
-    @Operation(summary = "重命名", description = "重命名文件或目录")
+    @Operation(summary = "重命名", description = "重命名文件或文件夹")
     public Result rename(@RequestBody PluginRenameCommand command) {
         pluginEditorService.rename(command.getPath(), command.getName());
         return Result.success();
     }
 
     @PostMapping("/delete")
-    @Operation(summary = "删除", description = "删除文件或目录")
+    @Operation(summary = "删除", description = "删除文件或文件夹")
     public Result delete(@RequestBody PluginPathCommand command) {
         pluginEditorService.delete(command.getPath());
         return Result.success();

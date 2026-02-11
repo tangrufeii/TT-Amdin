@@ -7,6 +7,7 @@
           <n-input v-model:value="filterPattern" size="small" :placeholder="t('plugin.demo.ideSearch')" />
         </div>
         <n-tree
+          class="ide-tree"
           block-line
           animated
           :indent="16"
@@ -226,6 +227,7 @@ async function handleLoad(node: TreeNode) {
 
 function nodeProps(node: TreeNode) {
   return {
+    title: node.label,
     onContextmenu: (event: MouseEvent) => {
       event.preventDefault();
       showContextMenu(event, node);
@@ -673,5 +675,33 @@ onMounted(() => {
 
 .ide-tree-icon-file {
   color: #5b8ff9;
+}
+
+.ide-sider :deep(.ide-tree .n-tree-node-content) {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.ide-sider :deep(.ide-tree .n-tree-node-content__prefix) {
+  flex: 0 0 auto;
+}
+
+.ide-sider :deep(.ide-tree .n-tree-node-content__text) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  line-break: auto;
+}
+
+.ide-sider :deep(.ide-tree .n-tree-node-content__text *) {
+  white-space: nowrap !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
 }
 </style>

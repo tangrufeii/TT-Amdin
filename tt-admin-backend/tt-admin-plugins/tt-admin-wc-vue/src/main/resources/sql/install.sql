@@ -1,0 +1,1 @@
+-- web-component vue demo plugin install sql

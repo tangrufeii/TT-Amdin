@@ -1,0 +1,14 @@
+plugin:
+  id: tt-plugin-iframe-vue
+  name: Iframe Vue Demo
+  description: Vue iframe demo plugin template
+  minimalVersion: 2.2.0
+  version: 1.0.0
+  staticLocations: /ui/
+  isDev: false
+  frontDevAddress: http://127.0.0.1:5174
+  updateUrl:
+author:
+  name: tt
+  email: 1042731605@qq.com
+  webSite: http://localhost

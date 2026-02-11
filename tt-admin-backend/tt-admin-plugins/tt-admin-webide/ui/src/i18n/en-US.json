@@ -1,0 +1,18 @@
+{
+  "plugin": {
+    "webide": {
+      "title": "Web IDE",
+      "description": "Edit plugin UI files online",
+      "selectPlugin": "Select plugin",
+      "fileTree": "Files",
+      "refresh": "Refresh",
+      "save": "Save",
+      "saveSuccess": "Saved",
+      "saveFail": "Save failed",
+      "loadFail": "Load failed",
+      "emptyFile": "No file selected",
+      "unsaved": "Unsaved",
+      "confirmLeave": "Unsaved changes. Continue?"
+    }
+  }
+}
