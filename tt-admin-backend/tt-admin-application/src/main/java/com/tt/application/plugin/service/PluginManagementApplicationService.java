@@ -32,6 +32,8 @@ import com.tt.domain.system.access.model.SystemMenu;
 import com.tt.domain.system.menu.repository.SystemMenuRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,6 +87,7 @@ public class PluginManagementApplicationService {
     private final PluginFrontendDefinitionRepository pluginFrontendDefinitionRepository;
     private final SystemMenuRepository systemMenuRepository;
     private final PluginMenuSyncService pluginMenuSyncService;
+    private final Environment environment;
 
     /**
      * 创建插件记录
@@ -122,7 +125,9 @@ public class PluginManagementApplicationService {
 
         plugin.updateInfo(command.getName(), command.getDescription(), command.getVersion());
         plugin.updateAuthorInfo(command.getAuthor(), command.getEmail(), command.getWebsite());
-        plugin.updateDevConfig(command.getIsDev(), command.getFrontDevAddress());
+        boolean devModeEnabled = isPluginDevModeAllowed() && Boolean.TRUE.equals(command.getIsDev());
+        String frontDevAddress = devModeEnabled ? command.getFrontDevAddress() : "";
+        plugin.updateDevConfig(devModeEnabled, frontDevAddress);
 
         pluginManagementRepository.save(plugin);
 
@@ -443,8 +448,9 @@ public class PluginManagementApplicationService {
             dto.setAuthor(plugin.getPluginInfo().getAuthor());
             dto.setEmail(plugin.getPluginInfo().getEmail());
             dto.setWebsite(plugin.getPluginInfo().getWebsite());
-            dto.setIsDev(plugin.getPluginInfo().getIsDev());
-            dto.setFrontDevAddress(plugin.getPluginInfo().getFrontDevAddress());
+            boolean pluginDevEnabled = isPluginDevModeAllowed() && Boolean.TRUE.equals(plugin.getPluginInfo().getIsDev());
+            dto.setIsDev(pluginDevEnabled);
+            dto.setFrontDevAddress(pluginDevEnabled ? plugin.getPluginInfo().getFrontDevAddress() : "");
             dto.setCreateTime(plugin.getPluginInfo().getCreateTime());
             dto.setUpdateTime(plugin.getPluginInfo().getUpdateTime());
             dto.setCreateUserId(plugin.getPluginInfo().getCreateUserId());
@@ -474,13 +480,16 @@ public class PluginManagementApplicationService {
         }
 
         PluginFrontendModuleDTO moduleDTO = new PluginFrontendModuleDTO();
+        boolean pluginDevEnabled = isPluginDevModeAllowed()
+                && plugin.getPluginInfo() != null
+                && Boolean.TRUE.equals(plugin.getPluginInfo().getIsDev());
         moduleDTO.setRenderer(definition != null ? definition.getRenderer() : null);
         moduleDTO.setModuleName(moduleDefinition.getModuleName());
         moduleDTO.setPluginId(plugin.getPluginId());
         moduleDTO.setPluginName(plugin.getName());
         moduleDTO.setPluginVersion(plugin.getPluginInfo() != null ? plugin.getPluginInfo().getVersion() : null);
-        moduleDTO.setPluginIsDev(plugin.getPluginInfo() != null && Boolean.TRUE.equals(plugin.getPluginInfo().getIsDev()));
-        moduleDTO.setFrontDevAddress(plugin.getPluginInfo() != null ? plugin.getPluginInfo().getFrontDevAddress() : null);
+        moduleDTO.setPluginIsDev(pluginDevEnabled);
+        moduleDTO.setFrontDevAddress(pluginDevEnabled && plugin.getPluginInfo() != null ? plugin.getPluginInfo().getFrontDevAddress() : "");
         moduleDTO.setRoutes(routes);
         moduleDTO.setMenus(resolveFrontendMenus(plugin.getPluginId(), definition, routes));
         moduleDTO.setI18n(definition != null ? definition.getI18n() : null);
@@ -594,6 +603,10 @@ public class PluginManagementApplicationService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private boolean isPluginDevModeAllowed() {
+        return !environment.acceptsProfiles(Profiles.of("prod"));
     }
 
     private void publishLifecycle(String pluginId,

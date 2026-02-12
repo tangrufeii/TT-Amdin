@@ -10,10 +10,34 @@ modules:
         component: /view/WcReactView
         componentName: plugin-wc-react-home
         meta:
-          title: WC React
+          title: WC React Home
           i18nKey: plugin.wcReact.menu
           icon: mdi:react
           order: 95
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+      - name: plugin-wc-react-list
+        path: /plugin/wc-react/list
+        component: /view/WcReactListView
+        componentName: plugin-wc-react-list
+        meta:
+          title: WC React List
+          i18nKey: plugin.wcReact.listMenu
+          icon: mdi:format-list-bulleted
+          order: 96
+          hideInMenu: false
+          keepAlive: true
+          layout: base
+      - name: plugin-wc-react-detail
+        path: /plugin/wc-react/detail
+        component: /view/WcReactDetailView
+        componentName: plugin-wc-react-detail
+        meta:
+          title: WC React Detail
+          i18nKey: plugin.wcReact.detailMenu
+          icon: mdi:file-document-outline
+          order: 97
           hideInMenu: false
           keepAlive: true
           layout: base
@@ -23,3 +47,13 @@ menus:
     i18nKey: plugin.wcReact.menu
     icon: mdi:react
     order: 95
+  - routeName: plugin-wc-react-list
+    parent: system
+    i18nKey: plugin.wcReact.listMenu
+    icon: mdi:format-list-bulleted
+    order: 96
+  - routeName: plugin-wc-react-detail
+    parent: system
+    i18nKey: plugin.wcReact.detailMenu
+    icon: mdi:file-document-outline
+    order: 97

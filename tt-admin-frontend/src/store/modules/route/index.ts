@@ -30,7 +30,7 @@ import {
   updateLocaleOfGlobalMenus
 } from './shared';
 
-const pluginDevEnabled = import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
+const pluginDevEnabled = import.meta.env.DEV && import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
 
 export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   const authStore = useAuthStore();

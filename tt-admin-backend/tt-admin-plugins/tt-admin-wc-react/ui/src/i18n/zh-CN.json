@@ -1,8 +1,11 @@
 {
   "plugin": {
     "wcReact": {
-      "menu": "WC React 示例",
-      "title": "Web-Component React 示例"
+      "menu": "WC React 首页",
+      "title": "Web-Component React 示例",
+      "listMenu": "WC React 列表",
+      "detailMenu": "WC React 详情"
     }
   }
 }
+

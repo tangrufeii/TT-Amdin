@@ -1,13 +1,123 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../../style.css';
-import WcReactView from './view/WcReactView';
 
-let currentView = WcReactView;
-const activeRoots = new Set<ReactDOM.Root>();
+type ReactComponentLike = React.ComponentType<any>;
+type RuntimeStore = {
+  // 视图模块路径 -> React 组件
+  componentByModuleKey: Map<string, ReactComponentLike>;
+  // 视图模块路径 -> 当前页面上挂载的所有 React Root 实例
+  activeRootsByModuleKey: Map<string, Set<ReactDOM.Root>>;
+};
 
-function renderReactView(root: ReactDOM.Root) {
-  root.render(React.createElement(currentView));
+const viewModules = import.meta.glob('./view/*.{ts,tsx,js,jsx}', { eager: true });
+const viewModuleKeys = Object.keys(viewModules);
+
+declare global {
+  interface Window {
+    __TT_PLUGIN_WC_REACT_RUNTIME__?: RuntimeStore;
+  }
+}
+
+function getRuntimeStore(): RuntimeStore {
+  /**
+   * 关键点：
+   * - Vite HMR 在当前插件结构下经常会把 view 的更新冒泡到 index.ts。
+   * - 一旦 index.ts 被热替换，模块级变量会重建。
+   * - 如果仍使用模块内局部 Map/Set，会丢失已挂载页面的 root 引用，导致“控制台有 hot updated，但页面不更新”。
+   * - 把运行态挂到 window，可在模块热替换后复用旧状态，保持连续热更新能力。
+   */
+  if (!window.__TT_PLUGIN_WC_REACT_RUNTIME__) {
+    window.__TT_PLUGIN_WC_REACT_RUNTIME__ = {
+      componentByModuleKey: new Map<string, ReactComponentLike>(),
+      activeRootsByModuleKey: new Map<string, Set<ReactDOM.Root>>()
+    };
+  }
+
+  return window.__TT_PLUGIN_WC_REACT_RUNTIME__;
+}
+
+const runtimeStore = getRuntimeStore();
+const { componentByModuleKey, activeRootsByModuleKey } = runtimeStore;
+
+function normalizeViewComponentPath(componentPath: string) {
+  const normalized = componentPath.trim().replace(/^\.+\//, '').replace(/^\//, '');
+  if (!normalized) {
+    return '';
+  }
+
+  const withPrefix = normalized.startsWith('view/') ? normalized : `view/${normalized}`;
+  return withPrefix.replace(/\.[^/.]+$/, '');
+}
+
+function buildViewModuleKeys(componentPath: string) {
+  const basePath = normalizeViewComponentPath(componentPath);
+  if (!basePath) {
+    return [] as string[];
+  }
+
+  return [`./${basePath}.ts`, `./${basePath}.tsx`, `./${basePath}.js`, `./${basePath}.jsx`];
+}
+
+function getModuleDefault(moduleValue: unknown) {
+  return (moduleValue as { default?: ReactComponentLike } | undefined)?.default;
+}
+
+function resolveModuleKeyAndComponent(componentPath: string) {
+  const moduleKeys = buildViewModuleKeys(componentPath);
+
+  for (const moduleKey of moduleKeys) {
+    if (!componentByModuleKey.has(moduleKey)) {
+      const component = getModuleDefault(viewModules[moduleKey]);
+      if (component) {
+        componentByModuleKey.set(moduleKey, component);
+      }
+    }
+
+    const cached = componentByModuleKey.get(moduleKey);
+    if (cached) {
+      return { moduleKey, component: cached };
+    }
+  }
+
+  return { moduleKey: '', component: null as ReactComponentLike | null };
+}
+
+function ensureRootSet(moduleKey: string) {
+  if (!activeRootsByModuleKey.has(moduleKey)) {
+    activeRootsByModuleKey.set(moduleKey, new Set<ReactDOM.Root>());
+  }
+
+  return activeRootsByModuleKey.get(moduleKey)!;
+}
+
+function renderReactView(moduleKey: string, root: ReactDOM.Root) {
+  const view = componentByModuleKey.get(moduleKey);
+  if (!view) {
+    return;
+  }
+
+  root.render(React.createElement(view));
+}
+
+function rerenderRootsByModuleKey(moduleKey: string) {
+  const roots = activeRootsByModuleKey.get(moduleKey);
+  roots?.forEach(root => renderReactView(moduleKey, root));
+}
+
+function rerenderAllActiveRoots() {
+  /**
+   * 关键点：
+   * - 当 index.ts 因为 HMR 被重新执行时，虽然状态保留了，但页面不会自动重绘。
+   * - 这里主动遍历当前活跃 root，并用最新组件重渲染一次，保证“入口热更”场景也能立即看到变更。
+   */
+  activeRootsByModuleKey.forEach((roots, moduleKey) => {
+    if (!roots.size) {
+      return;
+    }
+
+    roots.forEach(root => renderReactView(moduleKey, root));
+  });
 }
 
 function getVueRuntime() {
@@ -15,10 +125,11 @@ function getVueRuntime() {
   if (!runtime) {
     throw new Error('Vue runtime not found on window. Please start host app first.');
   }
+
   return runtime;
 }
 
-function mountReactView() {
+function mountReactView(moduleKey: string) {
   const { defineComponent, h, onBeforeUnmount, onMounted, ref } = getVueRuntime();
 
   return defineComponent({
@@ -30,15 +141,16 @@ function mountReactView() {
       onMounted(() => {
         if (containerRef.value && !reactRoot) {
           reactRoot = ReactDOM.createRoot(containerRef.value);
-          activeRoots.add(reactRoot);
-          renderReactView(reactRoot);
+          ensureRootSet(moduleKey).add(reactRoot);
+          renderReactView(moduleKey, reactRoot);
         }
       });
 
       onBeforeUnmount(() => {
         if (reactRoot) {
-          activeRoots.delete(reactRoot);
+          ensureRootSet(moduleKey).delete(reactRoot);
         }
+
         reactRoot?.unmount();
         reactRoot = null;
       });
@@ -48,12 +160,43 @@ function mountReactView() {
   });
 }
 
+viewModuleKeys.forEach(moduleKey => {
+  const component = getModuleDefault(viewModules[moduleKey]);
+  if (component) {
+    componentByModuleKey.set(moduleKey, component);
+  }
+});
+
+rerenderAllActiveRoots();
+
 if (import.meta.hot) {
-  import.meta.hot.accept('./view/WcReactView', newModule => {
-    if (newModule?.default) {
-      currentView = newModule.default;
-      activeRoots.forEach(renderReactView);
-    }
+  /**
+   * 关键点：
+   * - self-accept 让 index.ts 自身成为 HMR 边界，避免继续向宿主层冒泡触发更大范围刷新。
+   * - 空 accept 即可表达“当前模块可安全热替换”。
+   */
+  import.meta.hot.accept();
+
+  /**
+   * 关键点：
+   * - 对每个 view 模块做精确 accept。
+   * - 命中某个 view 更新后，仅替换对应 moduleKey 的组件并重渲染对应页面实例，不影响其他路由页面。
+   */
+  import.meta.hot.accept(viewModuleKeys, updatedModules => {
+    updatedModules.forEach((updatedModule, index) => {
+      const moduleKey = viewModuleKeys[index];
+      if (!moduleKey) {
+        return;
+      }
+
+      const nextView = getModuleDefault(updatedModule);
+      if (!nextView) {
+        return;
+      }
+
+      componentByModuleKey.set(moduleKey, nextView);
+      rerenderRootsByModuleKey(moduleKey);
+    });
   });
 }
 
@@ -63,12 +206,21 @@ export default () => {
       const router: any[] = [];
 
       (menusRouter || []).forEach(item => {
-        if (!item?.path) return;
+        const componentPath = item?.component || '';
+        if (!item?.path || !componentPath) {
+          return;
+        }
+
+        const { moduleKey, component } = resolveModuleKeyAndComponent(componentPath);
+        if (!moduleKey || !component) {
+          console.warn('[plugin] react view component not found:', componentPath);
+          return;
+        }
 
         router.push({
           name: item.componentName || item.name,
           path: item.path,
-          component: mountReactView(),
+          component: mountReactView(moduleKey),
           meta: {
             moduleName,
             title: item.meta?.title || item.name,

@@ -3,7 +3,7 @@ import type { PluginModuleInfo } from './types';
 type HmrMode = 'host' | 'external' | 'static';
 
 const localModuleMap = import.meta.glob('../modules/**/index.{ts,tsx,js,jsx}');
-const pluginDevEnabled = import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
+const pluginDevEnabled = import.meta.env.DEV && import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
 const resolveLocalModule = (name: string) => {
   const base = `../modules/${name}/index`;
   const candidates = [`${base}.ts`, `${base}.tsx`, `${base}.js`, `${base}.jsx`];

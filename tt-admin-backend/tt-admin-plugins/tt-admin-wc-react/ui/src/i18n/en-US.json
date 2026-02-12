@@ -1,8 +1,11 @@
 {
   "plugin": {
     "wcReact": {
-      "menu": "WC React Demo",
-      "title": "Web-Component React Demo"
+      "menu": "WC React Home",
+      "title": "Web-Component React Demo",
+      "listMenu": "WC React List",
+      "detailMenu": "WC React Detail"
     }
   }
 }
+

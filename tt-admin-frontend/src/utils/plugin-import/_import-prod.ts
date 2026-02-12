@@ -1,6 +1,6 @@
 import type { PluginModuleInfo } from './types';
 
-const pluginDevEnabled = import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
+const pluginDevEnabled = import.meta.env.DEV && import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
 
 export default (moduleInfo: PluginModuleInfo, name: string) => {
   if (moduleInfo.pluginId && moduleInfo.pluginIsDev && pluginDevEnabled && moduleInfo.frontDevAddress) {
