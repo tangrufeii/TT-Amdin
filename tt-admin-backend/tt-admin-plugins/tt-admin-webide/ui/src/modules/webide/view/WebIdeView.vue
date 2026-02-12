@@ -24,97 +24,129 @@
 
     <n-card :bordered="false" class="webide-card webide-body" content-class="webide-body-content">
       <div class="webide-layout">
-        <div class="webide-tree">
-          <div class="webide-tree-header">
-            <span>{{ t('plugin.webide.fileTree') }}</span>
-            <n-button size="tiny" quaternary @click="refreshTree">{{ t('plugin.webide.refresh') }}</n-button>
-          </div>
-          <n-spin :show="loadingTree">
-            <n-tree
-              :data="treeData"
-              block-line
-              key-field="key"
-              label-field="label"
-              :expanded-keys="expandedKeys"
-              :selected-keys="selectedKeys"
-              :show-irrelevant-nodes="false"
-              class="webide-tree-body"
-              :render-prefix="renderPrefix"
-              :render-label="renderLabel"
-              :node-props="nodeProps"
-              @update:selected-keys="handleSelect"
-              @update:expanded-keys="handleExpand"
-            />
-          </n-spin>
-        </div>
-
-        <div class="webide-workspace">
-          <div class="webide-workspace-header">
-            <div class="webide-editor-title">
-              {{ currentFile || t('plugin.webide.emptyFile') }}
-            </div>
-            <div class="webide-workspace-right">
-              <div class="webide-workspace-meta">
-                <div v-if="isCurrentFileDirty" class="webide-dirty">{{ t('plugin.webide.unsaved') }}</div>
-                <div v-if="activePreviewRoute" class="webide-preview-route">{{ activePreviewRoute }}</div>
-              </div>
-              <div v-if="showModeSwitcher" class="webide-mode-switcher">
-                <n-button-group size="small">
-                  <n-button :type="viewMode === 'edit' ? 'primary' : 'default'" @click="setViewMode('edit')">
-                    {{ t('plugin.webide.modeEdit') }}
-                  </n-button>
-                  <n-button
-                    :type="viewMode === 'split' ? 'primary' : 'default'"
-                    :disabled="!canPreviewCurrentFile"
-                    @click="setViewMode('split')"
-                  >
-                    {{ t('plugin.webide.modeSplit') }}
-                  </n-button>
-                  <n-button
-                    :type="viewMode === 'preview' ? 'primary' : 'default'"
-                    :disabled="!canPreviewCurrentFile"
-                    @click="setViewMode('preview')"
-                  >
-                    {{ t('plugin.webide.modePreview') }}
-                  </n-button>
-                </n-button-group>
-              </div>
-            </div>
-          </div>
-
-          <div ref="workspaceContainer" class="webide-workspace-body">
-            <div v-show="viewMode !== 'preview'" class="webide-editor-panel" :style="editorPanelStyle">
-              <div ref="editorContainer" class="webide-editor-body"></div>
-            </div>
-
-            <div
-              v-if="viewMode === 'split'"
-              class="webide-splitter"
-              :class="{ 'webide-splitter-dragging': splitDragging }"
-              @mousedown="startSplitDrag"
-            ></div>
-
-            <div v-if="viewMode !== 'edit'" class="webide-preview-panel" :style="previewPanelStyle">
-              <div class="webide-preview-header">
-                <span>{{ t('plugin.webide.preview') }}</span>
-                <div class="webide-preview-actions">
-                  <n-select
-                    v-if="previewRouteOptions.length > 1"
-                    v-model:value="activePreviewRoute"
-                    size="small"
-                    class="webide-preview-route-select"
-                    :options="previewRouteOptions"
+        <n-split v-model:size="treeSplitRatio" direction="horizontal" :min="0.08" :max="0.55" class="webide-main-split">
+          <template #1>
+            <div class="webide-tree-shell" :class="{ 'webide-tree-shell-collapsed': treeCollapsed }">
+              <div v-if="!treeCollapsed" class="webide-tree">
+                <div class="webide-tree-header">
+                  <span>{{ t('plugin.webide.fileTree') }}</span>
+                  <div class="webide-tree-header-actions">
+                    <n-button size="tiny" quaternary @click="refreshTree">{{ t('plugin.webide.refresh') }}</n-button>
+                    <n-button size="tiny" quaternary @click="toggleTreeCollapsed(true)">
+                      <template #icon>
+                        <Icon icon="mdi:chevron-left" />
+                      </template>
+                    </n-button>
+                  </div>
+                </div>
+                <n-spin :show="loadingTree">
+                  <n-tree
+                    :data="treeData"
+                    block-line
+                    key-field="key"
+                    label-field="label"
+                    :expanded-keys="expandedKeys"
+                    :selected-keys="selectedKeys"
+                    :show-irrelevant-nodes="false"
+                    class="webide-tree-body"
+                    :render-prefix="renderPrefix"
+                    :render-label="renderLabel"
+                    :node-props="nodeProps"
+                    @update:selected-keys="handleSelect"
+                    @update:expanded-keys="handleExpand"
                   />
-                  <n-button size="tiny" quaternary :disabled="!previewUrl" @click="refreshPreview">
-                    {{ t('plugin.webide.previewRefresh') }}
-                  </n-button>
+                </n-spin>
+              </div>
+              <div v-else class="webide-tree-collapsed">
+                <n-button size="small" tertiary @click="toggleTreeCollapsed(false)">
+                  <template #icon>
+                    <Icon icon="mdi:chevron-right" />
+                  </template>
+                </n-button>
+              </div>
+            </div>
+          </template>
+
+          <template #2>
+            <div class="webide-workspace">
+              <div class="webide-workspace-header">
+                <div class="webide-editor-title">
+                  {{ currentFile || t('plugin.webide.emptyFile') }}
+                </div>
+                <div class="webide-workspace-right">
+                  <div class="webide-workspace-meta">
+                    <div v-if="isCurrentFileDirty" class="webide-dirty">{{ t('plugin.webide.unsaved') }}</div>
+                    <div v-if="activePreviewRoute" class="webide-preview-route">{{ activePreviewRoute }}</div>
+                  </div>
+                  <div v-if="showModeSwitcher" class="webide-mode-switcher">
+                    <n-button-group size="small">
+                      <n-button :type="viewMode === 'edit' ? 'primary' : 'default'" @click="setViewMode('edit')">
+                        {{ t('plugin.webide.modeEdit') }}
+                      </n-button>
+                      <n-button
+                        :type="viewMode === 'split' ? 'primary' : 'default'"
+                        :disabled="!canPreviewCurrentFile"
+                        @click="setViewMode('split')"
+                      >
+                        {{ t('plugin.webide.modeSplit') }}
+                      </n-button>
+                      <n-button
+                        :type="viewMode === 'preview' ? 'primary' : 'default'"
+                        :disabled="!canPreviewCurrentFile"
+                        @click="setViewMode('preview')"
+                      >
+                        {{ t('plugin.webide.modePreview') }}
+                      </n-button>
+                    </n-button-group>
+                  </div>
                 </div>
               </div>
-              <iframe v-if="previewUrl" :key="previewFrameKey" :src="previewUrl" class="webide-preview-frame"></iframe>
-              <div v-else class="webide-preview-empty">{{ previewEmptyText }}</div>
+
+              <div class="webide-workspace-body">
+                <n-split
+                  v-model:size="editorSplitSize"
+                  direction="horizontal"
+                  :min="0.2"
+                  :max="0.8"
+                  :disabled="viewMode !== 'split'"
+                  class="webide-editor-split"
+                >
+                  <template #1>
+                    <div class="webide-editor-panel">
+                      <div ref="editorContainer" class="webide-editor-body"></div>
+                    </div>
+                  </template>
+                  <template #2>
+                    <div v-show="viewMode !== 'edit'" class="webide-preview-panel">
+                      <div class="webide-preview-header">
+                        <span>{{ t('plugin.webide.preview') }}</span>
+                        <div class="webide-preview-actions">
+                          <n-select
+                            v-if="previewRouteOptions.length > 1"
+                            v-model:value="activePreviewRoute"
+                            size="small"
+                            class="webide-preview-route-select"
+                            :options="previewRouteOptions"
+                          />
+                          <n-button size="tiny" quaternary :disabled="!previewUrl" @click="refreshPreview">
+                            {{ t('plugin.webide.previewRefresh') }}
+                          </n-button>
+                        </div>
+                      </div>
+                      <iframe
+                        v-if="previewUrl"
+                        :key="previewFrameKey"
+                        :src="previewUrl"
+                        class="webide-preview-frame"
+                      ></iframe>
+                      <div v-else class="webide-preview-empty">{{ previewEmptyText }}</div>
+                    </div>
+                  </template>
+                </n-split>
+              </div>
             </div>
-          </div>
-        </div>
+          </template>
+        </n-split>
       </div>
     </n-card>
   </div>
@@ -122,7 +154,7 @@
 
 <script setup lang="ts">
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
-import { NButton, NButtonGroup, NCard, NSelect, NSpin, NTree } from 'naive-ui';
+import { NButton, NButtonGroup, NCard, NSelect, NSplit, NSpin, NTree } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
 import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
@@ -192,13 +224,14 @@ const currentFile = ref('');
 const dirtyFileMap = ref<Record<string, true>>({});
 const savedContentByFile = ref<Record<string, string>>({});
 const isDark = ref(false);
+const treeSplitRatio = ref(0.24);
+const treeCollapsed = ref(false);
+const lastTreeSplitRatio = ref(0.24);
 const viewMode = ref<ViewMode>('edit');
 const splitRatio = ref(0.5);
-const splitDragging = ref(false);
 const activePreviewRoute = ref('');
 const previewVersion = ref(0);
 const editorContainer = ref<HTMLElement | null>(null);
-const workspaceContainer = ref<HTMLElement | null>(null);
 const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 const currentModel = shallowRef<monaco.editor.ITextModel | null>(null);
 let modelDisposable: monaco.IDisposable | null = null;
@@ -289,18 +322,15 @@ const previewUrl = computed(() => {
   return `${window.location.origin}${finalBase}${routeWithToken}`;
 });
 
-const editorPanelStyle = computed(() => {
-  if (viewMode.value !== 'split') {
-    return { width: '100%' };
+const editorSplitSize = computed({
+  get() {
+    if (viewMode.value === 'edit') return 1;
+    if (viewMode.value === 'preview') return 0;
+    return splitRatio.value;
+  },
+  set(value: number) {
+    splitRatio.value = Math.min(0.8, Math.max(0.2, value));
   }
-  return { width: `${Math.round(splitRatio.value * 100)}%` };
-});
-
-const previewPanelStyle = computed(() => {
-  if (viewMode.value !== 'split') {
-    return { width: '100%' };
-  }
-  return { width: `${Math.round((1 - splitRatio.value) * 100)}%` };
 });
 
 const globalAny = self as unknown as { MonacoEnvironment?: monaco.Environment };
@@ -388,6 +418,22 @@ function refreshPreview() {
 
 function setViewMode(mode: ViewMode) {
   viewMode.value = mode;
+}
+
+function toggleTreeCollapsed(collapsed?: boolean) {
+  const nextState = collapsed ?? !treeCollapsed.value;
+
+  if (nextState) {
+    if (treeSplitRatio.value > 0.08) {
+      lastTreeSplitRatio.value = treeSplitRatio.value;
+    }
+    treeSplitRatio.value = 0.04;
+    treeCollapsed.value = true;
+    return;
+  }
+
+  treeCollapsed.value = false;
+  treeSplitRatio.value = Math.min(0.55, Math.max(0.16, lastTreeSplitRatio.value || 0.24));
 }
 
 function renderPrefix({ option }: { option: TreeNode }) {
@@ -659,28 +705,6 @@ function handleWindowKeydown(event: KeyboardEvent) {
   saveCurrent();
 }
 
-function handleSplitMouseMove(event: MouseEvent) {
-  if (!splitDragging.value || !workspaceContainer.value || viewMode.value !== 'split') return;
-  const rect = workspaceContainer.value.getBoundingClientRect();
-  const offset = event.clientX - rect.left;
-  const ratio = offset / rect.width;
-  splitRatio.value = Math.min(0.8, Math.max(0.2, ratio));
-}
-
-function handleSplitMouseUp() {
-  splitDragging.value = false;
-  window.removeEventListener('mousemove', handleSplitMouseMove);
-  window.removeEventListener('mouseup', handleSplitMouseUp);
-}
-
-function startSplitDrag(event: MouseEvent) {
-  if (viewMode.value !== 'split') return;
-  event.preventDefault();
-  splitDragging.value = true;
-  window.addEventListener('mousemove', handleSplitMouseMove);
-  window.addEventListener('mouseup', handleSplitMouseUp);
-}
-
 watch(
   matchedPreviewRoutes,
   routes => {
@@ -700,6 +724,20 @@ watch(canPreviewCurrentFile, enabled => {
   if (!enabled && viewMode.value !== 'edit') {
     viewMode.value = 'edit';
   }
+});
+
+watch(treeSplitRatio, value => {
+  if (value <= 0.08) {
+    treeCollapsed.value = true;
+    nextTick(() => editor.value?.layout());
+    return;
+  }
+
+  if (treeCollapsed.value) {
+    treeCollapsed.value = false;
+  }
+  lastTreeSplitRatio.value = value;
+  nextTick(() => editor.value?.layout());
 });
 
 watch([viewMode, splitRatio], () => {
@@ -745,7 +783,6 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  handleSplitMouseUp();
   window.removeEventListener('keydown', handleWindowKeydown);
   clearCurrentModel();
   editor.value?.dispose();
@@ -758,6 +795,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: 100%;
   min-height: 560px;
   background: var(--webide-bg);
 }
@@ -801,31 +839,65 @@ onBeforeUnmount(() => {
 
 .webide-body {
   flex: 1;
+  min-height: 0;
 }
 
 .webide-body-content {
   padding: 0;
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
 }
 
 .webide-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 8px;
+  flex: 1;
   min-height: 520px;
   height: 100%;
+}
+
+.webide-main-split {
+  min-height: 0;
+  height: 100%;
+}
+
+.webide-main-split :deep(.n-split-pane-1),
+.webide-main-split :deep(.n-split-pane-2),
+.webide-editor-split :deep(.n-split-pane-1),
+.webide-editor-split :deep(.n-split-pane-2) {
+  height: 100%;
+  min-height: 0;
+}
+
+.webide-tree-shell {
+  height: 100%;
+  min-height: 0;
+  background: var(--webide-panel);
+}
+
+.webide-tree-shell-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .webide-tree {
   display: flex;
   flex-direction: column;
+  height: 100%;
   border-right: 1px solid var(--webide-border);
   padding: 10px 8px;
   gap: 8px;
   min-height: 0;
-  background: var(--webide-panel);
+}
+
+.webide-tree-collapsed {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10px;
 }
 
 .webide-tree-header {
@@ -837,6 +909,12 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   letter-spacing: 0.6px;
   padding: 4px 6px;
+}
+
+.webide-tree-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .webide-tree-body {
@@ -885,6 +963,7 @@ onBeforeUnmount(() => {
 .webide-workspace {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   background: var(--webide-panel);
 }
@@ -951,13 +1030,19 @@ onBeforeUnmount(() => {
 
 .webide-workspace-body {
   flex: 1;
-  min-height: 420px;
-  display: flex;
-  align-items: stretch;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
+.webide-editor-split {
+  min-height: 0;
+  height: 100%;
+}
+
 .webide-editor-panel {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   height: 100%;
 }
@@ -965,20 +1050,6 @@ onBeforeUnmount(() => {
 .webide-editor-body {
   width: 100%;
   height: 100%;
-}
-
-.webide-splitter {
-  width: 8px;
-  cursor: col-resize;
-  background: transparent;
-  border-left: 1px solid var(--webide-border);
-  border-right: 1px solid var(--webide-border);
-  transition: background-color 0.2s ease;
-}
-
-.webide-splitter:hover,
-.webide-splitter-dragging {
-  background: rgba(59, 130, 246, 0.16);
 }
 
 .webide-preview-panel {
