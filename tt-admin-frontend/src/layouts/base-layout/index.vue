@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent } from 'vue';
 import { AdminLayout, LAYOUT_SCROLL_EL_ID } from '@sa/materials';
 import type { LayoutMode } from '@sa/materials';
+import { useRoute } from 'vue-router';
 import { useAppStore } from '@/store/modules/app';
 import { useThemeStore } from '@/store/modules/theme';
 import GlobalHeader from '../modules/global-header/index.vue';
@@ -18,6 +19,7 @@ defineOptions({
 
 const appStore = useAppStore();
 const themeStore = useThemeStore();
+const route = useRoute();
 const { secondLevelMenus, childLevelMenus, isActiveFirstLevelMenuHasChildren } = provideMixMenuContext();
 
 const GlobalMenu = defineAsyncComponent(() => import('../modules/global-menu/index.vue'));
@@ -81,6 +83,21 @@ const siderWidth = computed(() => getSiderAndCollapsedWidth(false));
 
 const siderCollapsedWidth = computed(() => getSiderAndCollapsedWidth(true));
 
+const isEmbeddedPreview = computed(() => {
+  const queryToken = route.query.__preview;
+  const byQuery = Array.isArray(queryToken) ? queryToken.length > 0 : queryToken !== undefined && queryToken !== null;
+
+  if (byQuery) return true;
+
+  if (typeof window !== 'undefined') {
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+    return /[?&]__preview=/.test(search) || /[?&]__preview=/.test(hash);
+  }
+
+  return false;
+});
+
 function getSiderAndCollapsedWidth(isCollapsed: boolean) {
   const {
     mixChildMenuWidth,
@@ -123,34 +140,34 @@ function getSiderAndCollapsedWidth(isCollapsed: boolean) {
     :scroll-el-id="LAYOUT_SCROLL_EL_ID"
     :scroll-mode="themeStore.layout.scrollMode"
     :is-mobile="appStore.isMobile"
-    :full-content="appStore.fullContent"
-    :fixed-top="themeStore.fixedHeaderAndTab"
+    :full-content="appStore.fullContent || isEmbeddedPreview"
+    :fixed-top="isEmbeddedPreview ? false : themeStore.fixedHeaderAndTab"
     :header-height="themeStore.header.height"
-    :tab-visible="themeStore.tab.visible"
+    :tab-visible="isEmbeddedPreview ? false : themeStore.tab.visible"
     :tab-height="themeStore.tab.height"
     :content-class="appStore.contentXScrollable ? 'overflow-x-hidden' : ''"
-    :sider-visible="siderVisible"
+    :sider-visible="isEmbeddedPreview ? false : siderVisible"
     :sider-width="siderWidth"
     :sider-collapsed-width="siderCollapsedWidth"
-    :footer-visible="themeStore.footer.visible"
+    :footer-visible="isEmbeddedPreview ? false : themeStore.footer.visible"
     :footer-height="themeStore.footer.height"
     :fixed-footer="themeStore.footer.fixed"
     :right-footer="themeStore.footer.right"
   >
     <template #header>
-      <GlobalHeader v-bind="headerProps" />
+      <GlobalHeader v-if="!isEmbeddedPreview" v-bind="headerProps" />
     </template>
     <template #tab>
-      <GlobalTab />
+      <GlobalTab v-if="!isEmbeddedPreview" />
     </template>
     <template #sider>
-      <GlobalSider />
+      <GlobalSider v-if="!isEmbeddedPreview" />
     </template>
-    <GlobalMenu />
+    <GlobalMenu v-if="!isEmbeddedPreview" />
     <GlobalContent />
-    <ThemeDrawer />
+    <ThemeDrawer v-if="!isEmbeddedPreview" />
     <template #footer>
-      <GlobalFooter />
+      <GlobalFooter v-if="!isEmbeddedPreview" />
     </template>
   </AdminLayout>
 </template>

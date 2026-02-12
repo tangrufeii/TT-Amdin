@@ -255,13 +255,14 @@ public class WebIdeEditorService {
         try (Stream<Path> stream = Files.list(root)) {
             return stream
                     .filter(Files::isDirectory)
-                    .map(path -> {
-                        String id = path.getFileName().toString();
-                        Path uiDir = path.resolve("ui");
+                    .map(pluginDir -> {
+                        String folderId = pluginDir.getFileName().toString();
+                        Path uiDir = pluginDir.resolve("ui");
                         if (!Files.isDirectory(uiDir)) {
                             return null;
                         }
-                        return new WebIdePluginInfo(id, id, uiDir.toString());
+                        PluginMeta meta = resolvePluginMeta(pluginDir);
+                        return new WebIdePluginInfo(folderId, meta.name, uiDir.toString(), meta.runtimePluginId);
                     })
                     .filter(Objects::nonNull)
                     .sorted(Comparator.comparing(WebIdePluginInfo::getId))
@@ -380,15 +381,85 @@ public class WebIdeEditorService {
         return false;
     }
 
+    private PluginMeta resolvePluginMeta(Path pluginDir) {
+        String fallback = pluginDir.getFileName().toString();
+        String runtimePluginId = fallback;
+        String pluginName = fallback;
+        Path pluginYaml = pluginDir.resolve("src/main/resources/plugin.yaml");
+        if (!Files.exists(pluginYaml) || !Files.isRegularFile(pluginYaml)) {
+            return new PluginMeta(runtimePluginId, pluginName);
+        }
+        try {
+            List<String> lines = Files.readAllLines(pluginYaml, StandardCharsets.UTF_8);
+            boolean inPluginSection = false;
+            for (String line : lines) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                    continue;
+                }
+                boolean isSection = !Character.isWhitespace(line.charAt(0)) && trimmed.endsWith(":");
+                if (isSection) {
+                    inPluginSection = "plugin:".equals(trimmed);
+                    continue;
+                }
+                if (!inPluginSection) {
+                    continue;
+                }
+                int separatorIndex = trimmed.indexOf(':');
+                if (separatorIndex < 0) {
+                    continue;
+                }
+                String key = trimmed.substring(0, separatorIndex).trim();
+                String value = normalizeYamlValue(trimmed.substring(separatorIndex + 1).trim());
+                if ("id".equals(key) && StringUtils.hasText(value)) {
+                    runtimePluginId = value;
+                } else if ("name".equals(key) && StringUtils.hasText(value)) {
+                    pluginName = value;
+                }
+            }
+        } catch (IOException ignored) {
+            return new PluginMeta(runtimePluginId, pluginName);
+        }
+        return new PluginMeta(runtimePluginId, pluginName);
+    }
+
+    private String normalizeYamlValue(String rawValue) {
+        String value = rawValue;
+        int commentIndex = value.indexOf('#');
+        if (commentIndex >= 0) {
+            value = value.substring(0, commentIndex).trim();
+        }
+        if (value.length() >= 2) {
+            boolean quotedWithDouble = value.startsWith("\"") && value.endsWith("\"");
+            boolean quotedWithSingle = value.startsWith("'") && value.endsWith("'");
+            if (quotedWithDouble || quotedWithSingle) {
+                value = value.substring(1, value.length() - 1).trim();
+            }
+        }
+        return value;
+    }
+
+    private static class PluginMeta {
+        private final String runtimePluginId;
+        private final String name;
+
+        private PluginMeta(String runtimePluginId, String name) {
+            this.runtimePluginId = runtimePluginId;
+            this.name = name;
+        }
+    }
+
     public static class WebIdePluginInfo {
         private String id;
         private String name;
         private String uiPath;
+        private String runtimePluginId;
 
-        public WebIdePluginInfo(String id, String name, String uiPath) {
+        public WebIdePluginInfo(String id, String name, String uiPath, String runtimePluginId) {
             this.id = id;
             this.name = name;
             this.uiPath = uiPath;
+            this.runtimePluginId = runtimePluginId;
         }
 
         public String getId() {
@@ -401,6 +472,10 @@ public class WebIdeEditorService {
 
         public String getUiPath() {
             return uiPath;
+        }
+
+        public String getRuntimePluginId() {
+            return runtimePluginId;
         }
     }
 }

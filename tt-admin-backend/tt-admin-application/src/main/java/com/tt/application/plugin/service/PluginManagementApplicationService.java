@@ -407,21 +407,25 @@ public class PluginManagementApplicationService {
 
         List<PluginFrontendModuleDTO> modules = new ArrayList<>();
         for (PluginManagement plugin : enabledPlugins) {
-            if (!pluginManager.isPluginStarted(plugin.getPluginId())) {
-                log.debug("Skip plugin frontend modules (not started): {}", plugin.getPluginId());
-                continue;
-            }
-            PluginFrontendDefinition definition = pluginFrontendDefinitionRepository
-                    .loadByPluginId(plugin.getPluginId())
-                    .orElse(null);
-            if (definition == null || CollectionUtils.isEmpty(definition.getModules())) {
-                continue;
-            }
-            for (PluginFrontendModuleDefinition moduleDefinition : definition.getModules()) {
-                PluginFrontendModuleDTO moduleDTO = convertFrontendModule(plugin, moduleDefinition, definition);
-                if (moduleDTO != null) {
-                    modules.add(moduleDTO);
+            try {
+                if (!pluginManager.isPluginStarted(plugin.getPluginId())) {
+                    log.debug("Skip plugin frontend modules (not started): {}", plugin.getPluginId());
+                    continue;
                 }
+                PluginFrontendDefinition definition = pluginFrontendDefinitionRepository
+                        .loadByPluginId(plugin.getPluginId())
+                        .orElse(null);
+                if (definition == null || CollectionUtils.isEmpty(definition.getModules())) {
+                    continue;
+                }
+                for (PluginFrontendModuleDefinition moduleDefinition : definition.getModules()) {
+                    PluginFrontendModuleDTO moduleDTO = convertFrontendModule(plugin, moduleDefinition, definition);
+                    if (moduleDTO != null) {
+                        modules.add(moduleDTO);
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Skip plugin frontend modules (load failed): {}", plugin.getPluginId(), ex);
             }
         }
         return modules;

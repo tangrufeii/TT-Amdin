@@ -3,6 +3,41 @@ import 'naive-ui/es/message/styles';
 import 'naive-ui/es/notification/styles';
 
 const modules = import.meta.glob('./view/*.vue');
+const moduleEntries = Object.entries(modules) as Array<[string, () => Promise<any>]>;
+
+function normalizeComponentPath(componentPath: string) {
+  return componentPath.trim().replace(/\\/g, '/').replace(/\.[^/.]+$/, '');
+}
+
+function resolveComponent(componentPath: string) {
+  const normalized = normalizeComponentPath(componentPath);
+  if (!normalized) {
+    return null;
+  }
+
+  const basePath = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  const candidates = new Set<string>([
+    `.${basePath}.vue`,
+    `./${basePath.replace(/^\//, '')}.vue`
+  ]);
+
+  for (const key of candidates) {
+    const loader = modules[key];
+    if (loader) {
+      return { key, loader };
+    }
+  }
+
+  const name = basePath.split('/').pop();
+  if (name) {
+    const fuzzy = moduleEntries.find(([key]) => key.endsWith(`/${name}.vue`));
+    if (fuzzy) {
+      return { key: fuzzy[0], loader: fuzzy[1] };
+    }
+  }
+
+  return null;
+}
 
 if (import.meta.hot) {
   import.meta.hot.on('vite:afterUpdate', () => {
@@ -16,16 +51,15 @@ export default () => {
       const router: any[] = [];
       menusRouter.forEach(item => {
         if (item.path && item.component) {
-          const componentKey = `.${item.component}.vue`;
-          const component = modules[componentKey];
-          if (!component) {
-            console.warn('[webide] view component not found:', componentKey);
+          const resolved = resolveComponent(item.component);
+          if (!resolved) {
+            console.warn('[webide] view component not found:', item.component);
             return;
           }
           router.push({
             name: item.componentName || item.name,
             path: item.path,
-            component,
+            component: resolved.loader,
             meta: {
               moduleName,
               title: item.meta?.title || item.name,

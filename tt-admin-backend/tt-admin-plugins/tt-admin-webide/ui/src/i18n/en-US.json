@@ -12,7 +12,16 @@
       "loadFail": "Load failed",
       "emptyFile": "No file selected",
       "unsaved": "Unsaved",
-      "confirmLeave": "Unsaved changes. Continue?"
+      "confirmLeave": "Unsaved changes. Continue?",
+      "modeEdit": "Editor",
+      "modeSplit": "Split",
+      "modePreview": "Preview",
+      "preview": "Preview",
+      "previewRefresh": "Reload",
+      "previewSelectFile": "Select a file to preview",
+      "previewOnlyModuleFile": "Preview is available for files under src/modules",
+      "previewNoRoute": "No route is mapped to this file",
+      "previewUnavailable": "Preview is unavailable"
     }
   }
 }

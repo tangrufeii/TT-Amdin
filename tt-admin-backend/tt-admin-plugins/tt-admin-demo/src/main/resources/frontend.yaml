@@ -29,19 +29,6 @@ modules:
           hideInMenu: false
           keepAlive: true
           layout: base
-      - name: plugin-demo-ide
-        path: /plugin-demo/ide
-        component: /view/PluginDemoIdeView
-        componentName: plugin-demo-ide
-        meta:
-          title: 在线 IDE
-          i18nKey: plugin.demo.ide
-          icon: mdi:code-braces
-          order: 3
-          hideInMenu: false
-          keepAlive: true
-          layout: base
 menus:
   - routeName: plugin-demo-index
   - routeName: plugin-demo-advanced
-  - routeName: plugin-demo-ide

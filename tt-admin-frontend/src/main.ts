@@ -42,8 +42,17 @@ function exposePluginGlobals() {
 
 exposePluginGlobals();
 
+function isEmbeddedPreviewBoot() {
+  if (typeof window === 'undefined') return false;
+  const search = window.location.search || '';
+  const hash = window.location.hash || '';
+  return /[?&]__preview=/.test(search) || /[?&]__preview=/.test(hash);
+}
+
 async function setupApp() {
-  setupLoading();
+  if (!isEmbeddedPreviewBoot()) {
+    setupLoading();
+  }
 
   setupNProgress();
 

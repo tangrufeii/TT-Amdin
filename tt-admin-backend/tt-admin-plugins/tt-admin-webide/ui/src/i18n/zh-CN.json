@@ -1,8 +1,8 @@
 {
   "plugin": {
     "webide": {
-      "title": "在线IDE",
-      "description": "插件 UI 目录在线编辑",
+      "title": "在线 IDE",
+      "description": "在线编辑插件 UI 目录",
       "selectPlugin": "选择插件",
       "fileTree": "文件树",
       "refresh": "刷新",
@@ -12,7 +12,16 @@
       "loadFail": "加载失败",
       "emptyFile": "未选择文件",
       "unsaved": "未保存",
-      "confirmLeave": "当前文件未保存，确定切换吗？"
+      "confirmLeave": "当前存在未保存修改，确认继续切换吗？",
+      "modeEdit": "编辑",
+      "modeSplit": "分屏",
+      "modePreview": "预览",
+      "preview": "页面预览",
+      "previewRefresh": "刷新预览",
+      "previewSelectFile": "请选择文件后再预览",
+      "previewOnlyModuleFile": "仅支持预览 src/modules 下的页面文件",
+      "previewNoRoute": "当前文件未匹配到路由页面",
+      "previewUnavailable": "预览暂不可用"
     }
   }
 }
