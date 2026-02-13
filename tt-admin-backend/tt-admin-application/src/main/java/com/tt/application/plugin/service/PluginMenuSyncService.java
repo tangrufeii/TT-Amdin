@@ -21,8 +21,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -51,6 +53,8 @@ public class PluginMenuSyncService {
     private static final String PLUGIN_ROOT_COMPONENT = "layout.base";
     private static final String PLUGIN_ROOT_NAME = "Plugin";
     private static final String PLUGIN_ROOT_I18N_KEY = "route.pluginRoot";
+    private static final int MENU_CODE_MAX_LENGTH = 50;
+    private static final int MENU_CODE_HASH_LENGTH = 10;
     private static final List<String> DEFAULT_ROLE_CODES = List.of("super_admin");
 
     private final PluginFrontendDefinitionRepository pluginFrontendDefinitionRepository;
@@ -419,7 +423,27 @@ public class PluginMenuSyncService {
     }
 
     private String buildMenuCode(String pluginId, String routeName) {
-        return "plugin:" + pluginId + ":" + routeName;
+        String normalizedPluginId = StringUtils.hasText(pluginId) ? pluginId.trim() : "unknown";
+        String normalizedRouteName = StringUtils.hasText(routeName) ? routeName.trim() : "route";
+        String rawCode = "plugin:" + normalizedPluginId + ":" + normalizedRouteName;
+        if (rawCode.length() <= MENU_CODE_MAX_LENGTH) {
+            return rawCode;
+        }
+        String hash = buildCodeHash(normalizedPluginId + ":" + normalizedRouteName);
+        int readableLimit = MENU_CODE_MAX_LENGTH - "plugin::".length() - hash.length();
+        if (readableLimit <= 0) {
+            return "plugin:" + hash;
+        }
+        String readablePart = (normalizedPluginId + ":" + normalizedRouteName);
+        if (readablePart.length() > readableLimit) {
+            readablePart = readablePart.substring(0, readableLimit);
+        }
+        return "plugin:" + readablePart + ":" + hash;
+    }
+
+    private String buildCodeHash(String source) {
+        String md5 = DigestUtils.md5DigestAsHex(source.getBytes(StandardCharsets.UTF_8));
+        return md5.substring(0, Math.min(MENU_CODE_HASH_LENGTH, md5.length()));
     }
 
     private String normalizeRoutePath(String path) {
