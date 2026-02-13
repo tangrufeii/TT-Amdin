@@ -39,15 +39,27 @@ function getRuntimeStore(): RuntimeStore {
 
 const runtimeStore = getRuntimeStore();
 const { componentByModuleKey, activeRootsByModuleKey } = runtimeStore;
+const moduleKeyByViewPath = new Map<string, string>();
 
-function normalizeViewComponentPath(componentPath: string) {
-  const normalized = componentPath.trim().replace(/^\.+\//, '').replace(/^\//, '');
-  if (!normalized) {
+function normalizePathForMatch(rawPath: string) {
+  const cleaned = rawPath.trim().replace(/\\/g, '/').replace(/\?.*$/, '');
+  if (!cleaned) {
     return '';
   }
 
-  const withPrefix = normalized.startsWith('view/') ? normalized : `view/${normalized}`;
-  return withPrefix.replace(/\.[^/.]+$/, '');
+  const withoutLeadingSlash = cleaned.replace(/^\/+/, '');
+  const viewSegmentIndex = withoutLeadingSlash.lastIndexOf('/view/');
+  const viewPath = viewSegmentIndex >= 0
+    ? withoutLeadingSlash.slice(viewSegmentIndex + 1)
+    : withoutLeadingSlash.startsWith('view/')
+      ? withoutLeadingSlash
+      : `view/${withoutLeadingSlash.replace(/^\.+\//, '')}`;
+
+  return viewPath.replace(/\.[^/.]+$/, '');
+}
+
+function normalizeViewComponentPath(componentPath: string) {
+  return normalizePathForMatch(componentPath);
 }
 
 function buildViewModuleKeys(componentPath: string) {
@@ -63,20 +75,57 @@ function getModuleDefault(moduleValue: unknown) {
   return (moduleValue as { default?: ReactComponentLike } | undefined)?.default;
 }
 
+function registerViewComponent(moduleKey: string, moduleValue: unknown) {
+  const component = getModuleDefault(moduleValue);
+  if (!component) {
+    return;
+  }
+
+  componentByModuleKey.set(moduleKey, component);
+
+  const normalizedViewPath = normalizePathForMatch(moduleKey);
+  if (!normalizedViewPath) {
+    return;
+  }
+
+  moduleKeyByViewPath.set(normalizedViewPath, moduleKey);
+
+  const shortPath = normalizedViewPath.replace(/^view\//, '');
+  if (shortPath) {
+    moduleKeyByViewPath.set(shortPath, moduleKey);
+  }
+}
+
 function resolveModuleKeyAndComponent(componentPath: string) {
+  const normalizedPath = normalizeViewComponentPath(componentPath);
+  const matchedKey = moduleKeyByViewPath.get(normalizedPath);
+  if (matchedKey) {
+    const matchedComponent = componentByModuleKey.get(matchedKey);
+    if (matchedComponent) {
+      return { moduleKey: matchedKey, component: matchedComponent };
+    }
+  }
+
   const moduleKeys = buildViewModuleKeys(componentPath);
 
   for (const moduleKey of moduleKeys) {
     if (!componentByModuleKey.has(moduleKey)) {
-      const component = getModuleDefault(viewModules[moduleKey]);
-      if (component) {
-        componentByModuleKey.set(moduleKey, component);
-      }
+      registerViewComponent(moduleKey, viewModules[moduleKey]);
     }
 
     const cached = componentByModuleKey.get(moduleKey);
     if (cached) {
       return { moduleKey, component: cached };
+    }
+  }
+
+  if (normalizedPath) {
+    const fuzzyMatchedKey = viewModuleKeys.find(key => normalizePathForMatch(key) === normalizedPath);
+    if (fuzzyMatchedKey) {
+      const fuzzyComponent = componentByModuleKey.get(fuzzyMatchedKey);
+      if (fuzzyComponent) {
+        return { moduleKey: fuzzyMatchedKey, component: fuzzyComponent };
+      }
     }
   }
 
@@ -161,10 +210,7 @@ function mountReactView(moduleKey: string) {
 }
 
 viewModuleKeys.forEach(moduleKey => {
-  const component = getModuleDefault(viewModules[moduleKey]);
-  if (component) {
-    componentByModuleKey.set(moduleKey, component);
-  }
+  registerViewComponent(moduleKey, viewModules[moduleKey]);
 });
 
 rerenderAllActiveRoots();
@@ -189,12 +235,11 @@ if (import.meta.hot) {
         return;
       }
 
-      const nextView = getModuleDefault(updatedModule);
-      if (!nextView) {
+      registerViewComponent(moduleKey, updatedModule);
+      if (!componentByModuleKey.has(moduleKey)) {
         return;
       }
 
-      componentByModuleKey.set(moduleKey, nextView);
       rerenderRootsByModuleKey(moduleKey);
     });
   });

@@ -23,6 +23,7 @@ import {
   NModal,
   NIcon,
   NText,
+  NNumberAnimation,
   NRadioGroup,
   NRadioButton
 } from 'naive-ui';
@@ -37,6 +38,7 @@ import {
   fetchPluginDelete,
   fetchPluginDisable,
   fetchPluginEnable,
+  fetchPluginListAll,
   fetchPluginPage,
   fetchPluginProgressSnapshots,
   fetchPluginStatistics,
@@ -196,6 +198,26 @@ const statistics = ref<PluginStatistics>({
   enabledCount: 0,
   disabledCount: 0
 });
+const statisticsFrom = ref<PluginStatistics>({
+  total: 0,
+  enabledCount: 0,
+  disabledCount: 0
+});
+const statisticsAnimKey = ref(0);
+
+function toSafeCount(value: unknown) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return 0;
+  }
+  return Math.floor(numeric);
+}
+
+function updateStatistics(next: PluginStatistics) {
+  statisticsFrom.value = { ...statistics.value };
+  statistics.value = next;
+  statisticsAnimKey.value += 1;
+}
 
 interface PluginProcessingInfo {
   action?: string;
@@ -496,16 +518,38 @@ function applyProgressSnapshots(messages: string[]) {
 
 async function loadProgressSnapshots() {
   const { data, error } = await fetchPluginProgressSnapshots();
-  if (!error && Array.isArray(data.value)) {
-    applyProgressSnapshots(data.value);
+  if (!error && Array.isArray(data)) {
+    applyProgressSnapshots(data);
   }
 }
 
 async function getStatistics() {
-  const {data} = await fetchPluginStatistics();
-  if (data.value) {
-    statistics.value = data.value;
+  const allResp = await fetchPluginListAll();
+  if (!allResp.error && Array.isArray(allResp.data)) {
+    const total = allResp.data.length;
+    const enabledCount = allResp.data.filter(item => Number(item?.status) === 1).length;
+    const disabledCount = Math.max(0, total - enabledCount);
+    updateStatistics({ total, enabledCount, disabledCount });
+    return;
   }
+
+  const statsResp = await fetchPluginStatistics();
+  if (!statsResp.error && statsResp.data) {
+    updateStatistics({
+      total: toSafeCount(statsResp.data.total),
+      enabledCount: toSafeCount(statsResp.data.enabledCount),
+      disabledCount: toSafeCount(statsResp.data.disabledCount)
+    });
+    return;
+  }
+
+  const fallbackTotal = toSafeCount((mobilePagination.value?.itemCount as number) ?? data.value.length);
+  const fallbackEnabled = data.value.filter(item => Number(item?.status) === 1).length;
+  updateStatistics({
+    total: fallbackTotal,
+    enabledCount: fallbackEnabled,
+    disabledCount: Math.max(0, fallbackTotal - fallbackEnabled)
+  });
 }
 
 // 启用插件
@@ -710,8 +754,7 @@ function handleImportButtonClick() {
 }
 
 onMounted(() => {
-  getData();
-  getStatistics();
+  getData().then(() => getStatistics());
   loadProgressSnapshots();
   connectPluginSocket();
 });
@@ -724,28 +767,34 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <NSpace :size="16" class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto" vertical>
+  <div class="min-h-500px flex-col-stretch gap-8px overflow-hidden lt-sm:overflow-auto">
     <!-- 缁熻卡片 -->
     <NGrid :x-gap="16" :y-gap="16" item-responsive responsive="screen">
       <NGi span="24 s:24 m:8">
         <NCard :bordered="false" class="card-wrapper">
-          <NStatistic :label="$t('page.pluginManagement.statistics.total')" :value="statistics.total" />
+          <NStatistic :label="$t('page.pluginManagement.statistics.total')">
+            <NNumberAnimation :key="`plugin-stat-total-${statisticsAnimKey}`" :from="statisticsFrom.total" :to="statistics.total" :duration="1000" />
+          </NStatistic>
         </NCard>
       </NGi>
       <NGi span="24 s:24 m:8">
         <NCard :bordered="false" class="card-wrapper">
-          <NStatistic :label="$t('page.pluginManagement.statistics.enabled')" :value="statistics.enabledCount" />
+          <NStatistic :label="$t('page.pluginManagement.statistics.enabled')">
+            <NNumberAnimation :key="`plugin-stat-enabled-${statisticsAnimKey}`" :from="statisticsFrom.enabledCount" :to="statistics.enabledCount" :duration="1000" />
+          </NStatistic>
         </NCard>
       </NGi>
       <NGi span="24 s:24 m:8">
         <NCard :bordered="false" class="card-wrapper">
-          <NStatistic :label="$t('page.pluginManagement.statistics.disabled')" :value="statistics.disabledCount" />
+          <NStatistic :label="$t('page.pluginManagement.statistics.disabled')">
+            <NNumberAnimation :key="`plugin-stat-disabled-${statisticsAnimKey}`" :from="statisticsFrom.disabledCount" :to="statistics.disabledCount" :duration="1000" />
+          </NStatistic>
         </NCard>
       </NGi>
     </NGrid>
 
     <!-- 搜索区域 -->
-    <NCard :bordered="false" class="card-wrapper">
+    <NCard :bordered="false" size="small" class="card-wrapper">
       <NForm :label-width="80" :model="searchParams" label-placement="left">
         <NGrid :x-gap="16" :y-gap="16" item-responsive responsive="screen">
           <NGi span="24 s:24 m:12 l:8">
@@ -786,7 +835,7 @@ onBeforeUnmount(() => {
     </NCard>
 
     <!-- 数据表格 -->
-    <NCard :bordered="false" class="flex-1-hidden card-wrapper">
+    <NCard :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
       <TableHeaderOperation v-model:columns="columnChecks" :checked-row-keys="checkedRowKeys" :loading="loading" @refresh="getData">
         <template #prefix>
           <NButton type="success" ghost size="small" :disabled="uploadLoading" @click="handleImportButtonClick">
@@ -815,7 +864,7 @@ onBeforeUnmount(() => {
         remote
         striped
         size="small"
-        :max-height="appStore.isMobile ? undefined : 600"
+        class="sm:h-full"
         :data="data"
         :scroll-x="962"
         :columns="columns"
@@ -823,6 +872,7 @@ onBeforeUnmount(() => {
         :single-line="false"
         :row-key="row => row.id"
         :pagination="mobilePagination"
+        :flex-height="!appStore.isMobile"
       />
     </NCard>
 
@@ -937,7 +987,7 @@ onBeforeUnmount(() => {
         </template>
       </NDrawerContent>
     </NDrawer>
-  </NSpace>
+  </div>
 </template>
 
 
