@@ -236,8 +236,7 @@ const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 const currentModel = shallowRef<monaco.editor.ITextModel | null>(null);
 let modelDisposable: monaco.IDisposable | null = null;
 let themeObserver: MutationObserver | null = null;
-const runtimeApiBase = window.location.port === '9527' ? '/proxy-default/api' : '/api';
-const apiBase = (import.meta.env.VITE_WEBIDE_API_BASE as string) || runtimeApiBase;
+const webideApiBase = ((import.meta.env.VITE_WEBIDE_API_BASE as string) || '/api').replace(/\/$/, '');
 const routerHistoryMode = ((import.meta.env.VITE_ROUTER_HISTORY_MODE as string) || 'history').toLowerCase();
 const appBaseUrl = (import.meta.env.VITE_BASE_URL as string) || '/';
 
@@ -494,7 +493,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 async function fetchPlugins() {
-  const data = await request<PluginInfo[]>(`${apiBase}/webide/editor/plugins`);
+  const data = await requestData<PluginInfo[]>({
+    url: `${webideApiBase}/webide/editor/plugins`
+  });
   const metaMap: Record<string, PluginInfo> = {};
 
   data.forEach(item => {
@@ -543,10 +544,13 @@ async function fetchPluginRoutes() {
 }
 
 async function listChildren(path?: string) {
-  const search = new URLSearchParams();
-  if (pluginId.value) search.set('pluginId', pluginId.value);
-  if (path) search.set('path', path);
-  return request<WebIdeFileNode[]>(`${apiBase}/webide/editor/files?${search.toString()}`);
+  return requestData<WebIdeFileNode[]>({
+    url: `${webideApiBase}/webide/editor/files`,
+    params: {
+      pluginId: pluginId.value,
+      path
+    }
+  });
 }
 
 function normalizeNodes(nodes: WebIdeFileNode[]): TreeNode[] {
@@ -625,10 +629,13 @@ async function handleExpand(keys: string[], _options: unknown, meta: any) {
 
 async function openFile(path: string) {
   if (!pluginId.value) return;
-  const search = new URLSearchParams();
-  search.set('pluginId', pluginId.value);
-  search.set('path', path);
-  const content = await request<string>(`${apiBase}/webide/editor/file?${search.toString()}`);
+  const content = await requestData<string>({
+    url: `${webideApiBase}/webide/editor/file`,
+    params: {
+      pluginId: pluginId.value,
+      path
+    }
+  });
   currentFile.value = path;
 
   clearCurrentModel();
@@ -663,9 +670,10 @@ async function saveCurrent() {
       path: currentFile.value,
       content
     };
-    await request(`${apiBase}/webide/editor/file`, {
+    await requestData({
+      url: `${webideApiBase}/webide/editor/file`,
       method: 'POST',
-      body: JSON.stringify(payload)
+      data: payload
     });
     savedContentByFile.value = {
       ...savedContentByFile.value,
@@ -777,9 +785,14 @@ onMounted(async () => {
   themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-theme'] });
   window.addEventListener('keydown', handleWindowKeydown);
 
-  await fetchPlugins();
-  await fetchPluginRoutes();
-  await refreshTree();
+  try {
+    await fetchPlugins();
+    await fetchPluginRoutes();
+    await refreshTree();
+  } catch (error: any) {
+    console.error('[webide] init failed', error);
+    notifyError(error?.message || t('plugin.webide.loadFail'));
+  }
 });
 
 onBeforeUnmount(() => {

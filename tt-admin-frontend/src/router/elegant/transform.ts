@@ -74,11 +74,13 @@ function transformElegantRouteToVueRoute(
   }
 
   function getSingleLevelRouteComponent(component: string) {
-    const [layout, view] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
+    const [component1, component2] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
+    const layout = isLayout(component1) ? getLayoutName(component1) : 'base';
+    const view = getViewName(component2 || component1);
 
     return {
-      layout: getLayoutName(layout),
-      view: getViewName(view)
+      layout,
+      view
     };
   }
 
@@ -95,7 +97,7 @@ function transformElegantRouteToVueRoute(
 
   try {
     if (component) {
-      if (isSingleLevelRoute(route)) {
+      if (isSingleLevelRoute(route) && component.includes(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT)) {
         const { layout, view } = getSingleLevelRouteComponent(component);
 
         const singleLevelRoute: RouteRecordRaw = {
