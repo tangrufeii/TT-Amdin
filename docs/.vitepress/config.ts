@@ -19,7 +19,7 @@ export default defineConfig({
         { text: '前端设计', link: '/guide/frontend' },
         { text: '后端设计', link: '/guide/backend' },
         { text: '插件机制', link: '/guide/plugins' },
-        { text: '插件开发', link: '/guide/plugin-dev' },
+        { text: '插件开发快速开始', link: '/guide/plugin-dev-quickstart' },
         { text: '插件开发', link: '/guide/plugin-dev' },
         { text: '运维与配置', link: '/guide/operations' }
       ]

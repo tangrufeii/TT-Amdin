@@ -1,5 +1,9 @@
 # 插件机制
 
+快速入口：
+- [插件开发快速开始](/guide/plugin-dev-quickstart)
+- [插件开发详细指南](/guide/plugin-dev)
+
 ## 插件目录结构
 
 - 插件后端：`tt-admin-backend/tt-admin-plugins/<plugin>/src/main/java`

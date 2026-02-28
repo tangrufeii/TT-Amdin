@@ -11,4 +11,6 @@
 - [前端设计](/guide/frontend)
 - [后端设计](/guide/backend)
 - [插件机制](/guide/plugins)
+- [插件开发快速开始](/guide/plugin-dev-quickstart)
+- [插件开发详细指南](/guide/plugin-dev)
 - [运维与配置](/guide/operations)

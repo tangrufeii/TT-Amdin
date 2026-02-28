@@ -418,3 +418,152 @@ public class HelloService {
 
 对应实现：
 - `tt-admin-backend/tt-admin-server/src/main/java/com/tt/server/websocket/PluginLifecycleEventListener.java`
+
+## 16. 升级与数据安全策略（必须了解）
+
+这部分是插件上线最容易踩坑的地方，建议团队内统一遵守。
+
+- 同版本不能重复安装  
+  后端会直接拦截并报错：`This version is already installed`。  
+  对应实现：`tt-admin-backend/tt-admin-infrastructure/src/main/java/com/tt/infrastructure/plugin/engine/manager/PluginManagerImpl.java`。
+- 低版本不能覆盖高版本  
+  如果目标版本低于已安装版本，会被拦截：`A higher version is already installed`。
+- 升级流程不会执行卸载 SQL  
+  升级走 `handleUpdate(...)`，执行的是 `update-*.sql` + `onUpdate()`。  
+  `uninstall.sql` 只在显式卸载时执行。
+- 卸载才会清理数据  
+  显式卸载会执行 `uninstall.sql`，所以如果要保留历史业务数据，不要用“卸载再安装”替代“升级”。
+
+建议版本策略：
+
+- 每次发布都递增 `plugin.yaml` 里的 `plugin.version`。
+- 禁止复用同一版本号重复打包上传。
+- 线上紧急修复用补丁号递增（例如 `1.0.5 -> 1.0.6`）。
+
+## 17. SQL 迁移规范（幂等优先）
+
+当前框架会自动执行：
+
+- 安装：`install*.sql`
+- 升级：`update-*.sql`
+- 卸载：`uninstall.sql`
+
+升级 SQL 文件命名建议：
+
+- `update-1.0.6.sql`（当前实现按单版本号判断是否处于升级区间）
+
+幂等建议（避免重复执行导致数据损坏）：
+
+- 建表：`CREATE TABLE IF NOT EXISTS`
+- 新增列：先判断后再 `ALTER TABLE`（或使用可重复脚本方案）
+- 配置初始化：优先 `INSERT IGNORE` / `ON DUPLICATE KEY UPDATE`
+- 数据迁移：用可重复执行的 `UPDATE ... WHERE ...` 条件
+
+示例（配置补缺 + 历史键迁移）：
+
+```sql
+INSERT IGNORE INTO plugin_xxx_config(config_key, config_value)
+VALUES ('device_usage_base_seconds', '30');
+
+UPDATE plugin_xxx_config
+SET config_key = 'device_usage_base_seconds'
+WHERE config_key = 'device_usage_duration';
+```
+
+## 18. 打包与验包流程（防止上传错包）
+
+推荐标准流程：
+
+1. 修改 `src/main/resources/plugin.yaml` 的 `plugin.version`。
+2. 在插件模块执行打包命令。
+3. 上传前检查 zip 根目录是否有 `plugin.yaml`，并确认版本号正确。
+
+参考命令（按项目实际模块名替换）：
+
+```bash
+# 在 tt-admin-backend/tt-admin-plugins 目录
+mvn -pl tt-admin-xxx -am -DskipTests package
+```
+
+上传前核对点：
+
+- `plugin.yaml` 在 zip 根目录，不在嵌套子目录。
+- `plugin.id` 与线上已安装插件一致（升级场景）。
+- `plugin.version` 大于线上版本。
+
+## 19. 常见报错排查清单
+
+### 19.1 `Plugin installation failed: This version is already installed`
+
+原因：上传包版本号与已安装版本相同。  
+处理：
+
+1. 修改 `plugin.yaml` 的 `plugin.version` 为更高版本。
+2. 重新打包。
+3. 重新上传新包（确认不是旧缓存文件）。
+
+### 19.2 `FileSystemException ... jar: 另一个程序正在使用此文件`
+
+常见于 Windows 文件锁竞争。  
+框架侧已加入“更新前释放旧插件运行时 + 文件复制重试”机制。  
+如果仍出现，继续检查：
+
+- 是否有杀毒软件/索引服务锁定 `resources/plugins/<pluginId>/lib/*.jar`
+- 是否并发触发多次安装
+- 是否上传过程中文件被外部程序占用
+
+### 19.3 `can't access property "replace", component2 is undefined`
+
+通常是路由组件声明不符合规则。  
+单级路由拆分只在包含 `$` 时才生效，例如：
+
+- 单级写法：`layout.base$view.plugin-xxx-home`
+- 非单级（父级/目录）：`layout.base`
+
+对应实现：`tt-admin-frontend/src/router/elegant/transform.ts`。
+
+### 19.4 生产环境开启插件开发模式失败
+
+生产环境会拦截 `isDev=true`。  
+对应实现：`PluginManagementApplicationService#isPluginDevModeAllowed`。
+
+## 20. 前端页面对齐规范（移动端）
+
+为了让插件页面在移动端体验与“用户管理”一致，建议统一以下规范：
+
+- 操作列统一使用：`tt-admin-frontend/src/utils/table-operate.tsx`
+- 列宽按移动端切换：`resolveOperateWidth(isMobile, desktopWidth)`
+- 移动端操作用下拉菜单，桌面端显示按钮 + 二次确认
+- 编辑抽屉/弹窗需根据 `isMobile` 自适应宽度（移动端优先 `100%`）
+
+建议最小实践：
+
+```ts
+width: resolveOperateWidth(appStore.isMobile, 240)
+```
+
+```ts
+const drawerWidth = appStore.isMobile ? '100%' : 560;
+```
+
+## 21. 发布与回滚建议
+
+上线前检查：
+
+1. 版本号已递增。
+2. 升级 SQL 已幂等。
+3. 菜单/路由命名无冲突。
+4. 移动端编辑与操作列已验证。
+
+上线步骤：
+
+1. 备份数据库。
+2. 上传新版本插件包执行升级。
+3. 观察 `/ws/plugin/status` 事件与后台日志。
+4. 验证菜单、接口、数据迁移和移动端 UI。
+
+回滚建议：
+
+- 不建议直接降版本覆盖（会被版本校验拦截）。
+- 建议通过“发布更高补丁版本”修复问题。
+- 如必须回滚数据，优先走数据库备份恢复流程。
