@@ -1,8 +1,10 @@
 package com.tt.infrastructure.plugin.engine.manager;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.io.IORuntimeException;
 import com.tt.common.utils.VersionUtil;
 import com.tt.domain.plugin.PluginManager;
+import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.constant.PluginConstant;
 import com.tt.domain.plugin.progress.PluginProgress;
@@ -14,6 +16,7 @@ import com.tt.infrastructure.plugin.engine.extractor.PluginExtractor;
 import com.tt.infrastructure.plugin.engine.handler.PluginHandler;
 import com.tt.infrastructure.plugin.engine.holder.PluginHolder;
 import com.tt.infrastructure.plugin.engine.installer.PluginSqlExecutor;
+import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadataCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.plugin.PluginException;
@@ -21,6 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.net.URLClassLoader;
 import java.sql.SQLException;
 import java.util.Optional;
 
@@ -71,12 +75,17 @@ public class PluginManagerImpl implements PluginManager {
         if (isUpdate && PluginHolder.getPluginInfo(pluginId) != null) {
             reportProgress(ACTION_INSTALL, pluginId, "stop_old", 45, "Stopping existing plugin");
             pluginHandler.stopPlugin(pluginId);
+            reportProgress(ACTION_INSTALL, pluginId, "release_old", 50, "Releasing existing plugin runtime");
+            releasePluginRuntimeForUpdate(pluginId);
         }
 
         File pluginDir = null;
         try {
             reportProgress(ACTION_INSTALL, pluginId, "copy_files", 55, "Copying plugin files");
-            pluginDir = PluginFileCopier.copyTempToPlugin(pluginTempDir, pluginConfig);
+            pluginDir = copyPluginFilesWithRetry(pluginTempDir, pluginConfig, isUpdate);
+            if (pluginDir == null) {
+                throw new PluginException("Failed to copy plugin files");
+            }
             FileUtil.del(pluginTempDir);
 
             boolean lazyInstall = lazyInitOnInstall && !isUpdate;
@@ -110,6 +119,65 @@ public class PluginManagerImpl implements PluginManager {
         }
 
         return pluginConfig;
+    }
+
+    /**
+     * Retry file copy on Windows file-lock race during update.
+     */
+    private File copyPluginFilesWithRetry(File pluginTempDir, PluginConfig pluginConfig, boolean isUpdate) {
+        int maxAttempts = isUpdate ? 3 : 1;
+        IORuntimeException lastCopyError = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return PluginFileCopier.copyTempToPlugin(pluginTempDir, pluginConfig);
+            } catch (IORuntimeException ex) {
+                lastCopyError = ex;
+                if (attempt >= maxAttempts) {
+                    break;
+                }
+                log.warn("Plugin file copy failed, retrying... attempt={}/{}", attempt, maxAttempts, ex);
+                try {
+                    Thread.sleep(300L * attempt);
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new PluginException("Interrupted while retrying plugin file copy", interruptedException);
+                }
+            }
+        }
+
+        if (lastCopyError != null) {
+            throw lastCopyError;
+        }
+        return null;
+    }
+
+    /**
+     * Release old plugin runtime resources before update file replacement.
+     * This avoids jar file lock on Windows and does not execute uninstall SQL.
+     */
+    private void releasePluginRuntimeForUpdate(String pluginId) {
+        Plugin plugin = PluginHolder.getPluginInfo(pluginId);
+        if (plugin == null) {
+            return;
+        }
+
+        URLClassLoader pluginClassLoader = plugin.getPluginClassLoader();
+        PluginApplicationContextHolder.removePluginApplicationContext(pluginId);
+        PluginHolder.removePluginInfo(pluginId);
+        PluginClassMetadataCache.remove(pluginId);
+        plugin.setPluginConfig(null);
+        plugin.setClassList(null);
+        plugin.setClassNameList(null);
+        plugin.setPluginClassLoader(null);
+
+        if (pluginClassLoader != null) {
+            try {
+                pluginClassLoader.close();
+            } catch (Exception ex) {
+                log.warn("Failed to close plugin classloader before update: {}", pluginId, ex);
+            }
+        }
     }
 
     @Override
