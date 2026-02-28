@@ -1,0 +1,8 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$HTTPS_DOMAIN} {
+  encode gzip
+  reverse_proxy frontend:80
+}

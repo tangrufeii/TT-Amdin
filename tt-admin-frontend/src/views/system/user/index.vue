@@ -1,6 +1,5 @@
 <script setup lang="tsx">
-import { h } from 'vue';
-import { NButton, NPopconfirm } from 'naive-ui';
+import { NButton } from 'naive-ui';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
@@ -9,6 +8,7 @@ import { fetchDeleteUser, fetchGetUserPage, fetchResetUserPassword } from '@/ser
 import { transDeleteParams } from '@/utils/common';
 import { $t } from '@/locales';
 import { formatDateTime } from '@/utils/date';
+import { renderOperateColumn, resolveOperateWidth } from '@/utils/table-operate';
 import UserOperateDrawer from './user-operate-drawer.vue';
 
 defineOptions({
@@ -61,33 +61,38 @@ const { columns, columnChecks, data, loading, getData, getDataByPage, mobilePagi
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      minWidth: 260,
-      render: row => (
-        <div class="flex-center flex-wrap gap-8px">
-          {hasAuth('sys:user:update') && (
-            <NButton type="primary" quaternary size="small" onClick={() => handleEdit(row.id)}>
-              {$t('common.edit')}
-            </NButton>
-          )}
-          {hasAuth('sys:user:resetPassword') && (
-            <NButton type="warning" quaternary size="small" onClick={() => handleResetPassword(row.id)}>
-              {$t('page.manage.user.resetPassword')}
-            </NButton>
-          )}
-          {hasAuth('sys:user:delete') && (
-            <NPopconfirm onPositiveClick={() => handleDelete(row.id)}>
-              {{
-                default: () => $t('common.confirmDelete'),
-                trigger: () => (
-                  <NButton type="error" quaternary size="small">
-                    {$t('common.delete')}
-                  </NButton>
-                )
-              }}
-            </NPopconfirm>
-          )}
-        </div>
-      )
+      width: resolveOperateWidth(appStore.isMobile, 260),
+      render: row =>
+        renderOperateColumn({
+          isMobile: appStore.isMobile,
+          confirmTitle: $t('common.warning'),
+          confirmPositiveText: $t('common.confirm'),
+          confirmNegativeText: $t('common.cancel'),
+          actions: [
+            {
+              key: 'edit',
+              label: $t('common.edit'),
+              show: hasAuth('sys:user:update'),
+              type: 'primary',
+              onClick: () => handleEdit(row.id)
+            },
+            {
+              key: 'reset-password',
+              label: $t('page.manage.user.resetPassword'),
+              show: hasAuth('sys:user:resetPassword'),
+              type: 'warning',
+              onClick: () => handleResetPassword(row.id)
+            },
+            {
+              key: 'delete',
+              label: $t('common.delete'),
+              show: hasAuth('sys:user:delete'),
+              type: 'error',
+              confirmText: $t('common.confirmDelete'),
+              onClick: () => handleDelete(row.id)
+            }
+          ]
+        })
     }
   ]
 });

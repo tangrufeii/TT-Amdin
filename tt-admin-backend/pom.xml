@@ -25,7 +25,6 @@
         <module>tt-admin-infrastructure</module>
         <module>tt-admin-application</module>
         <module>tt-admin-plugin-core</module>
-
     </modules>
     <packaging>pom</packaging>
 

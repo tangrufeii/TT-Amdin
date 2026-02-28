@@ -154,12 +154,27 @@ export function withQuery(url: string, params?: Record<string, any>) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === '' || normalized === 'null' || normalized === 'undefined') return;
+    }
     if (Array.isArray(value)) {
       value.forEach(item => {
-        if (item !== undefined && item !== null && item !== '') {
+        if (item === undefined || item === null || item === '') return;
+        if (typeof item === 'string') {
+          const normalized = item.trim().toLowerCase();
+          if (normalized === '' || normalized === 'null' || normalized === 'undefined') return;
+        }
+        if (typeof item === 'string') {
+          search.append(key, item.trim());
+        } else {
           search.append(key, String(item));
         }
       });
+      return;
+    }
+    if (typeof value === 'string') {
+      search.append(key, value.trim());
       return;
     }
     search.append(key, String(value));
@@ -215,7 +230,7 @@ function createLocalRequest() {
   return async function localRequest<T>(config: PluginRequestConfig): Promise<PluginRequestResult<T>> {
     const method = (config.method || 'GET').toString().toUpperCase();
     const url = config.url || '';
-    const params = config.params;
+    const params = normalizeParams(config.params);
     const headers = config.headers as Record<string, any> | undefined;
     const credentials = config.credentials ?? 'include';
     const options = { params, headers, credentials } as any;
@@ -238,6 +253,36 @@ function createLocalRequest() {
       return { data: null as T, error: err, response: null };
     }
   };
+}
+
+function normalizeParams(params?: Record<string, any>) {
+  if (!params) return params;
+  const normalized: Record<string, any> = {};
+  Object.entries(params).forEach(([key, value]) => {
+    const parsed = normalizeParamValue(value);
+    if (parsed !== undefined) {
+      normalized[key] = parsed;
+    }
+  });
+  return normalized;
+}
+
+function normalizeParamValue(value: any): any {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
+      return undefined;
+    }
+    return trimmed;
+  }
+  if (Array.isArray(value)) {
+    const list = value.map(item => normalizeParamValue(item)).filter(item => item !== undefined);
+    return list.length ? list : undefined;
+  }
+  return value;
 }
 
 export async function requestFallback<T>(config: PluginRequestConfig): Promise<PluginRequestResult<T>> {

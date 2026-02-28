@@ -308,6 +308,7 @@ export default defineConfig(configEnv => {
       alias: {
         '~': fileURLToPath(new URL('./', import.meta.url)),
         '@': fileURLToPath(new URL('./src', import.meta.url)),
+        'vue-demi': fileURLToPath(new URL('./src/shims/vue-demi.ts', import.meta.url)),
         vscode: fileURLToPath(new URL('./src/shims/vscode.ts', import.meta.url))
       }
     },

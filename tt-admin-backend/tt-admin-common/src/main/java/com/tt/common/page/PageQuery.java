@@ -15,10 +15,6 @@ import java.io.Serializable;
 /**
  * 分页查询对象
  *
- * @Author payne.zhuang <paynezhuang@gmail.com>
- * @ProjectName panis-boot
- * @ClassName com.izpan.common.page.PageQuery
- * @CreateTime 2023/7/12 - 22:19
  */
 @Getter
 @Setter

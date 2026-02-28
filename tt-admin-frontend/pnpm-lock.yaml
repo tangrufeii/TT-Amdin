@@ -32,6 +32,9 @@ importers:
       '@sa/utils':
         specifier: workspace:*
         version: link:packages/utils
+      '@tt/plugin-ui':
+        specifier: workspace:*
+        version: link:packages/plugin-ui
       '@vueuse/core':
         specifier: 14.0.0
         version: 14.0.0(vue@3.5.24(typescript@5.9.3))
@@ -248,6 +251,21 @@ importers:
       '@sa/alova':
         specifier: file:../alova
         version: link:../alova
+
+  packages/plugin-ui:
+    dependencies:
+      naive-ui:
+        specifier: 2.43.1
+        version: 2.43.1(vue@3.5.24(typescript@5.9.3))
+      vue:
+        specifier: ^3.5.12
+        version: 3.5.24(typescript@5.9.3)
+      vue-draggable-plus:
+        specifier: 0.6.1
+        version: 0.6.1(@types/sortablejs@1.15.9)
+      vue-i18n:
+        specifier: 11.1.12
+        version: 11.1.12(vue@3.5.24(typescript@5.9.3))
 
   packages/scripts:
     devDependencies:
@@ -4299,6 +4317,15 @@ packages:
 
   vue-draggable-plus@0.6.0:
     resolution: {integrity: sha512-G5TSfHrt9tX9EjdG49InoFJbt2NYk0h3kgjgKxkFWr3ulIUays0oFObr5KZ8qzD4+QnhtALiRwIqY6qul4egqw==}
+    peerDependencies:
+      '@types/sortablejs': ^1.15.0
+      '@vue/composition-api': '*'
+    peerDependenciesMeta:
+      '@vue/composition-api':
+        optional: true
+
+  vue-draggable-plus@0.6.1:
+    resolution: {integrity: sha512-FbtQ/fuoixiOfTZzG3yoPl4JAo9HJXRHmBQZFB9x2NYCh6pq0TomHf7g5MUmpaDYv+LU2n6BPq2YN9sBO+FbIg==}
     peerDependencies:
       '@types/sortablejs': ^1.15.0
       '@vue/composition-api': '*'
@@ -8936,6 +8963,10 @@ snapshots:
       vue: 3.5.24(typescript@5.9.3)
 
   vue-draggable-plus@0.6.0(@types/sortablejs@1.15.9):
+    dependencies:
+      '@types/sortablejs': 1.15.9
+
+  vue-draggable-plus@0.6.1(@types/sortablejs@1.15.9):
     dependencies:
       '@types/sortablejs': 1.15.9
 

@@ -131,7 +131,7 @@ function createPluginRequest() {
   const pluginRequest = (async function pluginRequest<T>(config: CustomAxiosRequestConfig) {
     const method = (config.method || 'GET').toString().toUpperCase();
     const url = config.url || '';
-    const params = config.params;
+    const params = normalizeParams(config.params as Record<string, any> | undefined);
     const headers = config.headers as Record<string, any> | undefined;
     const data = config.data;
 
@@ -158,6 +158,38 @@ function createPluginRequest() {
   pluginRequest.cancelAllRequest = () => {};
 
   return pluginRequest;
+}
+
+function normalizeParams(params?: Record<string, any>) {
+  if (!params) {
+    return params;
+  }
+  const normalized: Record<string, any> = {};
+  Object.entries(params).forEach(([key, value]) => {
+    const parsed = normalizeParamValue(value);
+    if (parsed !== undefined) {
+      normalized[key] = parsed;
+    }
+  });
+  return normalized;
+}
+
+function normalizeParamValue(value: any): any {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
+      return undefined;
+    }
+    return trimmed;
+  }
+  if (Array.isArray(value)) {
+    const list = value.map(item => normalizeParamValue(item)).filter(item => item !== undefined);
+    return list.length ? list : undefined;
+  }
+  return value;
 }
 
 export function setupPluginApi() {

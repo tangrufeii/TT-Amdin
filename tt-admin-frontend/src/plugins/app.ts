@@ -67,6 +67,7 @@ export function setupAppVersionNotification() {
   };
 
   const startUpdateInterval = () => {
+    void checkForUpdates();
     if (updateInterval) {
       clearInterval(updateInterval);
     }
@@ -92,7 +93,9 @@ async function getHtmlBuildTime(): Promise<string | null> {
   const baseUrl = import.meta.env.VITE_BASE_URL || '/';
 
   try {
-    const res = await fetch(`${baseUrl}index.html?time=${Date.now()}`);
+    const res = await fetch(`${baseUrl}index.html?time=${Date.now()}`, {
+      cache: 'no-store'
+    });
 
     if (!res.ok) {
       return null;

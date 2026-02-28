@@ -123,6 +123,10 @@ public class PluginManagementApplicationService {
         PluginManagement plugin = pluginManagementRepository.findById(command.getId())
                 .orElseThrow(() -> new IllegalArgumentException("插件不存在"));
 
+        if (Boolean.TRUE.equals(command.getIsDev()) && !isPluginDevModeAllowed()) {
+            throw new DomainException(ResultCode.BAD_REQUEST.toString(), "生产环境不允许开启插件开发模式");
+        }
+
         plugin.updateInfo(command.getName(), command.getDescription(), command.getVersion());
         plugin.updateAuthorInfo(command.getAuthor(), command.getEmail(), command.getWebsite());
         boolean devModeEnabled = isPluginDevModeAllowed() && Boolean.TRUE.equals(command.getIsDev());
@@ -220,6 +224,7 @@ public class PluginManagementApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public void installPlugin(PluginInstallCommand command) {
         long startedAt = System.currentTimeMillis();
+        String pluginId = null;
         StageTracker stageTracker = new StageTracker();
         PluginProgressContext.setReporter(progress -> publishLifecycle(
                 progress.getPluginId(),
@@ -244,17 +249,22 @@ public class PluginManagementApplicationService {
 
             // 2. 同步调用基础设施层安装插件
             PluginConfig pluginConfig = pluginManager.installPlugin(pluginFile);
+            pluginId = pluginConfig != null && pluginConfig.getPlugin() != null ? pluginConfig.getPlugin().getId() : null;
 
             // 3. 保存插件信息到数据库
             pluginDomainService.savePluginInfo(pluginConfig);
 
-            publishLifecycle(pluginConfig.getPlugin().getId(), ACTION_INSTALL, STATUS_SUCCESS, "插件安装成功", "complete", 100, startedAt, System.currentTimeMillis() - startedAt, null);
-            log.info("Plugin installed successfully: {}", pluginConfig.getPlugin().getId());
+            publishLifecycle(pluginId, ACTION_INSTALL, STATUS_SUCCESS, "插件安装成功", "complete", 100, startedAt, System.currentTimeMillis() - startedAt, null);
+            log.info("Plugin installed successfully: {}", pluginId);
 
         } catch (Exception e) {
-            publishLifecycle(null, ACTION_INSTALL, STATUS_FAILED, "插件安装失败: " + e.getMessage(), "failed", 100, startedAt, System.currentTimeMillis() - startedAt, null);
+            String message = Optional.ofNullable(e.getMessage()).orElse("未知错误");
+            if (pluginId == null && message.contains("already installed")) {
+                pluginId = resolvePluginIdFromFilename(command.getFile());
+            }
+            publishLifecycle(pluginId, ACTION_INSTALL, STATUS_FAILED, "插件安装失败: " + message, "failed", 100, startedAt, System.currentTimeMillis() - startedAt, null);
             log.error("Failed to install plugin", e);
-            throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件安装失败: " + e.getMessage());
+            throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件安装失败: " + message);
         } finally {
             PluginProgressContext.clear();
         }
@@ -607,6 +617,18 @@ public class PluginManagementApplicationService {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private String resolvePluginIdFromFilename(MultipartFile file) {
+        if (file == null || file.getOriginalFilename() == null) {
+            return null;
+        }
+        String filename = file.getOriginalFilename().trim();
+        if (filename.isEmpty()) {
+            return null;
+        }
+        int dotIndex = filename.lastIndexOf('.');
+        return dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
     }
 
     private boolean isPluginDevModeAllowed() {

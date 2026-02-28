@@ -183,7 +183,7 @@ export const useTabStore = defineStore(SetupStoreId.Tab, () => {
     }
   }
 
-  const { routerPushByKey } = useRouterPush();
+  const { routerPushByKey } = useRouterPush(false);
   /**
    * Replace tab
    *

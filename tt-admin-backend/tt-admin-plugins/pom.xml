@@ -23,6 +23,7 @@
         <module>tt-admin-wc-vue</module>
         <module>tt-admin-wc-react</module>
         <module>tt-admin-webide</module>
+        <module>tt-admin-billiards</module>
     </modules>
     <dependencies>
         <dependency>

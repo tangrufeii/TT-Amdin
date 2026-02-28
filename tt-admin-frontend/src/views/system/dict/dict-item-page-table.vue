@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, computed, reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { NButton, NPopconfirm } from 'naive-ui';
 import { $t } from '@/locales';
 import { transDeleteParams } from '@/utils/common';
@@ -8,6 +8,7 @@ import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
 import { useDict } from '@/hooks/business/dict';
+import { renderOperateColumn, resolveOperateWidth } from '@/utils/table-operate';
 import DictItemSearch from './dict-item-search.vue';
 import DictItemOperateDrawer from './dict-item-operate-drawer.vue';
 
@@ -73,48 +74,32 @@ const { columns, columnChecks, data, loading, getData, getDataByPage, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        minWidth: 180,
+        width: resolveOperateWidth(appStore.isMobile, 180),
         fixed: 'right',
         render: row =>
-          h(
-            'div',
-            { class: 'flex-center flex-wrap gap-8px' },
-            [
-              hasAuth('sys:dict:item:update')
-                ? h(
-                  NButton,
-                  {
-                    type: 'primary',
-                    quaternary: true,
-                    size: 'small',
-                    onClick: () => handleEdit(row.id)
-                  },
-                  () => $t('common.edit')
-                )
-                : null,
-              hasAuth('sys:dict:item:delete')
-                ? h(
-                  NPopconfirm,
-                  {
-                    onPositiveClick: () => handleDelete(row.id)
-                  },
-                  {
-                    default: () => $t('common.confirmDelete'),
-                    trigger: () =>
-                      h(
-                        NButton,
-                        {
-                          type: 'error',
-                          quaternary: true,
-                          size: 'small'
-                        },
-                        () => $t('common.delete')
-                      )
-                  }
-                )
-                : null
-            ].filter(Boolean)
-          )
+          renderOperateColumn({
+            isMobile: appStore.isMobile,
+            confirmTitle: $t('common.warning'),
+            confirmPositiveText: $t('common.confirm'),
+            confirmNegativeText: $t('common.cancel'),
+            actions: [
+              {
+                key: 'edit',
+                label: $t('common.edit'),
+                show: hasAuth('sys:dict:item:update'),
+                type: 'primary',
+                onClick: () => handleEdit(row.id)
+              },
+              {
+                key: 'delete',
+                label: $t('common.delete'),
+                show: hasAuth('sys:dict:item:delete'),
+                type: 'error',
+                confirmText: $t('common.confirmDelete'),
+                onClick: () => handleDelete(row.id)
+              }
+            ]
+          })
       }
     ]
   });

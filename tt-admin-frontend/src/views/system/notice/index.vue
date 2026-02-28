@@ -1,6 +1,5 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
-import { NButton, NPopconfirm } from 'naive-ui';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
 import { useDict } from '@/hooks/business/dict';
@@ -8,6 +7,7 @@ import { useTable, useTableOperate } from '@/hooks/common/table';
 import { fetchDeleteNotice, fetchGetNoticePage } from '@/service/api';
 import { transDeleteParams } from '@/utils/common';
 import { $t } from '@/locales';
+import { renderOperateColumn, resolveOperateWidth } from '@/utils/table-operate';
 import NoticeSearch from './notice-search.vue';
 import NoticeOperateDrawer from './notice-operate-drawer.vue';
 import { formatDateTime } from '@/utils/date';
@@ -89,28 +89,31 @@ const { columns, columnChecks, data, loading, getData, getDataByPage, mobilePagi
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      minWidth: 240,
-      render: row => (
-        <div class="flex-center flex-wrap gap-8px">
-          {hasAuth('sys:notice:update') && (
-            <NButton type="primary" quaternary size="small" onClick={() => edit(row)}>
-              {$t('common.edit')}
-            </NButton>
-          )}
-          {hasAuth('sys:notice:delete') && (
-            <NPopconfirm onPositiveClick={() => handleDelete(row.id)}>
-              {{
-                default: () => $t('common.confirmDelete'),
-                trigger: () => (
-                  <NButton type="error" quaternary size="small">
-                    {$t('common.delete')}
-                  </NButton>
-                )
-              }}
-            </NPopconfirm>
-          )}
-        </div>
-      )
+      width: resolveOperateWidth(appStore.isMobile, 240),
+      render: row =>
+        renderOperateColumn({
+          isMobile: appStore.isMobile,
+          confirmTitle: $t('common.warning'),
+          confirmPositiveText: $t('common.confirm'),
+          confirmNegativeText: $t('common.cancel'),
+          actions: [
+            {
+              key: 'edit',
+              label: $t('common.edit'),
+              show: hasAuth('sys:notice:update'),
+              type: 'primary',
+              onClick: () => edit(row)
+            },
+            {
+              key: 'delete',
+              label: $t('common.delete'),
+              show: hasAuth('sys:notice:delete'),
+              type: 'error',
+              confirmText: $t('common.confirmDelete'),
+              onClick: () => handleDelete(row.id)
+            }
+          ]
+        })
     }
   ]
 });

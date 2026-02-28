@@ -1,0 +1,72 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: tt-admin-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-tt_admin}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-p${MYSQL_ROOT_PASSWORD}']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: tt-admin-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: .
+      dockerfile: tt-admin-backend/Dockerfile
+    container_name: tt-admin-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-tt_admin}
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - plugin_data:/app/resources/plugins
+      - plugin_temp:/app/resources/temp
+      - backend_logs:/var/log/tt-admin
+
+  frontend:
+    build:
+      context: .
+      dockerfile: tt-admin-frontend/Dockerfile
+    container_name: tt-admin-frontend
+    restart: unless-stopped
+    ports:
+      - '${FRONTEND_PORT:-9527}:80'
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  redis_data:
+  plugin_data:
+  plugin_temp:
+  backend_logs:

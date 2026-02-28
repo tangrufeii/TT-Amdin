@@ -1,6 +1,5 @@
 <script setup lang="tsx">
 import { watch } from 'vue';
-import { NButton, NPopconfirm } from 'naive-ui';
 import { useBoolean } from '@sa/hooks';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAppStore } from '@/store/modules/app';
@@ -9,6 +8,7 @@ import { useDict } from '@/hooks/business/dict';
 import { fetchDeletePermission, fetchGetPermissionPage } from '@/service/api';
 import { transDeleteParams } from '@/utils/common';
 import { $t } from '@/locales';
+import { renderOperateColumn, resolveOperateWidth } from '@/utils/table-operate';
 import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 import PermissionOperateModal from './permission-operate-modal.vue';
 
@@ -83,29 +83,32 @@ const { columns, data, loading, mobilePagination, searchParams, getData, getData
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      width: 120,
+      width: resolveOperateWidth(appStore.isMobile, 180),
       fixed: 'right',
-      render: row => (
-        <div class="flex-center gap-8px">
-          {hasAuth('sys:permission:update') && (
-            <NButton type="primary" quaternary size="small" onClick={() => handleEditButton(row.id)}>
-              {$t('common.edit')}
-            </NButton>
-          )}
-          {hasAuth('sys:permission:delete') && (
-            <NPopconfirm onPositiveClick={() => handleDeleteButton(row.id)}>
-              {{
-                default: () => $t('common.confirmDelete'),
-                trigger: () => (
-                  <NButton type="error" quaternary size="small">
-                    {$t('common.delete')}
-                  </NButton>
-                )
-              }}
-            </NPopconfirm>
-          )}
-        </div>
-      )
+      render: row =>
+        renderOperateColumn({
+          isMobile: appStore.isMobile,
+          confirmTitle: $t('common.warning'),
+          confirmPositiveText: $t('common.confirm'),
+          confirmNegativeText: $t('common.cancel'),
+          actions: [
+            {
+              key: 'edit',
+              label: $t('common.edit'),
+              show: hasAuth('sys:permission:update'),
+              type: 'primary',
+              onClick: () => handleEditButton(row.id)
+            },
+            {
+              key: 'delete',
+              label: $t('common.delete'),
+              show: hasAuth('sys:permission:delete'),
+              type: 'error',
+              confirmText: $t('common.confirmDelete'),
+              onClick: () => handleDeleteButton(row.id)
+            }
+          ]
+        })
     }
   ]
 });

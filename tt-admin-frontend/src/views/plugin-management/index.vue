@@ -32,6 +32,7 @@ import { formatDateTime } from '@/utils/date';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAppStore } from '@/store/modules/app';
 import { useRouteStore } from '@/store/modules/route';
+import { renderOperateColumn, resolveOperateWidth } from '@/utils/table-operate';
 import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 
 import {
@@ -128,45 +129,45 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
       key: 'operate',
       title: $t('page.pluginManagement.table.action'),
       align: 'center',
-      minWidth: 260,
+      width: resolveOperateWidth(appStore.isMobile, 260),
       render: (row: any) =>
-        h(
-          'div',
-          {class: 'flex-center flex-wrap gap-2'},
-          [
-            h(NButton, {
-              size: 'small',
-              ghost: true,
+        renderOperateColumn({
+          isMobile: appStore.isMobile,
+          actions: [
+            {
+              key: 'edit',
+              label: $t('page.pluginManagement.table.edit'),
+              type: 'primary',
               disabled: isProcessing(row.pluginId),
               onClick: () => openEdit(row)
-            }, () => $t('page.pluginManagement.table.edit')),
+            },
             row.status === 0
-              ? h(NButton, {
-                type: 'primary',
-                ghost: true,
-                size: 'small',
-                loading: isProcessing(row.pluginId),
+              ? {
+                key: 'enable',
+                label: $t('page.pluginManagement.table.enable'),
+                type: 'primary' as const,
                 disabled: isProcessing(row.pluginId),
+                loading: isProcessing(row.pluginId),
                 onClick: () => handleEnable(row)
-              }, () => $t('page.pluginManagement.table.enable'))
-              : h(NButton, {
-                type: 'warning',
-                ghost: true,
-                size: 'small',
-                loading: isProcessing(row.pluginId),
+              }
+              : {
+                key: 'disable',
+                label: $t('page.pluginManagement.table.disable'),
+                type: 'warning' as const,
                 disabled: isProcessing(row.pluginId),
+                loading: isProcessing(row.pluginId),
                 onClick: () => handleDisable(row)
-              }, () => $t('page.pluginManagement.table.disable')),
-            h(NButton, {
+              },
+            {
+              key: 'delete',
+              label: $t('page.pluginManagement.table.delete'),
               type: 'error',
-              ghost: true,
-              size: 'small',
-              loading: isProcessing(row.pluginId),
               disabled: isProcessing(row.pluginId),
+              loading: isProcessing(row.pluginId),
               onClick: () => handleDelete(row)
-            }, () => $t('page.pluginManagement.table.delete'))
+            }
           ]
-        )
+        })
     }
   ]
 });
@@ -297,6 +298,27 @@ function clearProcessingByPluginId(pluginId?: string) {
   let changed = false;
   for (const key of next.keys()) {
     if (key === pluginId || key.startsWith(`${pluginId}::`)) {
+      next.delete(key);
+      clearProcessingTimeout(key);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  processingMap.value = next;
+  refreshTableView();
+  if (processingMap.value.size === 0) {
+    stopElapsedTimer();
+  }
+}
+
+function clearProcessingByAction(action?: string) {
+  if (!action) return;
+  const normalized = action.toUpperCase();
+  const next = new Map(processingMap.value);
+  let changed = false;
+  for (const key of next.keys()) {
+    const actionPart = key.includes('::') ? key.split('::')[1] : '';
+    if (actionPart === normalized) {
       next.delete(key);
       clearProcessingTimeout(key);
       changed = true;
@@ -452,6 +474,7 @@ function connectPluginSocket() {
     try {
       const payload = JSON.parse(event.data);
       const status = String(payload?.status || '').toUpperCase();
+      const action = String(payload?.action || '').toUpperCase();
       const pluginId = payload?.pluginId;
       if (status === 'PROCESSING') {
         const occurredOn = resolveOccurredAt(payload);
@@ -470,6 +493,9 @@ function connectPluginSocket() {
       }
       if (status === 'SUCCESS' || status === 'FAILED') {
         clearProcessingByPluginId(pluginId);
+        if (!pluginId) {
+          clearProcessingByAction(action);
+        }
       }
       if (status === 'FAILED') {
         window.$message?.error(payload?.message || $t('page.pluginManagement.message.operationFailed'));

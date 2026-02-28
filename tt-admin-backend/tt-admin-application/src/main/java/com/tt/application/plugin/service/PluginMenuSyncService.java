@@ -149,6 +149,7 @@ public class PluginMenuSyncService {
             SystemMenu synced = upsertPluginMenu(plugin, pluginRoot, menuDef, route, existing, menuByRouteName);
             if (synced != null) {
                 syncedMenus.put(synced.getRouteName(), synced);
+                menuByRouteName.put(synced.getRouteName(), synced);
             }
         }
 

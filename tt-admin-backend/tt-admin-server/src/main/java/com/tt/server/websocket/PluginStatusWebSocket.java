@@ -9,7 +9,10 @@ import jakarta.websocket.server.ServerEndpoint;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.net.SocketException;
+import java.nio.channels.ClosedChannelException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -36,6 +39,13 @@ public class PluginStatusWebSocket {
 
     @OnError
     public void onError(Session session, Throwable throwable) {
+        if (session != null) {
+            SESSIONS.remove(session);
+        }
+        if (isExpectedDisconnect(throwable)) {
+            log.debug("Plugin status websocket disconnected: {}", session != null ? session.getId() : "unknown");
+            return;
+        }
         log.warn("Plugin status websocket error: {}", session != null ? session.getId() : "unknown", throwable);
     }
 
@@ -71,5 +81,26 @@ public class PluginStatusWebSocket {
         for (String message : messages) {
             sendTo(session, message);
         }
+    }
+
+    private boolean isExpectedDisconnect(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof EOFException || current instanceof ClosedChannelException) {
+                return true;
+            }
+            if (current instanceof SocketException socketException) {
+                String msg = socketException.getMessage();
+                if (msg == null) {
+                    return true;
+                }
+                String normalized = msg.toLowerCase();
+                if (normalized.contains("broken pipe") || normalized.contains("connection reset")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

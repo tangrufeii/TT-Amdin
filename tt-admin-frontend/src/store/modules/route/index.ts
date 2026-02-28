@@ -326,7 +326,8 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       return;
     }
 
-    await applyPluginModules(modules);
+    const cacheBuster = forceReload ? String(Date.now()) : '';
+    await applyPluginModules(modules, cacheBuster);
     setIsInitPluginRoute(true);
     resetPluginRouteRetry();
   }
@@ -491,7 +492,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     // some global init logic if it does not need to be logged in
   }
 
-  async function applyPluginModules(modules: Api.Plugin.PluginFrontendModule[]) {
+  async function applyPluginModules(modules: Api.Plugin.PluginFrontendModule[], cacheBuster = '') {
     resetPluginRoutes();
 
     if (!modules.length) {
@@ -508,7 +509,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         const moduleInfo = {
           moduleName: module.moduleName,
           pluginId: module.pluginId,
-          pluginVersion: module.pluginVersion,
+          pluginVersion: buildPluginVersionToken(module.pluginVersion, cacheBuster),
           pluginIsDev: module.pluginIsDev,
           frontDevAddress: module.frontDevAddress
         };
@@ -551,6 +552,14 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     cacheRoutes.value = Array.from(cacheNameSet);
     pluginMenus.value = pluginMenuList;
     syncMenus();
+  }
+
+  function buildPluginVersionToken(version?: string | null, cacheBuster = '') {
+    const cleanVersion = (version || '').trim();
+    const cleanBuster = cacheBuster.trim();
+    if (!cleanVersion) return cleanBuster;
+    if (!cleanBuster) return cleanVersion;
+    return `${cleanVersion}-${cleanBuster}`;
   }
 
   function createIframeModuleRoutes(module: Api.Plugin.PluginFrontendModule) {
