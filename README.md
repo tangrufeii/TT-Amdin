@@ -2,6 +2,12 @@
 
 # TT-Admin 插件化后台管理系统
 
+## 项目地址
+
+*   **官网**: https://tangrufei.com
+*   **Gitee**: https://gitee.com/YaaZi/tt-amdin
+*   **GitHub**: https://github.com/tangrufeii/TT-Amdin
+
 ## 项目简介
 
 TT-Admin 是一个基于 **领域驱动设计 (DDD)** 架构的现代化后台管理系统。系统采用分层架构设计，实现了高度的内聚与解耦，并创新性地引入了**插件化架构**。
