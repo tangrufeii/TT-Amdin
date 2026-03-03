@@ -12,6 +12,7 @@ const local: App.I18n.Schema = {
     addSuccess: 'Add Success',
     backToHome: 'Back to home',
     batchDelete: 'Batch Delete',
+    batchDisable: 'Batch Disable',
     cancel: 'Cancel',
     close: 'Close',
     check: 'Check',
@@ -231,6 +232,7 @@ const local: App.I18n.Schema = {
     'iframe-page': 'Iframe',
     home: 'Home',
     pluginRoot: 'Plugins',
+    'plugin-root-empty': 'Plugin Guide',
     pluginManagement: 'Plugin Management',
     'plugin-management': 'Plugin Management',
     docs: 'Docs',
@@ -387,13 +389,20 @@ const local: App.I18n.Schema = {
         addSuccess: 'Plugin added successfully',
         updateSuccess: 'Plugin updated successfully',
         deleteSuccess: 'Plugin deleted successfully',
+        batchDisableSuccess: 'Plugins disabled successfully',
         enableSuccess: 'Plugin enabled',
         disableSuccess: 'Plugin disabled',
         installSuccess: 'Plugin installed successfully',
         operationFailed: 'Plugin operation failed',
         deleteConfirm: 'Are you sure you want to delete this plugin? It cannot be recovered!',
+        batchDisableConfirm: 'Disable selected plugins?',
         disableConfirm: 'Disabling the plugin will stop its execution. Confirm to disable?',
         enableConfirm: 'Enabling the plugin will load its functions. Confirm to enable?',
+        selectEnabledForDisable: 'Please select at least one enabled plugin',
+        stopRequested: 'Stop requested. Remaining tasks will stop after current item completes.',
+        batchStopped: 'Task stopped. Processed {done}/{total}.',
+        disableFirst: 'Please disable the plugin before deleting',
+        operationInProgress: 'Some plugins are processing, please try again later',
         selectFile: 'Please select plugin file',
         fileFormat: 'Only .jar format plugin files are supported',
         elapsed: 'Elapsed {seconds}s',
@@ -439,6 +448,10 @@ const local: App.I18n.Schema = {
         stop: 'Stop',
         complete: 'Complete'
       }
+    },
+    pluginRootEmpty: {
+      description: 'No plugin menu is currently available. Please install and enable plugins first.',
+      action: 'Go to Plugin Management'
     },
     docs: {
       pluginDev: {

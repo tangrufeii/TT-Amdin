@@ -6,6 +6,7 @@ import {
   NDataTable,
   NDrawer,
   NDrawerContent,
+  NEmpty,
   NForm,
   NFormItem,
   NGi,
@@ -39,7 +40,9 @@ import {
   fetchPluginDelete,
   fetchPluginDisable,
   fetchPluginEnable,
+  fetchPluginInstallFromMarket,
   fetchPluginListAll,
+  fetchPluginMarketList,
   fetchPluginPage,
   fetchPluginProgressSnapshots,
   fetchPluginStatistics,
@@ -610,29 +613,137 @@ async function handleDisable(row: any) {
   }
 }
 
+// 批量禁用插件
+async function handleBatchDisable() {
+  if (!checkedRowKeys.value.length) return;
+  const selected = data.value.filter(row => checkedRowKeys.value.includes(row.id));
+  const hasProcessing = selected.some(row => isProcessing(row.pluginId));
+  if (hasProcessing) {
+    window.$message?.warning($t('page.pluginManagement.message.operationInProgress'));
+    return;
+  }
+
+  const enabledRows = selected.filter(row => Number(row.status) === 1);
+  if (!enabledRows.length) {
+    window.$message?.warning($t('page.pluginManagement.message.selectEnabledForDisable'));
+    return;
+  }
+
+  let submitting = false;
+  // 用户点击“取消”后仅停止后续任务提交；当前已发出的请求仍会执行完成。
+  let stopRequested = false;
+  let dialogReactive: any;
+  dialogReactive = window.$dialog?.warning({
+    title: $t('common.warning'),
+    content: $t('page.pluginManagement.message.batchDisableConfirm'),
+    positiveText: $t('common.confirm'),
+    negativeText: $t('common.cancel'),
+    maskClosable: false,
+    closeOnEsc: false,
+    onNegativeClick: () => {
+      if (!submitting) {
+        return true;
+      }
+      if (!stopRequested) {
+        stopRequested = true;
+        window.$message?.warning($t('page.pluginManagement.message.stopRequested'));
+      }
+      return false;
+    },
+    onPositiveClick: async () => {
+      // 防重入：避免多次点击“确定”重复提交同一批任务。
+      if (submitting) {
+        return false;
+      }
+      submitting = true;
+      stopRequested = false;
+      if (dialogReactive) {
+        dialogReactive.loading = true;
+      }
+      let processedCount = 0;
+      try {
+        for (const row of enabledRows) {
+          // 在提交下一项前检查停止标记，实现“软中断”。
+          if (stopRequested) {
+            break;
+          }
+          setProcessingInfo(row.pluginId, { action: 'DISABLE', stage: 'start', progress: 0, updatedAt: Date.now() });
+          const { error } = await fetchPluginDisable(row.id);
+          if (error) {
+            clearProcessingInfo(row.pluginId, 'DISABLE');
+            return true;
+          }
+          clearProcessingByPluginId(row.pluginId);
+          processedCount += 1;
+          if (stopRequested) {
+            break;
+          }
+        }
+        checkedRowKeys.value = [];
+        if (stopRequested) {
+          window.$message?.warning(
+            $t('page.pluginManagement.message.batchStopped', { done: processedCount, total: enabledRows.length })
+          );
+        } else {
+          window.$message?.success($t('page.pluginManagement.message.batchDisableSuccess'));
+        }
+        await getData();
+        await getStatistics();
+        await routeStore.refreshPluginRoutes();
+        return true;
+      } finally {
+        submitting = false;
+        if (dialogReactive) {
+          dialogReactive.loading = false;
+        }
+      }
+    }
+  });
+}
+
 // 删除插件
 async function handleDelete(row: any) {
   if (row.status === 1) {
     window.$message?.warning('请先禁用插件再删除');
     return;
   }
-  window.$dialog?.warning({
+  let submitting = false;
+  let dialogReactive: any;
+  dialogReactive = window.$dialog?.warning({
     title: $t('common.warning'),
     content: $t('page.pluginManagement.message.deleteConfirm'),
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
+    maskClosable: false,
+    closeOnEsc: false,
+    // 单条删除执行中不允许关闭，避免用户误认为任务被中断。
+    onNegativeClick: () => !submitting,
     onPositiveClick: async () => {
-      setProcessingInfo(row.pluginId, { action: 'UNINSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
-      const {error} = await fetchPluginDelete(row.id);
-      if (error) {
-        clearProcessingInfo(row.pluginId, 'UNINSTALL');
+      if (submitting) {
+        return false;
       }
-      if (!error) {
+      submitting = true;
+      if (dialogReactive) {
+        dialogReactive.loading = true;
+      }
+      try {
+        setProcessingInfo(row.pluginId, { action: 'UNINSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
+        const {error} = await fetchPluginDelete(row.id);
+        if (error) {
+          clearProcessingInfo(row.pluginId, 'UNINSTALL');
+          return true;
+        }
         clearProcessingByPluginId(row.pluginId);
         window.$message?.success($t('page.pluginManagement.message.deleteSuccess'));
         getData();
         getStatistics();
         await routeStore.refreshPluginRoutes();
+        return true;
+      } finally {
+        submitting = false;
+        if (dialogReactive) {
+          dialogReactive.loading = false;
+        }
       }
     }
   });
@@ -652,25 +763,71 @@ async function handleBatchDelete() {
     window.$message?.warning($t('page.pluginManagement.message.operationInProgress'));
     return;
   }
-  window.$dialog?.warning({
+  let submitting = false;
+  // 批量删除同样支持“停止后续任务提交”的软中断。
+  let stopRequested = false;
+  let dialogReactive: any;
+  dialogReactive = window.$dialog?.warning({
     title: $t('common.warning'),
     content: $t('page.pluginManagement.message.deleteConfirm'),
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
-    onPositiveClick: async () => {
-      for (const row of selected) {
-        setProcessingInfo(row.pluginId, { action: 'UNINSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
-        const { error } = await fetchPluginDelete(row.id);
-        if (error) {
-          clearProcessingInfo(row.pluginId, 'UNINSTALL');
-          return;
-        }
-        clearProcessingByPluginId(row.pluginId);
+    maskClosable: false,
+    closeOnEsc: false,
+    onNegativeClick: () => {
+      if (!submitting) {
+        return true;
       }
-      window.$message?.success($t('page.pluginManagement.message.deleteSuccess'));
-      await onBatchDeleted();
-      await getStatistics();
-      await routeStore.refreshPluginRoutes();
+      if (!stopRequested) {
+        stopRequested = true;
+        window.$message?.warning($t('page.pluginManagement.message.stopRequested'));
+      }
+      return false;
+    },
+    onPositiveClick: async () => {
+      if (submitting) {
+        return false;
+      }
+      submitting = true;
+      stopRequested = false;
+      if (dialogReactive) {
+        dialogReactive.loading = true;
+      }
+      let processedCount = 0;
+      try {
+        for (const row of selected) {
+          if (stopRequested) {
+            break;
+          }
+          setProcessingInfo(row.pluginId, { action: 'UNINSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
+          const { error } = await fetchPluginDelete(row.id);
+          if (error) {
+            clearProcessingInfo(row.pluginId, 'UNINSTALL');
+            return true;
+          }
+          clearProcessingByPluginId(row.pluginId);
+          processedCount += 1;
+          if (stopRequested) {
+            break;
+          }
+        }
+        if (stopRequested) {
+          window.$message?.warning(
+            $t('page.pluginManagement.message.batchStopped', { done: processedCount, total: selected.length })
+          );
+        } else {
+          window.$message?.success($t('page.pluginManagement.message.deleteSuccess'));
+        }
+        await onBatchDeleted();
+        await getStatistics();
+        await routeStore.refreshPluginRoutes();
+        return true;
+      } finally {
+        submitting = false;
+        if (dialogReactive) {
+          dialogReactive.loading = false;
+        }
+      }
     }
   });
 }
@@ -779,6 +936,68 @@ function handleImportButtonClick() {
   openUploadModal();
 }
 
+const marketModalVisible = ref(false);
+const marketLoading = ref(false);
+const marketInstallingKey = ref('');
+const marketData = ref<Api.Plugin.PluginMarketPackage[]>([]);
+
+function getMarketRowKey(row: Api.Plugin.PluginMarketPackage) {
+  return `${row.pluginId}@${row.version}`;
+}
+
+async function loadMarketList() {
+  marketLoading.value = true;
+  try {
+    const { data: marketList, error } = await fetchPluginMarketList();
+    if (!error && Array.isArray(marketList)) {
+      marketData.value = marketList;
+      return;
+    }
+    marketData.value = [];
+    if (error) {
+      window.$message?.error('插件市场加载失败，请检查权限、接口和后端日志');
+    }
+  } finally {
+    marketLoading.value = false;
+  }
+}
+
+async function openMarketModal() {
+  marketModalVisible.value = true;
+  await loadMarketList();
+}
+
+function closeMarketModal() {
+  marketModalVisible.value = false;
+}
+
+async function handleMarketInstall(row: Api.Plugin.PluginMarketPackage) {
+  const key = getMarketRowKey(row);
+  marketInstallingKey.value = key;
+  setProcessingInfo(row.pluginId, { action: 'INSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
+  try {
+    const { error } = await fetchPluginInstallFromMarket({
+      pluginId: row.pluginId,
+      version: row.version
+    });
+    if (!error) {
+      window.$message?.success(`${$t('page.pluginManagement.message.installSuccess')}：${row.pluginName} ${row.version}`);
+      await Promise.all([getData(), getStatistics(), loadMarketList(), routeStore.refreshPluginRoutes()]);
+    }
+  } finally {
+    clearProcessingInfo(row.pluginId, 'INSTALL');
+    marketInstallingKey.value = '';
+  }
+}
+
+function isMarketInstalled(row: Api.Plugin.PluginMarketPackage) {
+  return data.value.some(item => item.pluginId === row.pluginId && item.version === row.version);
+}
+
+function handleMarketButtonClick() {
+  openMarketModal();
+}
+
 onMounted(() => {
   getData().then(() => getStatistics());
   loadProgressSnapshots();
@@ -870,19 +1089,35 @@ onBeforeUnmount(() => {
             </template>
             {{ $t('page.pluginManagement.table.install') }}
           </NButton>
+          <NButton type="primary" ghost size="small" :disabled="uploadLoading" @click="handleMarketButtonClick">
+            <template #icon>
+              <icon-mdi-puzzle-outline class="text-icon" />
+            </template>
+            插件市场
+          </NButton>
         </template>
         <template #suffix>
-          <NPopconfirm @positive-click="handleBatchDelete">
-            <template #trigger>
-              <NButton size="small" ghost type="error" :disabled="checkedRowKeys.length === 0">
-                <template #icon>
-                  <icon-ic-round-delete class="text-icon" />
-                </template>
-                {{ $t('common.batchDelete') }}
-              </NButton>
-            </template>
-            {{ $t('common.confirmDelete') }}
-          </NPopconfirm>
+          <NSpace :size="8">
+            <NPopconfirm @positive-click="handleBatchDisable">
+              <template #trigger>
+                <NButton size="small" ghost type="warning" :disabled="checkedRowKeys.length === 0">
+                  {{ $t('common.batchDisable') }}
+                </NButton>
+              </template>
+              {{ $t('page.pluginManagement.message.batchDisableConfirm') }}
+            </NPopconfirm>
+            <NPopconfirm @positive-click="handleBatchDelete">
+              <template #trigger>
+                <NButton size="small" ghost type="error" :disabled="checkedRowKeys.length === 0">
+                  <template #icon>
+                    <icon-ic-round-delete class="text-icon" />
+                  </template>
+                  {{ $t('common.batchDelete') }}
+                </NButton>
+              </template>
+              {{ $t('common.confirmDelete') }}
+            </NPopconfirm>
+          </NSpace>
         </template>
       </TableHeaderOperation>
       <NDataTable
@@ -930,6 +1165,54 @@ onBeforeUnmount(() => {
           </NText>
         </NUploadDragger>
       </NUpload>
+    </NModal>
+
+    <NModal
+      v-model:show="marketModalVisible"
+      :mask-closable="false"
+      preset="card"
+      title="插件市场"
+      class="w-900px lt-sm:w-94vw"
+      @close="closeMarketModal"
+    >
+      <NSpace vertical :size="12">
+        <NSpace justify="space-between" align="center">
+          <NText depth="3">选择插件版本后可直接安装，安装过程会实时显示进度</NText>
+          <NButton size="small" :loading="marketLoading" @click="loadMarketList">刷新</NButton>
+        </NSpace>
+        <NGrid v-if="marketData.length > 0" :x-gap="12" :y-gap="12" item-responsive responsive="screen">
+          <NGi v-for="item in marketData" :key="getMarketRowKey(item)" span="24 s:12 m:12 l:8">
+            <NCard size="small" class="market-card" :bordered="true">
+              <NSpace vertical :size="10">
+                <NSpace justify="space-between" align="center">
+                  <NText strong>{{ item.pluginName || item.pluginId }}</NText>
+                  <NTag type="info" size="small">{{ item.version }}</NTag>
+                </NSpace>
+                <NText depth="3" class="market-desc">{{ item.description || '暂无描述' }}</NText>
+                <NSpace :size="8">
+                  <NTag size="small" type="default">ID: {{ item.pluginId }}</NTag>
+                  <NTag v-if="item.sourceName" size="small" type="success">{{ item.sourceName }}</NTag>
+                  <NTag v-if="item.minHostVersion" size="small" type="warning">最低版本: {{ item.minHostVersion }}</NTag>
+                </NSpace>
+                <NButton
+                  type="primary"
+                  block
+                  :loading="marketInstallingKey === getMarketRowKey(item)"
+                  :disabled="marketInstallingKey.length > 0 || isProcessing(item.pluginId) || isMarketInstalled(item)"
+                  @click="handleMarketInstall(item)"
+                >
+                  {{ isMarketInstalled(item) ? '已安装' : '安装此版本' }}
+                </NButton>
+              </NSpace>
+            </NCard>
+          </NGi>
+        </NGrid>
+        <NEmpty v-else description="暂无上架插件">
+          <template #extra>
+            <NText depth="3">请先在数据库表 sys_plugin_market_package 中新增 status='1' 的插件记录</NText>
+          </template>
+        </NEmpty>
+      </NSpace>
     </NModal>
 
     <NDrawer
@@ -1021,5 +1304,14 @@ onBeforeUnmount(() => {
 <style scoped>
 .card-wrapper {
   border-radius: 8px;
+}
+
+.market-card {
+  height: 100%;
+}
+
+.market-desc {
+  min-height: 40px;
+  line-height: 20px;
 }
 </style>

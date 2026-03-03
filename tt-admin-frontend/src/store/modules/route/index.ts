@@ -31,6 +31,30 @@ import {
 } from './shared';
 
 const pluginDevEnabled = import.meta.env.DEV && import.meta.env.VITE_PLUGIN_DEV_SOURCE === 'Y';
+const PLUGIN_FALLBACK_CONSTANT_ROUTES = [
+  {
+    name: 'plugin-root-empty',
+    path: '/plugin-root-empty',
+    component: 'layout.base$view.plugin-root-empty',
+    meta: {
+      title: 'plugin-root-empty',
+      i18nKey: 'route.plugin-root-empty',
+      constant: true,
+      hideInMenu: true
+    }
+  },
+  {
+    name: 'plugin-root',
+    path: '/plugin-root',
+    redirect: '/plugin-root-empty',
+    meta: {
+      title: 'pluginRoot',
+      i18nKey: 'route.pluginRoot',
+      constant: true,
+      hideInMenu: true
+    }
+  }
+] as unknown as ElegantConstRoute[];
 
 export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   const authStore = useAuthStore();
@@ -91,6 +115,23 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   const pluginLocaleLoaded = new Map<string, Set<string>>();
   let pluginRouteRetryCount = 0;
   let pluginRouteRetryTimer: number | null = null;
+  /**
+   * 插件路由刷新防抖与并发控制状态：
+   * 1. WS 在插件启用/禁用/安装期间会连续推送 SUCCESS 事件，若每次都重建路由会导致菜单明显闪烁。
+   * 2. 通过 refreshTimer 做短时间防抖，合并同一时间窗口内的多次刷新请求。
+   * 3. 通过 refreshing + pending 保证同一时刻只有一个 refresh 在执行，后续请求串行接力。
+   */
+  let pluginRouteRefreshTimer: number | null = null;
+  let pluginRouteRefreshForce = false;
+  let pluginRouteRefreshing = false;
+  let pluginRouteRefreshPending = false;
+  let pluginRouteRefreshPendingForce = false;
+  /**
+   * 插件模块签名：
+   * 用于判断前后端返回的插件路由/菜单描述是否真的发生变化。
+   * 若签名一致则跳过重建，减少无意义的路由卸载/注册与菜单重绘。
+   */
+  let pluginModuleSignature = '';
   let pluginStatusWs: WebSocket | null = null;
   let pluginStatusReconnectTimer: number | null = null;
   let pluginStatusInited = false;
@@ -169,9 +210,13 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
 
     stopPluginStatusWatcher();
     resetVueRoutes();
-    resetPluginRoutes();
+    resetPluginRoutes(false);
     baseMenus.value = [];
     pluginMenus.value = [];
+    pluginRouteRefreshing = false;
+    pluginRouteRefreshPending = false;
+    pluginRouteRefreshPendingForce = false;
+    pluginModuleSignature = '';
     setIsInitPluginRoute(false);
     syncMenus();
 
@@ -185,13 +230,36 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     removeRouteFns.length = 0;
   }
 
-  function resetPluginRoutes() {
+  /**
+   * 重置插件动态路由。
+   * @param shouldSyncMenus 是否立即触发菜单同步
+   * 传 false 时用于“原子更新”场景：先清旧路由并构建新数据，最后一次性 syncMenus，避免中间态闪烁。
+   */
+  function resetPluginRoutes(shouldSyncMenus = true) {
     pluginRouteRemoveFns.forEach(fn => fn());
     pluginRouteRemoveFns.length = 0;
     pluginMenus.value = [];
     cacheRoutes.value = cacheRoutes.value.filter(name => !String(name).startsWith('plugin-')) as RouteKey[];
     pluginLocaleLoaded.clear();
-    syncMenus();
+    if (shouldSyncMenus) {
+      syncMenus();
+    }
+  }
+
+  function schedulePluginRoutesRefresh(forceReload = false) {
+    if (forceReload) {
+      pluginRouteRefreshForce = true;
+    }
+    if (pluginRouteRefreshTimer !== null) {
+      window.clearTimeout(pluginRouteRefreshTimer);
+    }
+    // 防抖窗口内若再次触发，保留最后一次刷新（以及 forceReload 意图）。
+    pluginRouteRefreshTimer = window.setTimeout(async () => {
+      const nextForce = pluginRouteRefreshForce;
+      pluginRouteRefreshForce = false;
+      pluginRouteRefreshTimer = null;
+      await refreshPluginRoutes(nextForce);
+    }, 180);
   }
 
   function buildPluginStatusWsUrl() {
@@ -218,7 +286,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       }
       const dictStore = useDictStore();
       await dictStore.init(true);
-      await refreshPluginRoutes();
+      schedulePluginRoutesRefresh();
     };
     ws.onmessage = async event => {
       try {
@@ -228,11 +296,11 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         if (action === 'SYSTEM_READY' && status === 'SUCCESS') {
           const dictStore = useDictStore();
           await dictStore.init(true);
-          await refreshPluginRoutes();
+          schedulePluginRoutesRefresh();
           return;
         }
         if (status === 'SUCCESS') {
-          await refreshPluginRoutes();
+          schedulePluginRoutesRefresh();
         }
       } catch (error) {
         console.error('[plugin] websocket message parse failed:', error);
@@ -248,6 +316,11 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   }
 
   function stopPluginStatusWatcher() {
+    if (pluginRouteRefreshTimer !== null) {
+      window.clearTimeout(pluginRouteRefreshTimer);
+      pluginRouteRefreshTimer = null;
+    }
+    pluginRouteRefreshForce = false;
     if (pluginStatusReconnectTimer) {
       window.clearTimeout(pluginStatusReconnectTimer);
       pluginStatusReconnectTimer = null;
@@ -277,6 +350,9 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         addConstantRoutes(staticRoute.constantRoutes);
       }
     }
+
+    // Ensure plugin root fallback pages are always reachable in both static/dynamic route modes.
+    addConstantRoutes([...constantRoutes.value, ...PLUGIN_FALLBACK_CONSTANT_ROUTES]);
 
     handleConstantAndAuthRoutes();
 
@@ -326,8 +402,16 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       return;
     }
 
+    const nextSignature = buildPluginModulesSignature(modules);
+    if (!forceReload && nextSignature === pluginModuleSignature) {
+      setIsInitPluginRoute(true);
+      resetPluginRouteRetry();
+      return;
+    }
+
     const cacheBuster = forceReload ? String(Date.now()) : '';
     await applyPluginModules(modules, cacheBuster);
+    pluginModuleSignature = nextSignature;
     setIsInitPluginRoute(true);
     resetPluginRouteRetry();
   }
@@ -351,10 +435,33 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     }
   }
 
-  /** Force refresh plugin routes and menus */
-  async function refreshPluginRoutes() {
-    setIsInitPluginRoute(false);
-    await initPluginRoutes(true);
+  /**
+   * 强制刷新插件路由与菜单。
+   * 采用“单飞 + 排队”模型：
+   * - 已在刷新中时，不并发执行，而是登记 pending；
+   * - 当前刷新结束后，按 pendingForce 再补一次刷新。
+   * 该策略可避免并发重建导致菜单抖动与路由状态竞争。
+   */
+  async function refreshPluginRoutes(forceReload = false) {
+    if (pluginRouteRefreshing) {
+      pluginRouteRefreshPending = true;
+      pluginRouteRefreshPendingForce = pluginRouteRefreshPendingForce || forceReload;
+      return;
+    }
+
+    pluginRouteRefreshing = true;
+    try {
+      setIsInitPluginRoute(false);
+      await initPluginRoutes(forceReload);
+    } finally {
+      pluginRouteRefreshing = false;
+      if (pluginRouteRefreshPending) {
+        const pendingForce = pluginRouteRefreshPendingForce;
+        pluginRouteRefreshPending = false;
+        pluginRouteRefreshPendingForce = false;
+        await refreshPluginRoutes(pendingForce);
+      }
+    }
   }
 
   /** Init static auth route */
@@ -493,7 +600,8 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   }
 
   async function applyPluginModules(modules: Api.Plugin.PluginFrontendModule[], cacheBuster = '') {
-    resetPluginRoutes();
+    // 原子替换：先清旧路由但不立刻 sync 菜单，避免“先空后有”的闪烁。
+    resetPluginRoutes(false);
 
     if (!modules.length) {
       syncMenus();
@@ -549,9 +657,49 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       })
     );
 
+    // 所有模块完成后一次性替换缓存路由与插件菜单，统一触发一次渲染。
     cacheRoutes.value = Array.from(cacheNameSet);
     pluginMenus.value = pluginMenuList;
     syncMenus();
+  }
+
+  /**
+   * 构建插件模块快照签名（稳定序列化）：
+   * 仅当路由/菜单关键字段发生变化时才触发重建，降低 UI 抖动与无效计算。
+   */
+  function buildPluginModulesSignature(modules: Api.Plugin.PluginFrontendModule[]) {
+    const normalized = (modules || [])
+      .map(module => ({
+        pluginId: module.pluginId || '',
+        moduleName: module.moduleName || '',
+        renderer: module.renderer || '',
+        pluginVersion: module.pluginVersion || '',
+        pluginIsDev: Boolean(module.pluginIsDev),
+        frontDevAddress: module.frontDevAddress || '',
+        routes: (module.routes || [])
+          .map(route => ({
+            name: route.name || '',
+            path: route.path || '',
+            component: route.component || '',
+            componentName: route.componentName || '',
+            meta: route.meta || {}
+          }))
+          .sort((a, b) => `${a.name}|${a.path}|${a.component}`.localeCompare(`${b.name}|${b.path}|${b.component}`)),
+        menus: (module.menus || [])
+          .map(menu => ({
+            routeName: menu.routeName || '',
+            parent: menu.parent || '',
+            title: menu.title || '',
+            i18nKey: menu.i18nKey || '',
+            icon: menu.icon || '',
+            iconType: menu.iconType || '',
+            order: menu.order ?? 0
+          }))
+          .sort((a, b) => `${a.routeName}|${a.parent}|${a.order}`.localeCompare(`${b.routeName}|${b.parent}|${b.order}`))
+      }))
+      .sort((a, b) => `${a.pluginId}|${a.moduleName}`.localeCompare(`${b.pluginId}|${b.moduleName}`));
+
+    return JSON.stringify(normalized);
   }
 
   function buildPluginVersionToken(version?: string | null, cacheBuster = '') {

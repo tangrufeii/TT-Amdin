@@ -74,19 +74,11 @@ function transformElegantRouteToVueRoute(
   }
 
   function getSingleLevelRouteComponent(component: string) {
-    if (!component.includes(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT)) {
-      return null;
-    }
-
-    const [layoutPart, viewPart] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
-
-    if (!layoutPart || !viewPart || !isLayout(layoutPart) || !isView(viewPart)) {
-      return null;
-    }
+    const [layout, view] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
 
     return {
-      layout: getLayoutName(layoutPart),
-      view: getViewName(viewPart)
+      layout: getLayoutName(layout),
+      view: getViewName(view)
     };
   }
 
@@ -103,30 +95,56 @@ function transformElegantRouteToVueRoute(
 
   try {
     if (component) {
-      if (isSingleLevelRoute(route) && component.includes(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT)) {
-        const singleLevelComponent = getSingleLevelRouteComponent(component);
-        if (!singleLevelComponent) {
-          throw new Error(`Invalid single level route component "${component}"`);
+      if (isSingleLevelRoute(route)) {
+        /**
+         * 兼容两类单层路由写法：
+         * 1. 标准写法：layout.xxx$view.xxx（需要拆分 layout + view）
+         * 2. 后端动态目录写法：layout.base（无 view，典型如 plugin-root）
+         */
+        if (component.includes(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT)) {
+          const { layout, view } = getSingleLevelRouteComponent(component);
+
+          const singleLevelRoute: RouteRecordRaw = {
+            path,
+            component: layouts[layout],
+            meta: {
+              title: route.meta?.title || ''
+            },
+            children: [
+              {
+                name,
+                path: '',
+                component: views[view],
+                ...rest
+              } as RouteRecordRaw
+            ]
+          };
+
+          return [singleLevelRoute];
         }
-        const { layout, view } = singleLevelComponent;
 
-        const singleLevelRoute: RouteRecordRaw = {
-          path,
-          component: layouts[layout],
-          meta: {
-            title: route.meta?.title || ''
-          },
-          children: [
+        if (isLayout(component)) {
+          const layoutName = getLayoutName(component);
+          const layoutOnlyRoute: RouteRecordRaw = {
+            ...vueRoute,
+            component: layouts[layoutName]
+          };
+          // 插件根目录在无子菜单时引导到空页面，避免出现 “No match for plugin-root”。
+          if (name === 'plugin-root' && !layoutOnlyRoute.redirect) {
+            layoutOnlyRoute.redirect = '/plugin-root-empty';
+          }
+          return [layoutOnlyRoute];
+        }
+
+        if (isView(component)) {
+          const viewName = getViewName(component);
+          return [
             {
-              name,
-              path: '',
-              component: views[view],
-              ...rest
-            } as RouteRecordRaw
-          ]
-        };
-
-        return [singleLevelRoute];
+              ...vueRoute,
+              component: views[viewName]
+            }
+          ];
+        }
       }
 
       if (isLayout(component)) {
@@ -182,6 +200,7 @@ const routeMap: RouteMap = {
   "iframe-page": "/iframe-page/:url",
   "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?",
   "plugin-management": "/plugin-management",
+  "plugin-root-empty": "/plugin-root-empty",
   "system": "/system",
   "system_dict": "/system/dict",
   "system_docs": "/system/docs",

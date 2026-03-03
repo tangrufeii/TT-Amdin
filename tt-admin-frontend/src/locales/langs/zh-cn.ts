@@ -12,6 +12,7 @@ const local: App.I18n.Schema = {
     addSuccess: '添加成功',
     backToHome: '返回首页',
     batchDelete: '批量删除',
+    batchDisable: '批量禁用',
     cancel: '取消',
     close: '关闭',
     check: '勾选',
@@ -228,6 +229,7 @@ const local: App.I18n.Schema = {
     'iframe-page': '外链页面',
     home: '首页',
     pluginRoot: '插件',
+    'plugin-root-empty': '插件引导',
     pluginManagement: '插件管理',
     'plugin-management': '插件管理',
     docs: '说明文档',
@@ -384,13 +386,20 @@ const local: App.I18n.Schema = {
         addSuccess: '插件添加成功',
         updateSuccess: '插件更新成功',
         deleteSuccess: '插件删除成功',
+        batchDisableSuccess: '插件批量禁用成功',
         enableSuccess: '插件已启用',
         disableSuccess: '插件已禁用',
         installSuccess: '插件安装成功',
         operationFailed: '插件操作失败',
         deleteConfirm: '确认删除该插件吗？删除后无法恢复！',
+        batchDisableConfirm: '确认禁用所选插件吗？',
         disableConfirm: '禁用插件会停止其运行，确认禁用吗？',
         enableConfirm: '启用插件会加载其功能，确认启用吗？',
+        selectEnabledForDisable: '请选择至少一个启用状态的插件',
+        stopRequested: '已请求停止，当前项完成后将停止后续任务',
+        batchStopped: '任务已停止，已处理 {done}/{total}',
+        disableFirst: '请先禁用插件再删除',
+        operationInProgress: '存在插件正在处理中，请稍后再试',
         selectFile: '请选择插件文件',
         fileFormat: '仅支持 .jar 格式的插件文件',
         elapsed: '已耗时 {seconds}s',
@@ -436,6 +445,10 @@ const local: App.I18n.Schema = {
         stop: '停止',
         complete: '完成'
       }
+    },
+    pluginRootEmpty: {
+      description: '当前没有可用插件菜单，请先安装并启用插件。',
+      action: '前往插件管理'
     },
     docs: {
       pluginDev: {
