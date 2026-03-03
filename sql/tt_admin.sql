@@ -192,8 +192,8 @@ INSERT INTO `sys_menu` (`id`,`parent_id`,`type`,`name`,`code`,`i18n_key`,`route_
 (7,3,'2','角色管理','system:role','route.systemRole','system_role','/system/role','mdi:shield-account-outline','1','view.system_role',NULL,'N','N',NULL,4,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (8,3,'2','通知公告','system:notice','route.systemNotice','system_notice','/system/notice','mdi:bell-outline','1','view.system_notice',NULL,'N','N',NULL,5,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (9,0,'1','文档','docs:root','route.docs','docs','/docs','mdi:book-open-page-variant','1','layout.base',NULL,'N','N',NULL,4,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
-(10,9,'2','插件开发','docs:plugin-dev','route.pluginDev','docs_plugin_dev','/docs/plugin-dev','mdi:puzzle-outline','1','view.docs_plugin_dev',NULL,'N','N',NULL,1,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
-(11,9,'2','项目介绍','docs:project-intro','route.projectIntro','docs_project_intro','/docs/project','mdi:file-document-outline','1','view.docs_project_intro',NULL,'N','N',NULL,2,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0);
+(10,9,'2','插件开发','docs:plugin-dev','route.pluginDev','docs_plugin_dev','/docs/plugin-dev','mdi:puzzle-outline','1','view.system_docs-plugin-dev',NULL,'N','N',NULL,1,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
+(11,9,'2','项目介绍','docs:project-intro','route.projectIntro','docs_project_intro','/docs/project','mdi:file-document-outline','1','view.system_docs-project-intro',NULL,'N','N',NULL,2,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0);
 
 -- ----------------------------
 -- Table structure for sys_operation_log
