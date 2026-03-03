@@ -12,6 +12,11 @@
     <artifactId>tt-admin-plugins</artifactId>
     <packaging>pom</packaging>
     <modules>
+        <module>../tt-admin-common</module>
+        <module>../tt-admin-plugin-core</module>
+        <module>../tt-admin-domain</module>
+        <module>../tt-admin-application</module>
+        <module>../tt-admin-infrastructure</module>
         <module>tt-admin-demo</module>
         <module>tt-admin-backup</module>
         <module>tt-admin-monitor</module>
