@@ -1,7 +1,8 @@
-﻿declare namespace Api {
+declare namespace Api {
   namespace SystemManage {
     type MenuType = '1' | '2';
     type IconType = '1' | '2';
+    type MenuId = number | string;
 
     interface MenuQuery {
       key: string;
@@ -9,8 +10,8 @@
     }
 
     interface Menu {
-      id: number;
-      parentId: number;
+      id: MenuId;
+      parentId: MenuId;
       type: MenuType;
       name: string;
       code?: string | null;
@@ -62,7 +63,7 @@
       | 'query'
       | 'remark'
     > & {
-      id?: number;
+      id?: MenuId;
     };
   }
 }

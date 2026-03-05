@@ -1,15 +1,16 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import type { Ref, VNodeChild } from 'vue';
 import { h, reactive, ref, shallowRef, watch } from 'vue';
 import { useBoolean } from '@sa/hooks';
-import { fetchDeleteMenu, fetchGetAllPages, fetchGetMenuTree } from '@/service/api';
+import { router } from '@/router';
+import { fetchDeleteMenu, fetchGetAllPages, fetchGetMenuTree, fetchPluginFrontendModules } from '@/service/api';
+import { useAppStore } from '@/store/modules/app';
+import { useRouteStore } from '@/store/modules/route';
 import { useAuth } from '@/hooks/business/auth';
 import { useDict } from '@/hooks/business/dict';
 import { transDeleteParams } from '@/utils/common';
 import { $t } from '@/locales';
 import SvgIcon from '@/components/custom/svg-icon.vue';
-import { useAppStore } from '@/store/modules/app';
-import { useRouteStore } from '@/store/modules/route';
 import MenuOperateDrawer, { type OperateType } from './modules/menu-operate-drawer.vue';
 import PermissionListTable from './modules/permission-list-table.vue';
 
@@ -20,10 +21,15 @@ type MenuTreeModel = Api.SystemManage.MenuTreeData & {
   isLeaf?: boolean;
 };
 
+type AvailableRoute = {
+  name: string;
+  path: string;
+};
+
 const { bool: detailVisible, setBool: setDetailVisible } = useBoolean();
 const { bool: menuDrawerVisible, setTrue: openMenuDrawer } = useBoolean();
 const operateType = ref<OperateType>('add');
-const selectedId = ref<number | null>(null);
+const selectedId = ref<string | null>(null);
 
 const { hasAuth } = useAuth();
 const { dcitType, dictLabel } = useDict();
@@ -33,6 +39,7 @@ const routeStore = useRouteStore();
 const tree = shallowRef<MenuTreeModel[]>([]);
 const name: Ref<string> = ref('');
 const allPages = shallowRef<string[]>([]);
+const availableRoutes = shallowRef<AvailableRoute[]>([]);
 
 const showData: Api.SystemManage.MenuDetail = reactive({
   id: 0,
@@ -93,13 +100,53 @@ async function getAllPages() {
   allPages.value = data || [];
 }
 
+function normalizeRoutePath(path?: string | null) {
+  if (!path) return '';
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
+async function getAvailableRoutes() {
+  const routeMap = new Map<string, string>();
+  const builtinRouteNames = new Set(['403', '404', '500', 'login', 'iframe-page']);
+
+  router.getRoutes().forEach(route => {
+    if (typeof route.name !== 'string') return;
+    const routeName = route.name.trim();
+    if (!routeName || builtinRouteNames.has(routeName) || routeName.endsWith('__layout')) return;
+    if (route.children?.length) return;
+    if (route.path.includes(':pathMatch')) return;
+    const routePath = normalizeRoutePath(route.path);
+    if (!routePath) return;
+    routeMap.set(routeName, routePath);
+  });
+
+  const { data, error } = await fetchPluginFrontendModules();
+  if (!error && data) {
+    data.forEach(module => {
+      module.routes?.forEach(route => {
+        const routeName = route.name?.trim();
+        if (!routeName || builtinRouteNames.has(routeName)) return;
+        const routePath = normalizeRoutePath(route.path);
+        if (!routePath) return;
+        if (!routeMap.has(routeName)) {
+          routeMap.set(routeName, routePath);
+        }
+      });
+    });
+  }
+
+  availableRoutes.value = Array.from(routeMap.entries())
+    .map(([routeName, path]) => ({ name: routeName, path }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function handleSelectKeys(_node: NaiveUI.TreeOption | null, action: string, option?: { node: MenuTreeModel | null }) {
   setDetailVisible(action === 'select');
   if (action !== 'select' || !option?.node) {
     selectedId.value = null;
     return;
   }
-  selectedId.value = Number(option.node.id);
+  selectedId.value = String(option.node.id);
   Object.assign(showData, option.node);
 }
 
@@ -123,14 +170,14 @@ async function handleDeleteMenu() {
   const { data, error } = await fetchDeleteMenu(transDeleteParams([selectedId.value]));
   if (!error && data) {
     window.$message?.success($t('common.deleteSuccess'));
-    init(null);
+    init(null, true);
   }
 }
 
-function findMenuNode(targetId: number | null, nodes: MenuTreeModel[]): MenuTreeModel | null {
+function findMenuNode(targetId: string | null, nodes: MenuTreeModel[]): MenuTreeModel | null {
   if (!targetId) return null;
   for (const node of nodes) {
-    if (Number(node.id) === targetId) return node;
+    if (String(node.id) === targetId) return node;
     if (node.children?.length) {
       const found = findMenuNode(targetId, node.children);
       if (found) return found;
@@ -139,22 +186,22 @@ function findMenuNode(targetId: number | null, nodes: MenuTreeModel[]): MenuTree
   return null;
 }
 
-function findMenuId(targetId: number | null, nodes: MenuTreeModel[]): boolean {
-  return Boolean(findMenuNode(targetId, nodes));
-}
-
 async function refreshAuthMenus() {
   routeStore.setIsInitAuthRoute(false);
   await routeStore.initAuthRoute();
 }
 
 async function init(detail: Api.SystemManage.MenuDetail | null, refreshMenu = false) {
+  if (refreshMenu) {
+    await refreshAuthMenus();
+  }
   await getTree();
   await getAllPages();
+  await getAvailableRoutes();
   if (detail) {
     Object.assign(showData, detail);
     if (detail.id) {
-      selectedId.value = Number(detail.id);
+      selectedId.value = String(detail.id);
     }
     updateMenuIconInMenus(detail);
   } else {
@@ -165,9 +212,6 @@ async function init(detail: Api.SystemManage.MenuDetail | null, refreshMenu = fa
     } else {
       selectedId.value = null;
     }
-  }
-  if (refreshMenu) {
-    await refreshAuthMenus();
   }
 }
 
@@ -183,7 +227,14 @@ watch(
 
 <template>
   <div class="flex overflow-hidden">
-    <NGrid :x-gap="8" :y-gap="8" item-responsive responsive="screen" cols="1 s:1 m:5 l:5 xl:5 2xl:5" class="h-full-hidden">
+    <NGrid
+      :x-gap="8"
+      :y-gap="8"
+      item-responsive
+      responsive="screen"
+      cols="1 s:1 m:5 l:5 xl:5 2xl:5"
+      class="h-full-hidden"
+    >
       <NGridItem span="1" class="h-full-hidden">
         <NCard :bordered="false" size="small" :title="$t('page.manage.menu.title')" class="h-full">
           <template #header-extra>
@@ -198,7 +249,7 @@ watch(
               </NButton>
             </NFlex>
           </template>
-          <div class="flex flex-col h-full">
+          <div class="h-full flex flex-col">
             <NInput v-model:value="name" class="mb-2" clearable :placeholder="$t('page.manage.menu.form.name')" />
             <NTree
               :data="tree"
@@ -207,7 +258,9 @@ watch(
               key-field="id"
               :show-irrelevant-nodes="false"
               virtual-scroll
-              @update:selected-keys="(_keys, _opt, meta) => handleSelectKeys(meta?.node || null, meta?.action || '', meta)"
+              @update:selected-keys="
+                (_keys, _opt, meta) => handleSelectKeys(meta?.node || null, meta?.action || '', meta)
+              "
             />
           </div>
         </NCard>
@@ -216,7 +269,13 @@ watch(
         <NCard :bordered="false" size="small" :title="$t('page.manage.menu.detail')">
           <template #header-extra>
             <NFlex>
-              <NButton v-if="showData.type === '1' && hasAuth('sys:menu:add')" quaternary size="small" type="primary" @click="handleAddChildMenu">
+              <NButton
+                v-if="showData.type === '1' && hasAuth('sys:menu:add')"
+                quaternary
+                size="small"
+                type="primary"
+                @click="handleAddChildMenu"
+              >
                 {{ $t('page.manage.menu.addChildMenu') }}
               </NButton>
               <NButton v-if="hasAuth('sys:menu:update')" ghost type="primary" size="small" @click="handleEditMenu">
@@ -237,20 +296,28 @@ watch(
               <NTag :type="dcitType('menu_type', showData.type)">{{ dictLabel('menu_type', showData.type) }}</NTag>
             </NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.status')">
-              <NTag :type="dcitType('status', showData.status || '1')">{{ dictLabel('status', showData.status || '1') }}</NTag>
+              <NTag :type="dcitType('status', showData.status || '1')">
+                {{ dictLabel('status', showData.status || '1') }}
+              </NTag>
             </NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.name')">{{ showData.name }}</NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.i18nKey')">{{ showData.i18nKey }}</NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.routeName')">{{ showData.routeName }}</NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.routePath')">{{ showData.routePath }}</NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.hideInMenu')">
-              <NTag :type="dcitType('feature_status', showData.hide || 'N')">{{ dictLabel('feature_status', showData.hide || 'N') }}</NTag>
+              <NTag :type="dcitType('feature_status', showData.hide || 'N')">
+                {{ dictLabel('feature_status', showData.hide || 'N') }}
+              </NTag>
             </NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.keepAlive')">
-              <NTag :type="dcitType('feature_status', showData.keepAlive || 'N')">{{ dictLabel('feature_status', showData.keepAlive || 'N') }}</NTag>
+              <NTag :type="dcitType('feature_status', showData.keepAlive || 'N')">
+                {{ dictLabel('feature_status', showData.keepAlive || 'N') }}
+              </NTag>
             </NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.manage.menu.href')" :span="2">{{ showData.href }}</NDescriptionsItem>
-            <NDescriptionsItem :label="$t('page.manage.menu.iframeUrl')" :span="2">{{ showData.iframeUrl }}</NDescriptionsItem>
+            <NDescriptionsItem :label="$t('page.manage.menu.iframeUrl')" :span="2">
+              {{ showData.iframeUrl }}
+            </NDescriptionsItem>
           </NDescriptions>
         </NCard>
         <PermissionListTable :show-data="showData" />
@@ -266,6 +333,7 @@ watch(
       :row-data="showData"
       :operate-type="operateType"
       :all-pages="allPages"
+      :available-routes="availableRoutes"
       @submitted="data => init(data, true)"
     />
   </div>

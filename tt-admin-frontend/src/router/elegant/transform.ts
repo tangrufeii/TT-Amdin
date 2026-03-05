@@ -37,11 +37,14 @@ function transformElegantRouteToVueRoute(
   const ROUTE_DEGREE_SPLITTER = '_';
   const FIRST_LEVEL_ROUTE_COMPONENT_SPLIT = '$';
 
-  function isLayout(component: string) {
-    return component.startsWith(LAYOUT_PREFIX);
+  function isLayout(component?: string) {
+    return typeof component === 'string' && component.startsWith(LAYOUT_PREFIX);
   }
 
-  function getLayoutName(component: string) {
+  function getLayoutName(component?: string) {
+    if (!component) {
+      throw new Error('Layout component is undefined');
+    }
     const layout = component.replace(LAYOUT_PREFIX, '');
 
     if(!layouts[layout]) {
@@ -51,11 +54,14 @@ function transformElegantRouteToVueRoute(
     return layout;
   }
 
-  function isView(component: string) {
-    return component.startsWith(VIEW_PREFIX);
+  function isView(component?: string) {
+    return typeof component === 'string' && component.startsWith(VIEW_PREFIX);
   }
 
-  function getViewName(component: string) {
+  function getViewName(component?: string) {
+    if (!component) {
+      throw new Error('View component is undefined');
+    }
     const view = component.replace(VIEW_PREFIX, '');
 
     if(!views[view]) {
@@ -73,8 +79,21 @@ function transformElegantRouteToVueRoute(
     return isFirstLevelRoute(item) && !item.children?.length;
   }
 
+  function hasSingleLevelLayoutAndView(component: string) {
+    if (!component.includes(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT)) {
+      return false;
+    }
+
+    const [layout, view] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
+    return Boolean(layout && view);
+  }
+
   function getSingleLevelRouteComponent(component: string) {
     const [layout, view] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
+
+    if (!layout || !view) {
+      throw new Error(`Invalid single-level route component config: "${component}"`);
+    }
 
     return {
       layout: getLayoutName(layout),
@@ -95,56 +114,26 @@ function transformElegantRouteToVueRoute(
 
   try {
     if (component) {
-      if (isSingleLevelRoute(route)) {
-        /**
-         * 兼容两类单层路由写法：
-         * 1. 标准写法：layout.xxx$view.xxx（需要拆分 layout + view）
-         * 2. 后端动态目录写法：layout.base（无 view，典型如 plugin-root）
-         */
-        if (component.includes(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT)) {
-          const { layout, view } = getSingleLevelRouteComponent(component);
+      if (isSingleLevelRoute(route) && hasSingleLevelLayoutAndView(component)) {
+        const { layout, view } = getSingleLevelRouteComponent(component);
 
-          const singleLevelRoute: RouteRecordRaw = {
-            path,
-            component: layouts[layout],
-            meta: {
-              title: route.meta?.title || ''
-            },
-            children: [
-              {
-                name,
-                path: '',
-                component: views[view],
-                ...rest
-              } as RouteRecordRaw
-            ]
-          };
-
-          return [singleLevelRoute];
-        }
-
-        if (isLayout(component)) {
-          const layoutName = getLayoutName(component);
-          const layoutOnlyRoute: RouteRecordRaw = {
-            ...vueRoute,
-            component: layouts[layoutName]
-          };
-          // 插件根目录在无子菜单时引导到空页面，避免出现 “No match for plugin-root”。
-          if (name === 'plugin-root' && !layoutOnlyRoute.redirect) {
-            layoutOnlyRoute.redirect = '/plugin-root-empty';
-          }
-          return [layoutOnlyRoute];
-        }
-
-        if (isView(component)) {
-          const viewName = getViewName(component);
-          return [
+        const singleLevelRoute: RouteRecordRaw = {
+          path,
+          component: layouts[layout],
+          meta: {
+            title: route.meta?.title || ''
+          },
+          children: [
             {
-              ...vueRoute,
-              component: views[viewName]
-            }
-          ];
-        }
+              name,
+              path: '',
+              component: views[view],
+              ...rest
+            } as RouteRecordRaw
+          ]
+        };
+
+        return [singleLevelRoute];
       }
 
       if (isLayout(component)) {

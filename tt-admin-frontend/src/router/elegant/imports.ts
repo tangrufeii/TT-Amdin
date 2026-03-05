@@ -22,6 +22,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   login: () => import("@/views/_builtin/login/index.vue"),
   home: () => import("@/views/home/index.vue"),
   "plugin-management": () => import("@/views/plugin-management/index.vue"),
+  "plugin-root-empty": () => import("@/views/plugin-root-empty/index.vue"),
   system_dict: () => import("@/views/system/dict/index.vue"),
   "system_docs_docs-plugin-dev": () => import("@/views/system/docs/docs-plugin-dev/index.vue"),
   "system_docs_docs-project-intro": () => import("@/views/system/docs/docs-project-intro/index.vue"),

@@ -161,7 +161,8 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
 
   function syncMenus() {
     const mergedMenus = mergeMenus(baseMenus.value, pluginMenus.value);
-    menus.value = updateLocaleOfGlobalMenus(mergedMenus);
+    const validMenus = filterMenusByRegisteredRoutes(mergedMenus);
+    menus.value = updateLocaleOfGlobalMenus(validMenus);
   }
 
   /** Cache routes */
@@ -396,7 +397,9 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     }
 
     const modules = data ?? [];
-    if (!modules.length && pluginRouteRetryCount < 5) {
+    // Retry only for initial loading race. If modules were previously present and now become empty
+    // (for example after disabling all plugins), apply the empty set immediately to sync menus.
+    if (!modules.length && !pluginModuleSignature && pluginRouteRetryCount < 5) {
       setIsInitPluginRoute(false);
       schedulePluginRouteRetry();
       return;
@@ -928,6 +931,25 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         ...menu,
         children: menu.children ? sortMenuTree(menu.children) : undefined
       }));
+  }
+
+  function filterMenusByRegisteredRoutes(tree: App.Global.Menu[]) {
+    return tree
+      .map(menu => {
+        const children = menu.children?.length ? filterMenusByRegisteredRoutes(menu.children) : undefined;
+        const hasChildren = Boolean(children?.length);
+        const hasRoute = menu.routeKey ? router.hasRoute(String(menu.routeKey)) : false;
+
+        if (!hasRoute && !hasChildren) {
+          return null;
+        }
+
+        return {
+          ...menu,
+          children
+        } as App.Global.Menu;
+      })
+      .filter((item): item is App.Global.Menu => Boolean(item));
   }
 
 

@@ -24,6 +24,7 @@ declare module "@elegant-router/types" {
     "iframe-page": "/iframe-page/:url";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
     "plugin-management": "/plugin-management";
+    "plugin-root-empty": "/plugin-root-empty";
     "system": "/system";
     "system_dict": "/system/dict";
     "system_docs": "/system/docs";
@@ -71,6 +72,7 @@ declare module "@elegant-router/types" {
     | "iframe-page"
     | "login"
     | "plugin-management"
+    | "plugin-root-empty"
     | "system"
   >;
 
@@ -95,6 +97,7 @@ declare module "@elegant-router/types" {
     | "login"
     | "home"
     | "plugin-management"
+    | "plugin-root-empty"
     | "system_dict"
     | "system_docs_docs-plugin-dev"
     | "system_docs_docs-project-intro"

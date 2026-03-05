@@ -85,6 +85,15 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'plugin-root-empty',
+    path: '/plugin-root-empty',
+    component: 'layout.base$view.plugin-root-empty',
+    meta: {
+      title: 'plugin-root-empty',
+      i18nKey: 'route.plugin-root-empty'
+    }
+  },
+  {
     name: 'system',
     path: '/system',
     component: 'layout.base',
