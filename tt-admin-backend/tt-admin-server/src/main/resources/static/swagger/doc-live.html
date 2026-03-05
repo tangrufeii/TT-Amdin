@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>接口文档（实时提醒）</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #f5f7fa;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      overflow: hidden;
+    }
+
+    .doc-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #fff;
+    }
+
+    .toast {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 2147483647;
+      width: min(360px, calc(100vw - 24px));
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(19, 24, 32, 0.95);
+      color: #fff;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      transform: translateY(-12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.24s ease;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .toast-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px 0;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .toast-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ffb300;
+      box-shadow: 0 0 0 4px rgba(255, 179, 0, 0.2);
+      flex-shrink: 0;
+    }
+
+    .toast-body {
+      padding: 8px 14px 10px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .toast-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 14px 14px;
+    }
+
+    .btn {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      background: transparent;
+      color: #fff;
+    }
+
+    .btn:hover {
+      border-color: rgba(255, 255, 255, 0.42);
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, #1777ff, #0a5ee5);
+      border-color: #0a5ee5;
+    }
+
+    .btn.primary:hover {
+      filter: brightness(1.08);
+    }
+
+    .status-tag {
+      position: fixed;
+      left: 14px;
+      bottom: 12px;
+      z-index: 2147483646;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      background: rgba(255, 255, 255, 0.85);
+      color: #3a3f45;
+      font-size: 11px;
+      line-height: 1;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+<iframe id="docFrame" class="doc-frame" src="/doc.html" title="Knife4j"></iframe>
+
+<div id="updateToast" class="toast" role="alert" aria-live="polite">
+  <div class="toast-head">
+    <span class="toast-dot"></span>
+    <span>接口文档已更新</span>
+  </div>
+  <div class="toast-body">
+    检测到 OpenAPI 文档发生变化。建议刷新当前文档页以查看最新接口。
+  </div>
+  <div class="toast-actions">
+    <button id="btnLater" class="btn" type="button">稍后提醒</button>
+    <button id="btnRefresh" class="btn primary" type="button">立即刷新</button>
+  </div>
+</div>
+
+<div id="statusTag" class="status-tag">文档监听中</div>
+
+<script>
+  (() => {
+    const state = {
+      apiUrl: "/v3/api-docs",
+      fingerprint: "",
+      timer: null,
+      hasPendingUpdate: false,
+      pollIntervalMs: 12000,
+      docPageUrl: "/doc.html"
+    };
+
+    const frame = document.getElementById("docFrame");
+    const toast = document.getElementById("updateToast");
+    const statusTag = document.getElementById("statusTag");
+    const btnRefresh = document.getElementById("btnRefresh");
+    const btnLater = document.getElementById("btnLater");
+
+    function setStatus(text) {
+      statusTag.textContent = text;
+    }
+
+    function showToast() {
+      toast.classList.add("show");
+    }
+
+    function hideToast() {
+      toast.classList.remove("show");
+    }
+
+    function hashText(text) {
+      let hash = 2166136261;
+      for (let i = 0; i < text.length; i += 1) {
+        hash ^= text.charCodeAt(i);
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+      }
+      return (hash >>> 0).toString(16);
+    }
+
+    async function resolveApiUrl() {
+      try {
+        const resp = await fetch("/v3/api-docs/swagger-config", { cache: "no-store" });
+        if (!resp.ok) {
+          return;
+        }
+        const cfg = await resp.json();
+        if (cfg && typeof cfg.url === "string" && cfg.url.trim()) {
+          state.apiUrl = cfg.url;
+          return;
+        }
+        if (cfg && Array.isArray(cfg.urls) && cfg.urls.length && cfg.urls[0] && typeof cfg.urls[0].url === "string") {
+          state.apiUrl = cfg.urls[0].url;
+        }
+      } catch (_) {
+        // 忽略配置读取错误，走默认 /v3/api-docs
+      }
+    }
+
+    function buildDocFrameUrl() {
+      const url = new URL(state.docPageUrl, window.location.origin);
+      const sourceQuery = new URLSearchParams(window.location.search);
+      sourceQuery.forEach((value, key) => {
+        if (key !== "_ts") {
+          url.searchParams.set(key, value);
+        }
+      });
+      return url.pathname + url.search;
+    }
+
+    function appendTimestamp(url) {
+      return url + (url.includes("?") ? "&" : "?") + "_ts=" + Date.now();
+    }
+
+    async function fetchFingerprint() {
+      const resp = await fetch(state.apiUrl, { cache: "no-store" });
+      if (!resp.ok) {
+        throw new Error("api-docs request failed: " + resp.status);
+      }
+      const text = await resp.text();
+      return hashText(text);
+    }
+
+    async function poll() {
+      try {
+        const next = await fetchFingerprint();
+        if (!state.fingerprint) {
+          state.fingerprint = next;
+          setStatus("文档监听中");
+          return;
+        }
+        if (next !== state.fingerprint) {
+          state.fingerprint = next;
+          state.hasPendingUpdate = true;
+          setStatus("检测到更新");
+          showToast();
+        }
+      } catch (error) {
+        setStatus("文档监听异常");
+        console.warn("[doc-live] poll failed:", error);
+      }
+    }
+
+    function refreshFrame() {
+      frame.src = appendTimestamp(buildDocFrameUrl());
+      state.hasPendingUpdate = false;
+      setStatus("文档已刷新");
+      hideToast();
+      setTimeout(() => {
+        if (!state.hasPendingUpdate) {
+          setStatus("文档监听中");
+        }
+      }, 1200);
+    }
+
+    function bindEvents() {
+      btnRefresh.addEventListener("click", refreshFrame);
+      btnLater.addEventListener("click", hideToast);
+      window.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          poll();
+        }
+      });
+    }
+
+    async function init() {
+      frame.src = buildDocFrameUrl();
+      await resolveApiUrl();
+      await poll();
+      bindEvents();
+      state.timer = setInterval(poll, state.pollIntervalMs);
+      setStatus("文档监听中");
+    }
+
+    init();
+  })();
+</script>
+</body>
+</html>

@@ -33,6 +33,9 @@ public class MvcConfig implements WebMvcConfigurer {
         registry.addViewController("/register").setViewName("/static/admin/index.html");
         registry.addViewController("/findPassword").setViewName("/static/admin/index.html");
         registry.addViewController("/init").setViewName("/static/admin/index.html");
+        // 带变更提醒的接口文档页
+        registry.addViewController("/doc-live").setViewName("forward:/static/swagger/doc-live.html");
+        registry.addViewController("/doc-live.html").setViewName("forward:/static/swagger/doc-live.html");
         WebMvcConfigurer.super.addViewControllers(registry);
     }
 
@@ -76,7 +79,7 @@ public class MvcConfig implements WebMvcConfigurer {
                 "file:./resources/static/admin/modules/"
         );
 
-        registry.addResourceHandler("doc.html").addResourceLocations("classpath:/META-INF/resources/");
+        registry.addResourceHandler("/doc.html").addResourceLocations("classpath:/META-INF/resources/");
         registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
         String pathPattern = "/api/plugin-static/**";
         ResourceHandlerRegistration resourceHandlerRegistration = registry.addResourceHandler(pathPattern);
