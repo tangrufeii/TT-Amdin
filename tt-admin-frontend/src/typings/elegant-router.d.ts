@@ -25,6 +25,10 @@ declare module "@elegant-router/types" {
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
     "plugin-management": "/plugin-management";
     "plugin-root-empty": "/plugin-root-empty";
+    "portal-home": "/portal-home";
+    "portal-orchestration": "/theme-management/portal-orchestration";
+    "portal-preview": "/theme-management/portal-preview";
+    "portal-theme-control": "/theme-management/portal-themes";
     "system": "/system";
     "system_dict": "/system/dict";
     "system_docs": "/system/docs";
@@ -73,6 +77,10 @@ declare module "@elegant-router/types" {
     | "login"
     | "plugin-management"
     | "plugin-root-empty"
+    | "portal-home"
+    | "portal-orchestration"
+    | "portal-preview"
+    | "portal-theme-control"
     | "system"
   >;
 
@@ -95,6 +103,10 @@ declare module "@elegant-router/types" {
     | "500"
     | "iframe-page"
     | "login"
+    | "portal-home"
+    | "portal-orchestration"
+    | "portal-preview"
+    | "portal-theme-control"
     | "home"
     | "plugin-management"
     | "plugin-root-empty"

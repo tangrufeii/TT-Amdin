@@ -1,0 +1,10 @@
+{
+  "id": "gallery-3d",
+  "title": "3D 相册主题",
+  "description": "用于作品集、旅拍、空间影像展示的 3D 文件化门户主题。",
+  "active": false,
+  "order": 40,
+  "pages": {
+    "/": "pages/index.html"
+  }
+}

@@ -1,0 +1,60 @@
+.music-floating {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(320px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #10213d;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.music-floating__toggle {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #27c498;
+  color: #08251d;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.music-floating__meta {
+  min-width: 0;
+}
+
+.music-floating__meta strong,
+.music-floating__meta span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.music-floating__meta strong {
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.music-floating__meta span {
+  margin-top: 4px;
+  color: #526078;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .music-floating {
+    right: 16px;
+    bottom: 16px;
+  }
+}

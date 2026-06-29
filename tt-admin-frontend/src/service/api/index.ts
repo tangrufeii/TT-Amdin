@@ -1,6 +1,7 @@
 export * from './auth';
 export * from './route';
 export * from './plugin';
+export * from './portal';
 export * from './dict';
 export * from './system/menu';
 export * from './system/dict';

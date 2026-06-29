@@ -1,0 +1,10 @@
+{
+  "id": "shop",
+  "title": "商城主题",
+  "description": "适合商品展示、品牌零售和轻量电商首页的文件化门户主题。",
+  "active": false,
+  "order": 20,
+  "pages": {
+    "/": "pages/index.html"
+  }
+}

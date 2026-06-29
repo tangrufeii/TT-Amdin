@@ -1,0 +1,133 @@
+:root {
+  color-scheme: light;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f4f7fb;
+  color: #162033;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(135deg, rgba(31, 111, 235, 0.1), transparent 34%),
+    linear-gradient(315deg, rgba(17, 165, 124, 0.1), transparent 28%),
+    #f4f7fb;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 24px 0;
+}
+
+.site-logo {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  gap: 16px;
+}
+
+.site-nav a {
+  color: #526078;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.hero {
+  width: min(1120px, calc(100% - 32px));
+  margin: 40px auto 0;
+}
+
+.hero__content {
+  min-height: 380px;
+  padding: 64px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+}
+
+.hero__content h1 {
+  max-width: 760px;
+  margin: 0;
+  color: #111827;
+  font-size: 48px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.hero__content p:not(.eyebrow) {
+  max-width: 660px;
+  margin: 20px 0 0;
+  color: #526078;
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.eyebrow {
+  margin: 0 0 14px;
+  color: #1f6feb;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.article-list {
+  width: min(1120px, calc(100% - 32px));
+  margin: 28px auto 0;
+}
+
+.article-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  padding-bottom: 56px;
+}
+
+.article-list article {
+  padding: 28px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.article-list h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.article-list p:last-child {
+  margin: 12px 0 0;
+  color: #526078;
+  line-height: 1.7;
+}
+
+@media (max-width: 860px) {
+  .article-list {
+    grid-template-columns: 1fr;
+  }
+
+  .hero__content {
+    min-height: auto;
+    padding: 36px;
+  }
+
+  .hero__content h1 {
+    font-size: 34px;
+  }
+}

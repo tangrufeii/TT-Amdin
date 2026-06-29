@@ -49,7 +49,7 @@ MySQL 官方镜像只会在 `/var/lib/mysql` 首次为空时执行 `/docker-entr
 后端容器会绑定宿主机目录：
 
 - `tt-admin-backend/resources/plugins` -> `/app/resources/plugins`
+- `resources/themes` -> `/app/resources/themes`
 - `tt-admin-backend/resources/temp` -> `/app/resources/temp`
 
-这样部署后可以直接带上仓库里的预置插件，也方便体验站上传、启停、替换插件。日志仍使用 Docker volume 保存到 `backend_logs`。
-
+这样部署后可以直接带上仓库里的预置插件和文件化门户主题，也方便体验站上传、启停、替换插件。日志仍使用 Docker volume 保存到 `backend_logs`。

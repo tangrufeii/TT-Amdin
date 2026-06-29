@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TT 文件化博客主题</title>
+    <link rel="stylesheet" href="/portal/theme-assets/blog/static/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="site-logo" href="/">TT Portal</a>
+      <nav class="site-nav">
+        <a href="/">首页</a>
+        <a href="/portal/render?themeKey=blog">主题预览</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero__content">
+          <p class="eyebrow">File Theme Runtime</p>
+          <h1>主题就是可编辑文件，门户可以整站在线切换。</h1>
+          <p>
+            这个页面来自 <code>resources/themes/blog/pages/index.html</code>。
+            当前版本先把文件主题、静态资源和在线启用跑稳。
+          </p>
+        </div>
+      </section>
+
+      <section class="article-list">
+        <article>
+          <p class="eyebrow">Theme</p>
+          <h2>整站替换优先</h2>
+          <p>主题目录声明页面映射，后端按当前主题渲染对应 HTML。</p>
+        </article>
+        <article>
+          <p class="eyebrow">Runtime</p>
+          <h2>接口后续按业务拆</h2>
+          <p>文章、商品、相册等数据应来自独立的门户公开接口或业务插件。</p>
+        </article>
+      </section>
+    </main>
+
+    <script src="/portal/theme-assets/blog/static/main.js"></script>
+  </body>
+</html>

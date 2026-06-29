@@ -1,0 +1,10 @@
+{
+  "id": "blog-clean",
+  "title": "博客主题",
+  "description": "面向文章、专栏和品牌内容发布的文件化门户主题。",
+  "active": false,
+  "order": 30,
+  "pages": {
+    "/": "pages/index.html"
+  }
+}

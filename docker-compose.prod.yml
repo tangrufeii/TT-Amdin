@@ -54,6 +54,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ./resources/themes:/app/resources/themes
       - ./tt-admin-backend/resources/plugins:/app/resources/plugins
       - ./tt-admin-backend/resources/temp:/app/resources/temp
       - backend_logs:/var/log/tt-admin

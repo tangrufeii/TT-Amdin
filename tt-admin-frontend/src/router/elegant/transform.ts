@@ -37,14 +37,11 @@ function transformElegantRouteToVueRoute(
   const ROUTE_DEGREE_SPLITTER = '_';
   const FIRST_LEVEL_ROUTE_COMPONENT_SPLIT = '$';
 
-  function isLayout(component?: string) {
-    return typeof component === 'string' && component.startsWith(LAYOUT_PREFIX);
+  function isLayout(component: string) {
+    return component.startsWith(LAYOUT_PREFIX);
   }
 
-  function getLayoutName(component?: string) {
-    if (!component) {
-      throw new Error('Layout component is undefined');
-    }
+  function getLayoutName(component: string) {
     const layout = component.replace(LAYOUT_PREFIX, '');
 
     if(!layouts[layout]) {
@@ -54,14 +51,11 @@ function transformElegantRouteToVueRoute(
     return layout;
   }
 
-  function isView(component?: string) {
-    return typeof component === 'string' && component.startsWith(VIEW_PREFIX);
+  function isView(component: string) {
+    return component.startsWith(VIEW_PREFIX);
   }
 
-  function getViewName(component?: string) {
-    if (!component) {
-      throw new Error('View component is undefined');
-    }
+  function getViewName(component: string) {
     const view = component.replace(VIEW_PREFIX, '');
 
     if(!views[view]) {
@@ -79,21 +73,8 @@ function transformElegantRouteToVueRoute(
     return isFirstLevelRoute(item) && !item.children?.length;
   }
 
-  function hasSingleLevelLayoutAndView(component: string) {
-    if (!component.includes(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT)) {
-      return false;
-    }
-
-    const [layout, view] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
-    return Boolean(layout && view);
-  }
-
   function getSingleLevelRouteComponent(component: string) {
     const [layout, view] = component.split(FIRST_LEVEL_ROUTE_COMPONENT_SPLIT);
-
-    if (!layout || !view) {
-      throw new Error(`Invalid single-level route component config: "${component}"`);
-    }
 
     return {
       layout: getLayoutName(layout),
@@ -114,7 +95,7 @@ function transformElegantRouteToVueRoute(
 
   try {
     if (component) {
-      if (isSingleLevelRoute(route) && hasSingleLevelLayoutAndView(component)) {
+      if (isSingleLevelRoute(route)) {
         const { layout, view } = getSingleLevelRouteComponent(component);
 
         const singleLevelRoute: RouteRecordRaw = {
@@ -190,6 +171,10 @@ const routeMap: RouteMap = {
   "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?",
   "plugin-management": "/plugin-management",
   "plugin-root-empty": "/plugin-root-empty",
+  "portal-home": "/portal-home",
+  "portal-orchestration": "/theme-management/portal-orchestration",
+  "portal-preview": "/theme-management/portal-preview",
+  "portal-theme-control": "/theme-management/portal-themes",
   "system": "/system",
   "system_dict": "/system/dict",
   "system_docs": "/system/docs",

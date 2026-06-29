@@ -2,6 +2,8 @@ package com.tt.server.config.mvc;
 
 
 import com.tt.infrastructure.plugin.engine.loader.PluginResourceResolver;
+import com.tt.server.interceptor.PermissionResourceInterceptor;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -16,19 +18,40 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 @Configuration
+@RequiredArgsConstructor
 public class MvcConfig implements WebMvcConfigurer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MvcConfig.class);
 
+    private final PermissionResourceInterceptor permissionResourceInterceptor;
 
-
-
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(permissionResourceInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns(
+                        "/auth/login",
+                        "/auth/register",
+                        "/portal/render",
+                        "/portal/theme-assets/**",
+                        "/api/plugin-static/**",
+                        "/static/**",
+                        "/api/static/**",
+                        "/assets/**",
+                        "/modules/**",
+                        "/doc.html",
+                        "/doc-live",
+                        "/doc-live.html",
+                        "/webjars/**",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**"
+                );
+    }
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         // 如果前端放在后端容器运行
         registry.addViewController("/admin/**").setViewName("/static/admin/index.html");
-        registry.addViewController("/plugin/**").setViewName("/static/admin/index.html");
         registry.addViewController("/login").setViewName("/static/admin/index.html");
         registry.addViewController("/register").setViewName("/static/admin/index.html");
         registry.addViewController("/findPassword").setViewName("/static/admin/index.html");

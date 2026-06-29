@@ -1,0 +1,10 @@
+{
+  "id": "blog",
+  "title": "TT 文件化博客主题",
+  "description": "用于验证文件化主题、整站替换和在线切换的最小门户主题。",
+  "active": true,
+  "order": 10,
+  "pages": {
+    "/": "pages/index.html"
+  }
+}

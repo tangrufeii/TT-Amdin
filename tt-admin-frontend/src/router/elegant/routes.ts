@@ -94,6 +94,42 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'portal-home',
+    path: '/portal-home',
+    component: 'layout.base$view.portal-home',
+    meta: {
+      title: 'portal-home',
+      i18nKey: 'route.portal-home'
+    }
+  },
+  {
+    name: 'portal-orchestration',
+    path: '/theme-management/portal-orchestration',
+    component: 'layout.base$view.portal-orchestration',
+    meta: {
+      title: 'portal-orchestration',
+      i18nKey: 'route.portal-orchestration'
+    }
+  },
+  {
+    name: 'portal-preview',
+    path: '/theme-management/portal-preview',
+    component: 'layout.base$view.portal-preview',
+    meta: {
+      title: 'portal-preview',
+      i18nKey: 'route.portal-preview'
+    }
+  },
+  {
+    name: 'portal-theme-control',
+    path: '/theme-management/portal-themes',
+    component: 'layout.base$view.portal-theme-control',
+    meta: {
+      title: 'portal-theme-control',
+      i18nKey: 'route.portal-theme-control'
+    }
+  },
+  {
     name: 'system',
     path: '/system',
     component: 'layout.base',

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orbit Gallery</title>
+    <link rel="stylesheet" href="/portal/theme-assets/gallery-3d/static/style.css" />
+  </head>
+  <body>
+    <main class="gallery-page">
+      <header class="gallery-nav">
+        <a class="brand" href="/">Orbit Gallery</a>
+        <span data-role="counter">00</span>
+      </header>
+
+      <section class="hero">
+        <div class="hero__copy">
+          <p class="eyebrow">Spatial Album</p>
+          <h1 data-role="title">Orbit Gallery</h1>
+          <p data-role="subtitle">用空间层次展示作品、旅拍和项目现场。</p>
+        </div>
+
+        <div class="scene" data-role="scene" aria-label="3D 相册">
+          <div class="orbit" data-role="orbit"></div>
+        </div>
+      </section>
+
+      <section class="detail">
+        <div>
+          <p class="eyebrow">Selected Frame</p>
+          <h2 data-role="photo-title">选择一张照片</h2>
+        </div>
+        <p data-role="photo-description">点击照片查看说明，拖动鼠标可以改变空间视角。</p>
+      </section>
+    </main>
+    <script src="/portal/theme-assets/gallery-3d/static/main.js"></script>
+  </body>
+</html>
