@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
  */
 @Getter
 public enum PluginResourceDirectory {
+    EXTENSION_FILE("extension.yaml"),
     CODE_DIR("code"),
     LIB_DIR("lib"),
     CONFIG_FILE("plugin.yaml"),
