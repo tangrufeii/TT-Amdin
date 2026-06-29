@@ -5,10 +5,14 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_NAME:-tt_admin}
+      MYSQL_USER: ${DB_USERNAME:-tt_admin}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./sql/tt_admin.sql:/docker-entrypoint-initdb.d/001_tt_admin.sql:ro
+      - ./sql/v2/002_migrate_sys_plugin_to_sys_extension.sql:/docker-entrypoint-initdb.d/002_migrate_sys_plugin_to_sys_extension.sql:ro
     healthcheck:
       test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-p${MYSQL_ROOT_PASSWORD}']
       interval: 10s
@@ -41,6 +45,7 @@ services:
       DB_NAME: ${DB_NAME:-tt_admin}
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD}
+      DB_USE_SSL: ${DB_USE_SSL:-false}
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
     depends_on:
@@ -49,8 +54,8 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - plugin_data:/app/resources/plugins
-      - plugin_temp:/app/resources/temp
+      - ./tt-admin-backend/resources/plugins:/app/resources/plugins
+      - ./tt-admin-backend/resources/temp:/app/resources/temp
       - backend_logs:/var/log/tt-admin
 
   frontend:
@@ -67,6 +72,4 @@ services:
 volumes:
   mysql_data:
   redis_data:
-  plugin_data:
-  plugin_temp:
   backend_logs:

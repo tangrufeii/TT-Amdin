@@ -185,15 +185,19 @@ CREATE TABLE `sys_menu`  (
 INSERT INTO `sys_menu` (`id`,`parent_id`,`type`,`name`,`code`,`i18n_key`,`route_name`,`path`,`icon`,`icon_type`,`component`,`permission`,`keep_alive`,`hide`,`href`,`sort`,`multi_tab`,`fixed_index_in_tab`,`query`,`iframe_url`,`status`,`remark`,`create_time`,`update_time`,`create_user`,`update_user`,`is_deleted`) VALUES
 (1,0,'2','首页','dashboard:home','route.home','home','/home','mdi:monitor-dashboard','1','layout.base$view.home',NULL,'N','N',NULL,1,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (2,0,'2','插件管理','plugin:management','route.pluginManagement','plugin-management','/plugin-management','mdi:puzzle-outline','1','layout.base$view.plugin-management',NULL,'N','N',NULL,2,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
-(3,0,'1','系统管理','system:management','route.systemManagement','system','/system','mdi:cog-outline','1','layout.base',NULL,'N','N',NULL,3,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
+(3,0,'1','系统管理','system:management','route.systemManagement','system','/system','mdi:cog-outline','1','layout.base',NULL,'N','N',NULL,4,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (4,3,'2','字典管理','system:dict','route.systemDict','system_dict','/system/dict','mdi:book-open-variant','1','view.system_dict',NULL,'N','N',NULL,1,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (5,3,'2','菜单管理','system:menu','route.systemMenu','system_menu','/system/menu','mdi:menu','1','view.system_menu',NULL,'N','N',NULL,2,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (6,3,'2','用户管理','system:user','route.systemUser','system_user','/system/user','mdi:account-circle-outline','1','view.system_user',NULL,'N','N',NULL,3,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (7,3,'2','角色管理','system:role','route.systemRole','system_role','/system/role','mdi:shield-account-outline','1','view.system_role',NULL,'N','N',NULL,4,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (8,3,'2','通知公告','system:notice','route.systemNotice','system_notice','/system/notice','mdi:bell-outline','1','view.system_notice',NULL,'N','N',NULL,5,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
-(9,0,'1','文档','docs:root','route.docs','docs','/docs','mdi:book-open-page-variant','1','layout.base',NULL,'N','N',NULL,4,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
+(9,0,'1','文档','docs:root','route.docs','docs','/docs','mdi:book-open-page-variant','1','layout.base',NULL,'N','N',NULL,5,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
 (10,9,'2','插件开发','docs:plugin-dev','route.pluginDev','docs_plugin_dev','/docs/plugin-dev','mdi:puzzle-outline','1','view.system_docs_docs-plugin-dev',NULL,'N','N',NULL,1,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
-(11,9,'2','项目介绍','docs:project-intro','route.projectIntro','docs_project_intro','/docs/project','mdi:file-document-outline','1','view.system_docs_docs-project-intro',NULL,'N','N',NULL,2,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0);
+(11,9,'2','项目介绍','docs:project-intro','route.projectIntro','docs_project_intro','/docs/project','mdi:file-document-outline','1','view.system_docs_docs-project-intro',NULL,'N','N',NULL,2,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
+(12,0,'1','主题管理','theme:management','route.themeManagement','theme-management','/theme-management','mdi:palette-outline','1','layout.base',NULL,'N','N',NULL,3,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
+(13,12,'2','门户主题','portal:theme:list','route.portal-theme-control','theme_management_portal_theme','/theme-management/portal-themes','mdi:web','1','view.portal-theme-control',NULL,'N','N',NULL,1,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
+(14,12,'2','挂件编排','portal:orchestration','route.portal-orchestration','theme_management_portal_orchestration','/theme-management/portal-orchestration','mdi:view-grid-plus-outline','1','view.portal-orchestration',NULL,'N','N',NULL,2,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0),
+(15,12,'2','门户预览','portal:preview','route.portal-preview','theme_management_portal_preview','/theme-management/portal-preview','mdi:monitor-eye','1','view.portal-preview',NULL,'N','N',NULL,3,'N',NULL,NULL,NULL,'1',NULL,'2025-12-10 09:39:13','2025-12-10 09:39:13','system',NULL,0);
 
 -- ----------------------------
 -- Table structure for sys_operation_log
@@ -310,6 +314,51 @@ CREATE TABLE `sys_plugin`  (
 -- ----------------------------
 
 -- ----------------------------
+-- Table structure for sys_extension
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_extension`;
+CREATE TABLE `sys_extension` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `extension_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '扩展唯一标识，对应 Manifest 的 extension.id',
+  `name` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '扩展名称',
+  `type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '扩展类型：theme/module/widget/hybrid',
+  `description` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '扩展描述',
+  `version` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '当前安装版本',
+  `status` int(11) NOT NULL DEFAULT 0 COMMENT '扩展状态：0禁用，1启用',
+  `manifest_version` int(11) NOT NULL DEFAULT 2 COMMENT 'Manifest 版本号，旧插件迁移时默认写 1',
+  `singleton_flag` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否单例扩展，主题必须为 1',
+  `auto_enable` tinyint(1) NOT NULL DEFAULT 0 COMMENT '安装后是否自动启用',
+  `entry_priority` int(11) NOT NULL DEFAULT 100 COMMENT '装载优先级，值越小越优先',
+  `source_format` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'extension-yaml' COMMENT '声明来源：extension-yaml/legacy-plugin',
+  `install_source` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '安装来源：upload/dev-sync/market/migration',
+  `host_min_version` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '宿主最低兼容版本',
+  `host_max_version` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '宿主最高兼容版本',
+  `author` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '作者名称',
+  `website` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '作者或项目主页',
+  `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '作者联系邮箱',
+  `is_dev` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否开发联调模式',
+  `front_dev_address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '前端开发联调地址',
+  `capabilities_json` json NULL COMMENT '能力声明快照',
+  `artifacts_json` json NULL COMMENT '构建产物路径快照',
+  `manifest_json` json NULL COMMENT '完整 Manifest 快照',
+  `install_checksum` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '安装包校验摘要',
+  `created_by` bigint(20) NULL DEFAULT NULL COMMENT '创建人ID',
+  `updated_by` bigint(20) NULL DEFAULT NULL COMMENT '更新人ID',
+  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_extension_id` (`extension_id` ASC) USING BTREE,
+  INDEX `idx_extension_type` (`type` ASC) USING BTREE,
+  INDEX `idx_extension_status` (`status` ASC) USING BTREE,
+  INDEX `idx_extension_type_status` (`type` ASC, `status` ASC) USING BTREE
+) ENGINE = InnoDB
+  AUTO_INCREMENT = 1
+  CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_general_ci
+  ROW_FORMAT = DYNAMIC
+  COMMENT = 'V2 扩展主记录表';
+
+-- ----------------------------
 -- Table structure for sys_position
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_position`;
@@ -387,6 +436,7 @@ CREATE TABLE `sys_role_menu`  (
 
 INSERT INTO `sys_role_menu` (`id`,`role_id`,`menu_id`,`create_time`,`create_user`) VALUES
 (1,1,1,'2025-12-10 09:39:13','system'),(2,1,2,'2025-12-10 09:39:13','system'),(3,1,3,'2025-12-10 09:39:13','system'),(4,1,4,'2025-12-10 09:39:13','system'),(5,1,5,'2025-12-10 09:39:13','system'),(6,1,6,'2025-12-10 09:39:13','system'),(7,1,7,'2025-12-10 09:39:13','system'),(8,1,8,'2025-12-10 09:39:13','system'),(9,1,9,'2025-12-10 09:39:13','system'),(10,1,10,'2025-12-10 09:39:13','system'),(11,1,11,'2025-12-10 09:39:13','system'),
+(19,1,12,'2025-12-10 09:39:13','system'),(20,1,13,'2025-12-10 09:39:13','system'),(21,1,14,'2025-12-10 09:39:13','system'),(22,1,15,'2025-12-10 09:39:13','system'),
 (12,2,1,'2025-12-10 09:39:13','system'),(13,2,3,'2025-12-10 09:39:13','system'),(14,2,4,'2025-12-10 09:39:13','system'),(15,2,5,'2025-12-10 09:39:13','system'),(16,2,6,'2025-12-10 09:39:13','system'),(17,2,7,'2025-12-10 09:39:13','system'),(18,2,8,'2025-12-10 09:39:13','system');
 
 -- ----------------------------
