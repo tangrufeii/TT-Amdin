@@ -6,53 +6,52 @@ import {
   NDataTable,
   NDrawer,
   NDrawerContent,
-  NEmpty,
   NForm,
   NFormItem,
   NGi,
   NGrid,
+  NIcon,
   NInput,
+  NModal,
+  NNumberAnimation,
   NPopconfirm,
+  NRadioButton,
+  NRadioGroup,
   NSelect,
   NSpace,
   NStatistic,
   NSwitch,
   NTag,
+  NText,
   NTooltip,
   NUpload,
-  NUploadDragger,
-  NModal,
-  NIcon,
-  NText,
-  NNumberAnimation,
-  NRadioGroup,
-  NRadioButton
+  NUploadDragger
 } from 'naive-ui';
-import { $t } from '@/locales';
-import { formatDateTime } from '@/utils/date';
-import { useTable, useTableOperate } from '@/hooks/common/table';
-import { useAppStore } from '@/store/modules/app';
-import { useRouteStore } from '@/store/modules/route';
-import { renderOperateColumn, resolveOperateWidth } from '@/utils/table-operate';
-import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
-
 import {
   fetchPluginDelete,
   fetchPluginDisable,
   fetchPluginEnable,
-  fetchPluginInstallFromMarket,
+  fetchPluginInstall,
   fetchPluginListAll,
-  fetchPluginMarketList,
   fetchPluginPage,
   fetchPluginProgressSnapshots,
   fetchPluginStatistics,
-  fetchPluginInstall,
   fetchPluginUpdate
 } from '@/service/api/plugin';
+import { useAppStore } from '@/store/modules/app';
+import { useRouteStore } from '@/store/modules/route';
+import { useTable, useTableOperate } from '@/hooks/common/table';
+import { formatDateTime } from '@/utils/date';
+import { renderOperateColumn, resolveOperateWidth } from '@/utils/table-operate';
+import { $t } from '@/locales';
+import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 
 defineOptions({
   name: 'PluginManagement'
 });
+
+const THEME_EXTENSION_TYPE = 'theme';
+const PLUGIN_TABLE_SCROLL_X = 1772;
 
 const appStore = useAppStore();
 const routeStore = useRouteStore();
@@ -63,21 +62,62 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
     page: 1,
     pageSize: 20,
     name: '',
-    status: null
+    status: null,
+    excludeType: THEME_EXTENSION_TYPE
   },
   columns: () => [
-    {type: 'selection', align: 'center', width: 48},
-    {key: 'index', title: $t('common.index'), align: 'center', width: 64},
-    {key: 'name', title: $t('page.pluginManagement.table.name'), align: 'center', minWidth: 150},
-    {key: 'pluginId', title: $t('page.pluginManagement.table.pluginId'), align: 'center', minWidth: 200},
-    {key: 'description', title: $t('page.pluginManagement.table.description'), align: 'center', minWidth: 200},
-    {key: 'version', title: $t('page.pluginManagement.table.version'), align: 'center', width: 100},
-    {key: 'author', title: $t('page.pluginManagement.table.author'), align: 'center', width: 120},
+    { type: 'selection', align: 'center', width: 48 },
+    { key: 'index', title: $t('common.index'), align: 'center', width: 64 },
+    {
+      key: 'name',
+      title: $t('page.pluginManagement.table.name'),
+      align: 'center',
+      width: 180,
+      ellipsis: { tooltip: true }
+    },
+    {
+      key: 'pluginId',
+      title: $t('page.pluginManagement.table.pluginId'),
+      align: 'center',
+      width: 220,
+      ellipsis: { tooltip: true }
+    },
+    {
+      key: 'typeDesc',
+      title: $t('page.pluginManagement.table.type'),
+      align: 'center',
+      width: 120,
+      render: (row: any) =>
+        h(
+          NTag,
+          {
+            size: 'small',
+            bordered: false,
+            type: row.type === 'widget' ? 'warning' : row.type === 'module' ? 'info' : 'default'
+          },
+          () => row.typeDesc || row.type || '未识别'
+        )
+    },
+    {
+      key: 'description',
+      title: $t('page.pluginManagement.table.description'),
+      align: 'center',
+      width: 260,
+      ellipsis: { tooltip: true }
+    },
+    { key: 'version', title: $t('page.pluginManagement.table.version'), align: 'center', width: 100 },
+    {
+      key: 'author',
+      title: $t('page.pluginManagement.table.author'),
+      align: 'center',
+      width: 120,
+      ellipsis: { tooltip: true }
+    },
     {
       key: 'status',
       title: $t('page.pluginManagement.table.status'),
       align: 'center',
-      width: 100,
+      width: 120,
       render: (row: any) => {
         if (isProcessing(row.pluginId)) {
           const info = getProcessingInfo(row.pluginId);
@@ -91,7 +131,11 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
             'div',
             { class: 'flex flex-col items-center gap-1' },
             [
-              h(NTag, { type: 'warning', size: 'small', bordered: false }, () => `${$t('page.pluginManagement.search.statusProcessing')} ${progress}%`),
+              h(
+                NTag,
+                { type: 'warning', size: 'small', bordered: false },
+                () => `${$t('page.pluginManagement.search.statusProcessing')} ${progress}%`
+              ),
               actionLabel ? h(NText, { depth: 3, class: 'text-xs' }, () => actionLabel) : null,
               stageLabel ? h(NText, { depth: 3, class: 'text-xs' }, () => stageLabel) : null,
               messageLabel ? h(NText, { depth: 3, class: 'text-xs' }, () => messageLabel) : null,
@@ -101,17 +145,25 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
           );
         }
         if (row.status === 1) {
-          return h(NTag, {
-            type: 'success',
+          return h(
+            NTag,
+            {
+              type: 'success',
+              size: 'small',
+              bordered: false
+            },
+            () => $t('page.pluginManagement.search.statusEnabled')
+          );
+        }
+        return h(
+          NTag,
+          {
+            type: 'error',
             size: 'small',
             bordered: false
-          }, () => $t('page.pluginManagement.search.statusEnabled'));
-        }
-        return h(NTag, {
-          type: 'error',
-          size: 'small',
-          bordered: false
-        }, () => $t('page.pluginManagement.search.statusDisabled'));
+          },
+          () => $t('page.pluginManagement.search.statusDisabled')
+        );
       }
     },
     {
@@ -146,21 +198,21 @@ const { columns, data, loading, getData, mobilePagination, searchParams, resetSe
             },
             row.status === 0
               ? {
-                key: 'enable',
-                label: $t('page.pluginManagement.table.enable'),
-                type: 'primary' as const,
-                disabled: isProcessing(row.pluginId),
-                loading: isProcessing(row.pluginId),
-                onClick: () => handleEnable(row)
-              }
+                  key: 'enable',
+                  label: $t('page.pluginManagement.table.enable'),
+                  type: 'primary' as const,
+                  disabled: isProcessing(row.pluginId),
+                  loading: isProcessing(row.pluginId),
+                  onClick: () => handleEnable(row)
+                }
               : {
-                key: 'disable',
-                label: $t('page.pluginManagement.table.disable'),
-                type: 'warning' as const,
-                disabled: isProcessing(row.pluginId),
-                loading: isProcessing(row.pluginId),
-                onClick: () => handleDisable(row)
-              },
+                  key: 'disable',
+                  label: $t('page.pluginManagement.table.disable'),
+                  type: 'warning' as const,
+                  disabled: isProcessing(row.pluginId),
+                  loading: isProcessing(row.pluginId),
+                  onClick: () => handleDisable(row)
+                },
             {
               key: 'delete',
               label: $t('page.pluginManagement.table.delete'),
@@ -243,6 +295,10 @@ const wsRef = ref<WebSocket | null>(null);
 let wsReconnectTimer: number | undefined;
 let elapsedTimer: number | undefined;
 const processingTimeouts = new Map<string, number>();
+const recentFailureMessages = new Map<string, number>();
+const FAILURE_MESSAGE_DEDUPE_MS = 3000;
+let suppressInstallFailureMessage = false;
+let suppressInstallFailureMessageTimer: number | undefined;
 
 function buildProcessingKey(pluginId?: string, action?: string) {
   if (!pluginId) return undefined;
@@ -448,6 +504,33 @@ function formatStageElapsed(ms?: number) {
   return $t('page.pluginManagement.message.stageElapsed', { seconds: seconds.toFixed(1) });
 }
 
+function showFailureMessageOnce(message: string) {
+  const normalized = message || $t('page.pluginManagement.message.operationFailed');
+  const now = Date.now();
+  const lastShownAt = recentFailureMessages.get(normalized) ?? 0;
+  if (now - lastShownAt < FAILURE_MESSAGE_DEDUPE_MS) {
+    return;
+  }
+  recentFailureMessages.set(normalized, now);
+  window.$message?.error(normalized);
+  window.setTimeout(() => {
+    if (recentFailureMessages.get(normalized) === now) {
+      recentFailureMessages.delete(normalized);
+    }
+  }, FAILURE_MESSAGE_DEDUPE_MS);
+}
+
+function suppressInstallWsFailureMessage() {
+  suppressInstallFailureMessage = true;
+  if (suppressInstallFailureMessageTimer) {
+    window.clearTimeout(suppressInstallFailureMessageTimer);
+  }
+  suppressInstallFailureMessageTimer = window.setTimeout(() => {
+    suppressInstallFailureMessage = false;
+    suppressInstallFailureMessageTimer = undefined;
+  }, FAILURE_MESSAGE_DEDUPE_MS);
+}
+
 function resolveOccurredAt(payload: any) {
   if (typeof payload?.occurredAt === 'number') {
     return payload.occurredAt;
@@ -496,12 +579,15 @@ function connectPluginSocket() {
       }
       if (status === 'SUCCESS' || status === 'FAILED') {
         clearProcessingByPluginId(pluginId);
-        if (!pluginId) {
+        if (!pluginId || action === 'INSTALL') {
           clearProcessingByAction(action);
         }
       }
       if (status === 'FAILED') {
-        window.$message?.error(payload?.message || $t('page.pluginManagement.message.operationFailed'));
+        if (action === 'INSTALL' && suppressInstallFailureMessage) {
+          return;
+        }
+        showFailureMessageOnce(payload?.message || $t('page.pluginManagement.message.operationFailed'));
       }
       if (status === 'SUCCESS') {
         await getData();
@@ -553,7 +639,8 @@ async function loadProgressSnapshots() {
 }
 
 async function getStatistics() {
-  const allResp = await fetchPluginListAll();
+  const filter = { excludeType: THEME_EXTENSION_TYPE };
+  const allResp = await fetchPluginListAll(filter);
   if (!allResp.error && Array.isArray(allResp.data)) {
     const total = allResp.data.length;
     const enabledCount = allResp.data.filter(item => Number(item?.status) === 1).length;
@@ -562,7 +649,7 @@ async function getStatistics() {
     return;
   }
 
-  const statsResp = await fetchPluginStatistics();
+  const statsResp = await fetchPluginStatistics(filter);
   if (!statsResp.error && statsResp.data) {
     updateStatistics({
       total: toSafeCount(statsResp.data.total),
@@ -584,7 +671,7 @@ async function getStatistics() {
 // 启用插件
 async function handleEnable(row: any) {
   setProcessingInfo(row.pluginId, { action: 'ENABLE', stage: 'start', progress: 0, updatedAt: Date.now() });
-  const {error} = await fetchPluginEnable(row.id);
+  const { error } = await fetchPluginEnable(row.id);
   if (error) {
     clearProcessingInfo(row.pluginId, 'ENABLE');
   }
@@ -600,7 +687,7 @@ async function handleEnable(row: any) {
 // 禁用插件
 async function handleDisable(row: any) {
   setProcessingInfo(row.pluginId, { action: 'DISABLE', stage: 'start', progress: 0, updatedAt: Date.now() });
-  const {error} = await fetchPluginDisable(row.id);
+  const { error } = await fetchPluginDisable(row.id);
   if (error) {
     clearProcessingInfo(row.pluginId, 'DISABLE');
   }
@@ -728,7 +815,7 @@ async function handleDelete(row: any) {
       }
       try {
         setProcessingInfo(row.pluginId, { action: 'UNINSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
-        const {error} = await fetchPluginDelete(row.id);
+        const { error } = await fetchPluginDelete(row.id);
         if (error) {
           clearProcessingInfo(row.pluginId, 'UNINSTALL');
           return true;
@@ -915,9 +1002,13 @@ function closeUploadModal() {
 
 async function handleUpload({ file }: any) {
   uploadLoading.value = true;
+  suppressInstallFailureMessage = true;
   try {
     setProcessingInfo(undefined, { action: 'INSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
     const { error } = await fetchPluginInstall(file.file);
+    if (error) {
+      suppressInstallWsFailureMessage();
+    }
     if (!error) {
       window.$message?.success($t('page.pluginManagement.message.installSuccess'));
       closeUploadModal();
@@ -926,76 +1017,15 @@ async function handleUpload({ file }: any) {
       await routeStore.refreshPluginRoutes();
     }
   } finally {
-    clearProcessingInfo(undefined, 'INSTALL');
+    clearProcessingByAction('INSTALL');
     uploadLoading.value = false;
+    suppressInstallWsFailureMessage();
   }
   return false; // 阻止自动上传
 }
 
 function handleImportButtonClick() {
   openUploadModal();
-}
-
-const marketModalVisible = ref(false);
-const marketLoading = ref(false);
-const marketInstallingKey = ref('');
-const marketData = ref<Api.Plugin.PluginMarketPackage[]>([]);
-
-function getMarketRowKey(row: Api.Plugin.PluginMarketPackage) {
-  return `${row.pluginId}@${row.version}`;
-}
-
-async function loadMarketList() {
-  marketLoading.value = true;
-  try {
-    const { data: marketList, error } = await fetchPluginMarketList();
-    if (!error && Array.isArray(marketList)) {
-      marketData.value = marketList;
-      return;
-    }
-    marketData.value = [];
-    if (error) {
-      window.$message?.error('插件市场加载失败，请检查权限、接口和后端日志');
-    }
-  } finally {
-    marketLoading.value = false;
-  }
-}
-
-async function openMarketModal() {
-  marketModalVisible.value = true;
-  await loadMarketList();
-}
-
-function closeMarketModal() {
-  marketModalVisible.value = false;
-}
-
-async function handleMarketInstall(row: Api.Plugin.PluginMarketPackage) {
-  const key = getMarketRowKey(row);
-  marketInstallingKey.value = key;
-  setProcessingInfo(row.pluginId, { action: 'INSTALL', stage: 'start', progress: 0, updatedAt: Date.now() });
-  try {
-    const { error } = await fetchPluginInstallFromMarket({
-      pluginId: row.pluginId,
-      version: row.version
-    });
-    if (!error) {
-      window.$message?.success(`${$t('page.pluginManagement.message.installSuccess')}：${row.pluginName} ${row.version}`);
-      await Promise.all([getData(), getStatistics(), loadMarketList(), routeStore.refreshPluginRoutes()]);
-    }
-  } finally {
-    clearProcessingInfo(row.pluginId, 'INSTALL');
-    marketInstallingKey.value = '';
-  }
-}
-
-function isMarketInstalled(row: Api.Plugin.PluginMarketPackage) {
-  return data.value.some(item => item.pluginId === row.pluginId && item.version === row.version);
-}
-
-function handleMarketButtonClick() {
-  openMarketModal();
 }
 
 onMounted(() => {
@@ -1006,6 +1036,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (wsReconnectTimer) window.clearTimeout(wsReconnectTimer);
+  if (suppressInstallFailureMessageTimer) window.clearTimeout(suppressInstallFailureMessageTimer);
   stopElapsedTimer();
   wsRef.value?.close();
 });
@@ -1018,21 +1049,36 @@ onBeforeUnmount(() => {
       <NGi span="24 s:24 m:8">
         <NCard :bordered="false" class="card-wrapper">
           <NStatistic :label="$t('page.pluginManagement.statistics.total')">
-            <NNumberAnimation :key="`plugin-stat-total-${statisticsAnimKey}`" :from="statisticsFrom.total" :to="statistics.total" :duration="1000" />
+            <NNumberAnimation
+              :key="`plugin-stat-total-${statisticsAnimKey}`"
+              :from="statisticsFrom.total"
+              :to="statistics.total"
+              :duration="1000"
+            />
           </NStatistic>
         </NCard>
       </NGi>
       <NGi span="24 s:24 m:8">
         <NCard :bordered="false" class="card-wrapper">
           <NStatistic :label="$t('page.pluginManagement.statistics.enabled')">
-            <NNumberAnimation :key="`plugin-stat-enabled-${statisticsAnimKey}`" :from="statisticsFrom.enabledCount" :to="statistics.enabledCount" :duration="1000" />
+            <NNumberAnimation
+              :key="`plugin-stat-enabled-${statisticsAnimKey}`"
+              :from="statisticsFrom.enabledCount"
+              :to="statistics.enabledCount"
+              :duration="1000"
+            />
           </NStatistic>
         </NCard>
       </NGi>
       <NGi span="24 s:24 m:8">
         <NCard :bordered="false" class="card-wrapper">
           <NStatistic :label="$t('page.pluginManagement.statistics.disabled')">
-            <NNumberAnimation :key="`plugin-stat-disabled-${statisticsAnimKey}`" :from="statisticsFrom.disabledCount" :to="statistics.disabledCount" :duration="1000" />
+            <NNumberAnimation
+              :key="`plugin-stat-disabled-${statisticsAnimKey}`"
+              :from="statisticsFrom.disabledCount"
+              :to="statistics.disabledCount"
+              :duration="1000"
+            />
           </NStatistic>
         </NCard>
       </NGi>
@@ -1080,20 +1126,19 @@ onBeforeUnmount(() => {
     </NCard>
 
     <!-- 数据表格 -->
-    <NCard :bordered="false" class="sm:flex-1-hidden card-wrapper" content-class="flex-col">
-      <TableHeaderOperation v-model:columns="columnChecks" :checked-row-keys="checkedRowKeys" :loading="loading" @refresh="getData">
+    <NCard :bordered="false" class="card-wrapper sm:flex-1-hidden" content-class="flex-col">
+      <TableHeaderOperation
+        v-model:columns="columnChecks"
+        :checked-row-keys="checkedRowKeys"
+        :loading="loading"
+        @refresh="getData"
+      >
         <template #prefix>
           <NButton type="success" ghost size="small" :disabled="uploadLoading" @click="handleImportButtonClick">
             <template #icon>
               <icon-ic-round-plus class="text-icon" />
             </template>
             {{ $t('page.pluginManagement.table.install') }}
-          </NButton>
-          <NButton type="primary" ghost size="small" :disabled="uploadLoading" @click="handleMarketButtonClick">
-            <template #icon>
-              <icon-mdi-puzzle-outline class="text-icon" />
-            </template>
-            插件市场
           </NButton>
         </template>
         <template #suffix>
@@ -1125,9 +1170,9 @@ onBeforeUnmount(() => {
         remote
         striped
         size="small"
-        class="sm:h-full"
+        class="plugin-management-table sm:h-full"
         :data="data"
-        :scroll-x="962"
+        :scroll-x="PLUGIN_TABLE_SCROLL_X"
         :columns="columns"
         :loading="loading"
         :single-line="false"
@@ -1157,70 +1202,13 @@ onBeforeUnmount(() => {
               </svg>
             </NIcon>
           </div>
-          <NText style="font-size: 16px">
-            点击或者拖动文件到此区域上传
-          </NText>
-          <NText depth="3" style="display: block; margin-top: 8px">
-            支持 .zip 或 .jar 格式的插件文件
-          </NText>
+          <NText style="font-size: 16px">点击或者拖动文件到此区域上传</NText>
+          <NText depth="3" style="display: block; margin-top: 8px">支持 .zip 或 .jar 格式的插件文件</NText>
         </NUploadDragger>
       </NUpload>
     </NModal>
 
-    <NModal
-      v-model:show="marketModalVisible"
-      :mask-closable="false"
-      preset="card"
-      title="插件市场"
-      class="w-900px lt-sm:w-94vw"
-      @close="closeMarketModal"
-    >
-      <NSpace vertical :size="12">
-        <NSpace justify="space-between" align="center">
-          <NText depth="3">选择插件版本后可直接安装，安装过程会实时显示进度</NText>
-          <NButton size="small" :loading="marketLoading" @click="loadMarketList">刷新</NButton>
-        </NSpace>
-        <NGrid v-if="marketData.length > 0" :x-gap="12" :y-gap="12" item-responsive responsive="screen">
-          <NGi v-for="item in marketData" :key="getMarketRowKey(item)" span="24 s:12 m:12 l:8">
-            <NCard size="small" class="market-card" :bordered="true">
-              <NSpace vertical :size="10">
-                <NSpace justify="space-between" align="center">
-                  <NText strong>{{ item.pluginName || item.pluginId }}</NText>
-                  <NTag type="info" size="small">{{ item.version }}</NTag>
-                </NSpace>
-                <NText depth="3" class="market-desc">{{ item.description || '暂无描述' }}</NText>
-                <NSpace :size="8">
-                  <NTag size="small" type="default">ID: {{ item.pluginId }}</NTag>
-                  <NTag v-if="item.sourceName" size="small" type="success">{{ item.sourceName }}</NTag>
-                  <NTag v-if="item.minHostVersion" size="small" type="warning">最低版本: {{ item.minHostVersion }}</NTag>
-                </NSpace>
-                <NButton
-                  type="primary"
-                  block
-                  :loading="marketInstallingKey === getMarketRowKey(item)"
-                  :disabled="marketInstallingKey.length > 0 || isProcessing(item.pluginId) || isMarketInstalled(item)"
-                  @click="handleMarketInstall(item)"
-                >
-                  {{ isMarketInstalled(item) ? '已安装' : '安装此版本' }}
-                </NButton>
-              </NSpace>
-            </NCard>
-          </NGi>
-        </NGrid>
-        <NEmpty v-else description="暂无上架插件">
-          <template #extra>
-            <NText depth="3">请先在数据库表 sys_plugin_market_package 中新增 status='1' 的插件记录</NText>
-          </template>
-        </NEmpty>
-      </NSpace>
-    </NModal>
-
-    <NDrawer
-      :show="editVisible"
-      width="420"
-      placement="right"
-      @update:show="value => (editVisible = value)"
-    >
+    <NDrawer :show="editVisible" width="420" placement="right" @update:show="value => (editVisible = value)">
       <NDrawerContent :title="$t('page.pluginManagement.table.edit')" :closable="true">
         <NForm :label-width="100" label-placement="left">
           <NFormItem :label="$t('page.pluginManagement.table.pluginId')">
@@ -1230,10 +1218,16 @@ onBeforeUnmount(() => {
             <NInput v-model:value="editForm.name" :placeholder="$t('page.pluginManagement.form.namePlaceholder')" />
           </NFormItem>
           <NFormItem :label="$t('page.pluginManagement.form.description')">
-            <NInput v-model:value="editForm.description" :placeholder="$t('page.pluginManagement.form.descriptionPlaceholder')" />
+            <NInput
+              v-model:value="editForm.description"
+              :placeholder="$t('page.pluginManagement.form.descriptionPlaceholder')"
+            />
           </NFormItem>
           <NFormItem :label="$t('page.pluginManagement.form.version')">
-            <NInput v-model:value="editForm.version" :placeholder="$t('page.pluginManagement.form.versionPlaceholder')" />
+            <NInput
+              v-model:value="editForm.version"
+              :placeholder="$t('page.pluginManagement.form.versionPlaceholder')"
+            />
           </NFormItem>
           <NFormItem :label="$t('page.pluginManagement.form.author')">
             <NInput v-model:value="editForm.author" :placeholder="$t('page.pluginManagement.form.authorPlaceholder')" />
@@ -1242,7 +1236,10 @@ onBeforeUnmount(() => {
             <NInput v-model:value="editForm.email" :placeholder="$t('page.pluginManagement.form.emailPlaceholder')" />
           </NFormItem>
           <NFormItem :label="$t('page.pluginManagement.form.website')">
-            <NInput v-model:value="editForm.website" :placeholder="$t('page.pluginManagement.form.websitePlaceholder')" />
+            <NInput
+              v-model:value="editForm.website"
+              :placeholder="$t('page.pluginManagement.form.websitePlaceholder')"
+            />
           </NFormItem>
           <NFormItem :label="$t('page.pluginManagement.form.isDev')">
             <NSwitch v-model:value="editForm.isDev" />
@@ -1299,19 +1296,9 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-
-
 <style scoped>
 .card-wrapper {
   border-radius: 8px;
 }
 
-.market-card {
-  height: 100%;
-}
-
-.market-desc {
-  min-height: 40px;
-  line-height: 20px;
-}
 </style>

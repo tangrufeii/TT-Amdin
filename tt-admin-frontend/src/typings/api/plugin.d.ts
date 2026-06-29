@@ -8,13 +8,17 @@ declare namespace Api {
      */
     interface PluginManagement {
       /** 主键ID */
-      id: number;
+      id?: number;
       /** 插件ID（唯一标识） */
       pluginId: string;
       /** 插件名称 */
       name: string;
       /** 插件描述 */
       description: string;
+      /** 扩展类型编码 */
+      type?: string;
+      /** 扩展类型说明 */
+      typeDesc?: string;
       /** 版本号 */
       version: string;
       /** 作者 */
@@ -64,7 +68,11 @@ declare namespace Api {
       /** 插件名称（模糊查询） */
       name?: string;
       /** 插件状态：0-禁用，1-启用 */
-      status?: number;
+      status?: number | null;
+      /** 只查询指定扩展类型 */
+      type?: string;
+      /** 排除指定扩展类型 */
+      excludeType?: string;
     }
 
     /**

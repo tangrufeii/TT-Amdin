@@ -19,10 +19,11 @@ export function fetchPluginPage(params: Api.Plugin.PluginPageQuery) {
 /**
  * 查询所有插件列表
  */
-export function fetchPluginListAll() {
+export function fetchPluginListAll(params?: Pick<Api.Plugin.PluginPageQuery, 'type' | 'excludeType'>) {
   return request<Api.Plugin.PluginManagement[]>({
     url: '/plugin/management/list',
-    method: 'get'
+    method: 'get',
+    params
   });
 }
 
@@ -30,11 +31,14 @@ export function fetchPluginListAll() {
  * 根据状态查询插件列表
  * @param status 状态：0-禁用，1-启用
  */
-export function fetchPluginListByStatus(status: number) {
+export function fetchPluginListByStatus(
+  status: number,
+  params?: Pick<Api.Plugin.PluginPageQuery, 'type' | 'excludeType'>
+) {
   return request<Api.Plugin.PluginManagement[]>({
     url: '/plugin/management/list/byStatus',
     method: 'get',
-    params: { status }
+    params: { status, ...params }
   });
 }
 
@@ -135,10 +139,11 @@ export function fetchPluginChangeStatus(data: Api.Plugin.PluginStatusChange) {
 /**
  * 获取插件统计信息
  */
-export function fetchPluginStatistics() {
+export function fetchPluginStatistics(params?: Pick<Api.Plugin.PluginPageQuery, 'type' | 'excludeType'>) {
   return request<Api.Plugin.PluginStatistics>({
     url: '/plugin/management/statistics',
-    method: 'get'
+    method: 'get',
+    params
   });
 }
 
