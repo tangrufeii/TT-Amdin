@@ -1,19 +1,18 @@
 /**
- * 解析 iframe 和 window.open 使用的后端门户基础地址。
+ * 解析门户页面使用的基础地址。
  *
- * 门户渲染是后端 HTML 端点，因此它遵循 VITE_SERVICE_BASE_URL，
- * 而不是管理端前端 origin。
+ * 门户入口应该走站点根路径 `/`，不是接口前缀 `/api`。
  */
-export function getPortalServiceBaseURL() {
-  return (import.meta.env.VITE_SERVICE_BASE_URL || '').replace(/\/$/, '');
+export function getPortalBaseURL() {
+  return (import.meta.env.VITE_PORTAL_BASE_URL || '/').replace(/\/$/, '') || '/';
 }
 
 /**
  * 生成门户首页 URL。
  */
 export function getPortalHomeUrl() {
-  const baseURL = getPortalServiceBaseURL();
-  return baseURL ? `${baseURL}/` : '/';
+  const baseURL = getPortalBaseURL();
+  return baseURL === '/' ? '/' : `${baseURL}/`;
 }
 
 /**
@@ -24,6 +23,7 @@ export function getPortalHomeUrl() {
 export function getPortalRenderUrl(themeKey: string) {
   if (!themeKey) return '';
 
-  const baseURL = getPortalServiceBaseURL();
-  return `${baseURL}/portal/render?themeKey=${encodeURIComponent(themeKey)}`;
+  const baseURL = getPortalBaseURL();
+  const prefix = baseURL === '/' ? '' : baseURL;
+  return `${prefix}/portal/render?themeKey=${encodeURIComponent(themeKey)}`;
 }
