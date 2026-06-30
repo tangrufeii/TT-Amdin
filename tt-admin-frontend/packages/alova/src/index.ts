@@ -8,6 +8,34 @@ import type { FetchRequestInit } from 'alova/fetch';
 import { BACKEND_ERROR_CODE } from './constant';
 import type { CustomAlovaConfig, RequestOptions } from './type';
 
+async function readBackendPayload(response: any) {
+  if (!response?.clone || !response?.json) {
+    return null;
+  }
+  try {
+    return await response.clone().json();
+  } catch {
+    return null;
+  }
+}
+
+function resolveBackendMessage(payload: any) {
+  return payload?.message || payload?.msg || payload?.error || '';
+}
+
+async function createBackendError(response: any) {
+  const payload = await readBackendPayload(response);
+  const message = resolveBackendMessage(payload) || 'the backend request error';
+  const error: any = new Error(message);
+  error.code = BACKEND_ERROR_CODE;
+  error.backendCode = payload?.code;
+  error.backendMessage = message;
+  error.status = response?.status;
+  error.statusText = response?.statusText;
+  error.url = response?.url;
+  return error;
+}
+
 export const createAlovaRequest = <
   RequestConfig = FetchRequestInit,
   ResponseType = Response,
@@ -50,8 +78,7 @@ export const createAlovaRequest = <
           if (await options.isBackendSuccess(response)) {
             transformedData = await options.transformBackendResponse(response);
           } else {
-            error = new Error('the backend request error');
-            error.code = BACKEND_ERROR_CODE;
+            error = await createBackendError(response);
           }
         } catch (err) {
           error = err;

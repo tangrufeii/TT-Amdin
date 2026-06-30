@@ -1,0 +1,52 @@
+manifestVersion: 2
+
+extension:
+  id: daily-quote
+  name: 每日一言
+  version: 1.0.0
+  type: widget
+  description: 给门户主题的公共首屏挂一个轻量引言挂件，先验证 slot/widget 编排链路。
+  author:
+    name: TT Admin
+    email: support@tt-admin.local
+    website: https://tt-admin.local/widgets/daily-quote
+  license: MIT
+  keywords:
+    - portal
+    - widget
+    - quote
+
+compatibility:
+  host:
+    minVersion: 2.2.0
+
+activation:
+  # 样例挂件默认启用，方便直接观察主题组合结果。
+  autoEnable: true
+  singleton: false
+  entryPriority: 30
+
+dependencies:
+  required: []
+  optional: []
+  conflicts: []
+
+capabilities:
+  portal: true
+  admin: false
+  serverApi: false
+  migration: false
+  scheduler: false
+
+contributes:
+  portal:
+    widgets:
+      - key: daily-quote
+        title: 每日一言
+        type: web-component
+        component: /widgets/daily-quote.js
+        tagName: tt-daily-quote
+        defaultConfig: /widgets/daily-quote.config.json
+        mount:
+          slot: hero
+          order: 30

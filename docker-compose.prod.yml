@@ -43,7 +43,7 @@ services:
       DB_HOST: db
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-tt_admin}
-      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_USERNAME: ${DB_USERNAME:-tt_admin}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_USE_SSL: ${DB_USE_SSL:-false}
       SPRING_REDIS_HOST: redis

@@ -5,12 +5,12 @@ import com.tt.application.auth.command.LoginCommand;
 import com.tt.application.auth.command.RegisterUserCommand;
 import com.tt.application.auth.dto.LoginResultDTO;
 import com.tt.application.auth.dto.UserDTO;
-import com.tt.common.utils.CglibUtil;
+import com.tt.common.domain.DomainException;
+import com.tt.common.domain.DomainEventPublisher;
 import com.tt.domain.auth.user.model.aggregate.User;
 import com.tt.domain.auth.user.repository.UserRepository;
 import com.tt.domain.auth.user.service.UserDomainService;
 import com.tt.domain.system.access.repository.SystemAccessRepository;
-import com.tt.common.domain.DomainEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -113,8 +113,18 @@ public class AuthApplicationService {
      */
     public UserDTO getCurrentUserInfo() {
         Object userInfoFromSession = authService.getUserInfoFromSession();
-        UserDTO user = CglibUtil.convertObj(userInfoFromSession, UserDTO::new);
+        if (userInfoFromSession instanceof UserDTO user) {
+            enrichUserAccess(user);
+            return user;
+        }
+
+        String loginId = authService.getLoginId().orElseThrow(() -> new DomainException("用户未登录"));
+        UserDTO user = userRepository.findById(loginId)
+                .map(this::convertToDTO)
+                .orElseThrow(() -> new DomainException("当前登录用户不存在"));
+
         enrichUserAccess(user);
+        authService.saveUserToSession(user);
         return user;
     }
 

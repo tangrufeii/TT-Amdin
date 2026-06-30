@@ -162,10 +162,8 @@ export function createFlatRequest<ResponseData, ApiData, State extends Record<st
 
         return { data, error: null, response };
       }
-      console.error('response', response);
       return { data: response.data as MappedType<R, T>, error: null, response };
     } catch (error) {
-      console.error('response', lastResponse);
       return { data: null, error, response: (error as AxiosError<ResponseData>).response ?? lastResponse };
     }
   } as FlatRequestInstance<ResponseData, ApiData, State>;

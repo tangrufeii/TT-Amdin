@@ -1,0 +1,5 @@
+{
+  "badge": "Daily Quote Widget",
+  "quote": "门户主题别写死，slot 和 widget 才是后续自由度的底盘。",
+  "description": "这个挂件现在已经改成 Web Component 形式，主题运行时只需要按 tagName 挂进去就行。"
+}

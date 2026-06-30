@@ -57,7 +57,7 @@ public class PluginManagementController {
     @Operation(summary = "插件分页查询", description = "分页查询插件列表")
     public Result<RPage<PluginManagementDTO>> page(@RequestBody PluginPageQueryCommand command) {
         IPage<PluginManagementDTO> page = pluginManagementApplicationService.page(command);
-        return Result.data(RPage.build(page, PluginManagementDTO::new));
+        return Result.data(RPage.build(page));
     }
 
     @PostMapping("/installPlugin")
@@ -75,8 +75,12 @@ public class PluginManagementController {
      */
     @GetMapping("/list")
     @Operation(summary = "插件列表", description = "查询全部插件")
-    public Result<List<PluginManagementDTO>> listAll() {
-        List<PluginManagementDTO> list = pluginManagementApplicationService.listAll();
+    public Result<List<PluginManagementDTO>> listAll(
+            @Parameter(description = "扩展类型过滤：theme/module/widget/hybrid")
+            @RequestParam(required = false) String type,
+            @Parameter(description = "排除的扩展类型，例如 theme")
+            @RequestParam(required = false) String excludeType) {
+        List<PluginManagementDTO> list = pluginManagementApplicationService.listAll(type, excludeType);
         return Result.data(list);
     }
 
@@ -90,8 +94,12 @@ public class PluginManagementController {
     @Operation(summary = "按状态查询", description = "按状态查询插件列表")
     public Result<List<PluginManagementDTO>> listByStatus(
             @Parameter(description = "插件状态 0-禁用 1-启用")
-            @RequestParam Integer status) {
-        List<PluginManagementDTO> list = pluginManagementApplicationService.listByStatus(status);
+            @RequestParam Integer status,
+            @Parameter(description = "扩展类型过滤：theme/module/widget/hybrid")
+            @RequestParam(required = false) String type,
+            @Parameter(description = "排除的扩展类型，例如 theme")
+            @RequestParam(required = false) String excludeType) {
+        List<PluginManagementDTO> list = pluginManagementApplicationService.listByStatus(status, type, excludeType);
         return Result.data(list);
     }
 
@@ -222,8 +230,12 @@ public class PluginManagementController {
      */
     @GetMapping("/statistics")
     @Operation(summary = "统计信息", description = "插件统计信息")
-    public Result<PluginStatisticsDTO> getStatistics() {
-        PluginStatisticsDTO statistics = pluginManagementApplicationService.getStatistics();
+    public Result<PluginStatisticsDTO> getStatistics(
+            @Parameter(description = "扩展类型过滤：theme/module/widget/hybrid")
+            @RequestParam(required = false) String type,
+            @Parameter(description = "排除的扩展类型，例如 theme")
+            @RequestParam(required = false) String excludeType) {
+        PluginStatisticsDTO statistics = pluginManagementApplicationService.getStatistics(type, excludeType);
         return Result.data(statistics);
     }
 

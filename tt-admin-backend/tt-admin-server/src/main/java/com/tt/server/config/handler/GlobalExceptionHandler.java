@@ -16,6 +16,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import javax.security.auth.login.LoginException;
 import java.util.Map;
@@ -56,8 +58,8 @@ public class GlobalExceptionHandler {
     @ResponseBody
     @ExceptionHandler(DomainException.class)
     public Result<Object> handleBizException(@NonNull DomainException bizException) {
-        log.error("[业务异常]{}", bizException.getMessage(), bizException);
-        return Result.failure(bizException.getErrorCode());
+        log.warn("[业务异常]{}", bizException.getMessage());
+        return Result.failure(ResultCode.BAD_REQUEST.getCode(), bizException.getMessage());
     }
 
 //    /**
@@ -84,6 +86,32 @@ public class GlobalExceptionHandler {
     public Result<Object> handleException(@NonNull Exception exception) {
         log.error("[系统异常]{}", exception.getMessage(), exception);
         return Result.failure(ResultCode.INTERNAL_SERVER_ERROR.getCode(), ResultCode.INTERNAL_SERVER_ERROR.getValue());
+    }
+
+    /**
+     * 文件上传大小超限
+     *
+     * @param exception 上传大小异常
+     * @return {@link Result} 统一返回结果
+     */
+    @ResponseBody
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Result<Object> handleMaxUploadSizeExceededException(@NonNull MaxUploadSizeExceededException exception) {
+        log.warn("[上传异常]{}", exception.getMessage());
+        return Result.failure(ResultCode.BAD_REQUEST.getCode(), "上传文件过大，请选择 100MB 以内的文件");
+    }
+
+    /**
+     * 文件上传解析失败。
+     *
+     * @param exception 上传异常
+     * @return {@link Result} 统一返回结果
+     */
+    @ResponseBody
+    @ExceptionHandler(MultipartException.class)
+    public Result<Object> handleMultipartException(@NonNull MultipartException exception) {
+        log.warn("[上传异常]{}", exception.getMessage());
+        return Result.failure(ResultCode.BAD_REQUEST.getCode(), "上传文件失败，请检查文件是否存在、临时目录是否可写");
     }
 
     /**

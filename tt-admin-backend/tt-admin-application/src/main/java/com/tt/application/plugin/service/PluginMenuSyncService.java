@@ -2,13 +2,13 @@ package com.tt.application.plugin.service;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tt.domain.extension.model.manifest.ExtensionManifest;
+import com.tt.domain.extension.model.manifest.ExtensionRouteMeta;
+import com.tt.domain.extension.model.manifest.admin.AdminContributes;
+import com.tt.domain.extension.model.manifest.admin.AdminMenuContribution;
+import com.tt.domain.extension.model.manifest.admin.AdminRouteContribution;
+import com.tt.domain.extension.repository.ExtensionManifestRepository;
 import com.tt.domain.plugin.model.aggregate.PluginManagement;
-import com.tt.domain.plugin.model.frontend.PluginFrontendDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendMenuDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendModuleDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendRouteDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendRouteMeta;
-import com.tt.domain.plugin.repository.PluginFrontendDefinitionRepository;
 import com.tt.domain.system.access.model.SystemMenu;
 import com.tt.application.permission.command.PermissionCreateCommand;
 import com.tt.application.permission.dto.PermissionManageDTO;
@@ -57,7 +57,7 @@ public class PluginMenuSyncService {
     private static final int MENU_CODE_HASH_LENGTH = 10;
     private static final List<String> DEFAULT_ROLE_CODES = List.of("super_admin");
 
-    private final PluginFrontendDefinitionRepository pluginFrontendDefinitionRepository;
+    private final ExtensionManifestRepository extensionManifestRepository;
     private final SystemMenuRepository systemMenuRepository;
     private final SystemAccessRepository systemAccessRepository;
     private final PermissionManagementRepository permissionManagementRepository;
@@ -68,13 +68,13 @@ public class PluginMenuSyncService {
         if (plugin == null || !StringUtils.hasText(plugin.getPluginId())) {
             return;
         }
-        PluginFrontendDefinition definition = pluginFrontendDefinitionRepository
-                .loadByPluginId(plugin.getPluginId())
+        ExtensionManifest manifest = extensionManifestRepository
+                .loadInstalled(plugin.getPluginId())
                 .orElse(null);
-        if (definition == null) {
+        if (manifest == null || manifest.getContributes() == null || manifest.getContributes().getAdmin() == null) {
             return;
         }
-        syncPluginMenus(plugin, definition);
+        syncPluginMenus(plugin, manifest.getContributes().getAdmin());
     }
 
     public void removePluginMenus(String pluginId) {
@@ -115,15 +115,21 @@ public class PluginMenuSyncService {
         });
     }
 
-    private void syncPluginMenus(PluginManagement plugin, PluginFrontendDefinition definition) {
-        List<PluginFrontendMenuDefinition> menuDefinitions = definition.getMenus();
+    /**
+     * 根据统一 Manifest 的后台贡献声明同步插件菜单
+     *
+     * @param plugin          插件聚合
+     * @param adminContributes 后台贡献声明
+     */
+    private void syncPluginMenus(PluginManagement plugin, AdminContributes adminContributes) {
+        List<AdminMenuContribution> menuDefinitions = adminContributes.getMenus();
         if (CollectionUtils.isEmpty(menuDefinitions)) {
             removePluginMenus(plugin.getPluginId());
             return;
         }
 
-        SystemMenu pluginRoot = ensurePluginRoot();
-        Map<String, PluginFrontendRouteDefinition> routeMap = buildRouteMap(definition.getModules());
+        SystemMenu pluginRoot = Boolean.TRUE.equals(pluginMenuProperties.getRootEnabled()) ? ensurePluginRoot() : null;
+        Map<String, AdminRouteContribution> routeMap = buildRouteMap(adminContributes.getRoutes());
         Map<Long, SystemMenu> menuById = systemMenuRepository.findAll().stream()
                 .filter(menu -> menu.getId() != null)
                 .collect(Collectors.toMap(SystemMenu::getId, menu -> menu, (a, b) -> a));
@@ -137,11 +143,11 @@ public class PluginMenuSyncService {
                 .collect(Collectors.toMap(SystemMenu::getRouteName, menu -> menu, (a, b) -> a));
 
         Map<String, SystemMenu> syncedMenus = new HashMap<>();
-        for (PluginFrontendMenuDefinition menuDef : menuDefinitions) {
+        for (AdminMenuContribution menuDef : menuDefinitions) {
             if (menuDef == null || !StringUtils.hasText(menuDef.getRouteName())) {
                 continue;
             }
-            PluginFrontendRouteDefinition route = routeMap.get(menuDef.getRouteName());
+            AdminRouteContribution route = routeMap.get(menuDef.getRouteName());
             if (route == null) {
                 continue;
             }
@@ -156,32 +162,27 @@ public class PluginMenuSyncService {
         cleanupRemovedMenus(existingMenus, syncedMenus.keySet());
     }
 
-    private Map<String, PluginFrontendRouteDefinition> buildRouteMap(List<PluginFrontendModuleDefinition> modules) {
-        if (CollectionUtils.isEmpty(modules)) {
+    private Map<String, AdminRouteContribution> buildRouteMap(List<AdminRouteContribution> routes) {
+        if (CollectionUtils.isEmpty(routes)) {
             return Collections.emptyMap();
         }
-        Map<String, PluginFrontendRouteDefinition> routeMap = new HashMap<>();
-        for (PluginFrontendModuleDefinition module : modules) {
-            if (module == null || CollectionUtils.isEmpty(module.getRoutes())) {
+        Map<String, AdminRouteContribution> routeMap = new HashMap<>();
+        for (AdminRouteContribution route : routes) {
+            if (route == null || !StringUtils.hasText(route.getName())) {
                 continue;
             }
-            for (PluginFrontendRouteDefinition route : module.getRoutes()) {
-                if (route == null || !StringUtils.hasText(route.getName())) {
-                    continue;
-                }
-                routeMap.put(route.getName(), route);
-            }
+            routeMap.put(route.getName(), route);
         }
         return routeMap;
     }
 
     private SystemMenu upsertPluginMenu(PluginManagement plugin,
                                         SystemMenu pluginRoot,
-                                        PluginFrontendMenuDefinition menuDef,
-                                        PluginFrontendRouteDefinition route,
+                                        AdminMenuContribution menuDef,
+                                        AdminRouteContribution route,
                                         SystemMenu existing,
                                         Map<String, SystemMenu> menuByRouteName) {
-        PluginFrontendRouteMeta meta = Optional.ofNullable(route.getMeta()).orElse(new PluginFrontendRouteMeta());
+        ExtensionRouteMeta meta = Optional.ofNullable(route.getMeta()).orElse(new ExtensionRouteMeta());
         String name = resolveMenuName(menuDef, meta, route);
         String i18nKey = resolveI18nKey(menuDef, meta);
         String icon = resolveIcon(menuDef, meta);
@@ -356,9 +357,9 @@ public class PluginMenuSyncService {
         permissionManagementRepository.create(command, java.time.LocalDateTime.now());
     }
 
-    private String resolveMenuName(PluginFrontendMenuDefinition menuDef,
-                                   PluginFrontendRouteMeta meta,
-                                   PluginFrontendRouteDefinition route) {
+    private String resolveMenuName(AdminMenuContribution menuDef,
+                                   ExtensionRouteMeta meta,
+                                   AdminRouteContribution route) {
         if (StringUtils.hasText(menuDef.getTitle())) {
             return menuDef.getTitle();
         }
@@ -368,42 +369,42 @@ public class PluginMenuSyncService {
         return route.getName();
     }
 
-    private String resolveI18nKey(PluginFrontendMenuDefinition menuDef, PluginFrontendRouteMeta meta) {
+    private String resolveI18nKey(AdminMenuContribution menuDef, ExtensionRouteMeta meta) {
         if (StringUtils.hasText(menuDef.getI18nKey())) {
             return menuDef.getI18nKey();
         }
         return meta.getI18nKey();
     }
 
-    private String resolveIcon(PluginFrontendMenuDefinition menuDef, PluginFrontendRouteMeta meta) {
+    private String resolveIcon(AdminMenuContribution menuDef, ExtensionRouteMeta meta) {
         if (StringUtils.hasText(menuDef.getIcon())) {
             return menuDef.getIcon();
         }
         return meta.getIcon();
     }
 
-    private Integer resolveOrder(PluginFrontendMenuDefinition menuDef, PluginFrontendRouteMeta meta) {
+    private Integer resolveOrder(AdminMenuContribution menuDef, ExtensionRouteMeta meta) {
         if (menuDef.getOrder() != null) {
             return menuDef.getOrder();
         }
         return meta.getOrder();
     }
 
-    private String resolveKeepAlive(PluginFrontendRouteMeta meta) {
+    private String resolveKeepAlive(ExtensionRouteMeta meta) {
         if (meta.getKeepAlive() == null) {
             return DEFAULT_FEATURE;
         }
         return Boolean.TRUE.equals(meta.getKeepAlive()) ? YES : NO;
     }
 
-    private String resolveHide(PluginFrontendRouteMeta meta) {
+    private String resolveHide(ExtensionRouteMeta meta) {
         if (meta.getHideInMenu() == null) {
             return DEFAULT_FEATURE;
         }
         return Boolean.TRUE.equals(meta.getHideInMenu()) ? YES : NO;
     }
 
-    private Long resolveParentId(PluginFrontendMenuDefinition menuDef,
+    private Long resolveParentId(AdminMenuContribution menuDef,
                                  SystemMenu pluginRoot,
                                  Map<String, SystemMenu> menuByRouteName) {
         if (menuDef != null && StringUtils.hasText(menuDef.getParent())) {

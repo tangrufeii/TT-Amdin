@@ -3,7 +3,6 @@ package com.tt.infrastructure.plugin.engine.registry;
 import cn.hutool.core.io.FileUtil;
 import com.tt.domain.plugin.BasePluginRegistryHandler;
 import com.tt.domain.plugin.model.aggregate.Plugin;
-import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.infrastructure.plugin.engine.PluginUtil;
 import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolder;
 import lombok.extern.slf4j.Slf4j;
@@ -58,7 +57,7 @@ public class MapperRegistry implements BasePluginRegistryHandler {
             Resources.setDefaultClassLoader(plugin.getPluginClassLoader());
             List<File> mapperXmlFiles = PluginUtil.getMapperXml(
                     new File(plugin.getPluginPath()),
-                    plugin.getPluginConfig());
+                    plugin);
 
             for (File file : mapperXmlFiles) {
                 try (BufferedInputStream inputStream = FileUtil.getInputStream(file)) {
@@ -83,7 +82,7 @@ public class MapperRegistry implements BasePluginRegistryHandler {
         try {
             List<String> mapperXmlPaths = PluginUtil.getMapperXmlPath(
                     new File(plugin.getPluginPath()),
-                    plugin.getPluginConfig());
+                    plugin);
 
             var pluginContext = PluginApplicationContextHolder.getApplicationContext(plugin.getPluginId());
             if (pluginContext == null || !pluginContext.isActive()) {

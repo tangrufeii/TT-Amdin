@@ -1,21 +1,22 @@
 package com.tt.infrastructure.plugin.engine.config;
 
-import cn.hutool.core.io.FileUtil;
+import com.tt.domain.extension.model.manifest.ExtensionManifest;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.enums.PluginDirectory;
 import com.tt.domain.plugin.model.enums.PluginResourceDirectory;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestCompatMapper;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestReader;
 import lombok.extern.slf4j.Slf4j;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
 
 /**
  * 插件配置读取器
  * <p>
- * 负责从插件目录或配置文件中读取插件配置信息(plugin.yaml)。
- * 支持从已安装插件目录、开发环境目录等不同场景读取配置。
+ * 负责从插件目录中读取可供旧插件引擎消费的配置对象。
+ * 兼容顺序如下：
+ * 1. 优先读 extension.yaml，并投影成旧 PluginConfig
+ * 2. 不存在时回退读 plugin.yaml/frontend.yaml 的 legacy 适配结果
  * </p>
  *
  * @author trf
@@ -23,11 +24,6 @@ import java.io.InputStream;
  */
 @Slf4j
 public class PluginConfigReader {
-
-    /**
-     * 配置文件名称
-     */
-    private static final String CONFIG_FILE_NAME = PluginResourceDirectory.CONFIG_FILE.getPath();
 
     /**
      * 私有构造方法，防止实例化（工具类）
@@ -39,13 +35,12 @@ public class PluginConfigReader {
     /**
      * 从指定的插件资源目录中读取插件配置信息
      * <p>
-     * 该方法会从指定目录中查找 plugin.yaml 配置文件，并解析为 PluginConfig 对象。
-     * 配置文件不存在或解析失败时返回 null。
+     * 该方法会从指定目录中查找统一 Manifest，并投影成旧 PluginConfig。
+     * 如果既没有 extension.yaml，也没有 legacy plugin.yaml，则返回 null。
      * </p>
      *
-     * @param pluginSourceDir 插件资源目录，通常包含 plugin.yaml、classes、lib 等子目录
+     * @param pluginSourceDir 插件资源目录，通常包含 extension.yaml 或 plugin.yaml
      * @return 解析后的插件配置对象，配置不存在或解析失败时返回 null
-     * @apiNote 配置文件路径：{pluginSourceDir}/plugin.yaml
      */
     public static PluginConfig readConfig(File pluginSourceDir) {
         if (pluginSourceDir == null || !pluginSourceDir.exists()) {
@@ -53,13 +48,12 @@ public class PluginConfigReader {
             return null;
         }
 
-        File configFile = buildConfigFilePath(pluginSourceDir);
-        if (!configFile.exists()) {
-            log.error("Plugin configuration file not found: {}", configFile.getAbsolutePath());
+        ExtensionManifest manifest = ExtensionManifestReader.readManifest(pluginSourceDir).orElse(null);
+        if (manifest == null) {
+            log.error("Plugin manifest file not found or invalid: {}", pluginSourceDir.getAbsolutePath());
             return null;
         }
-
-        return parseConfigFile(configFile);
+        return ExtensionManifestCompatMapper.toPluginConfig(manifest);
     }
 
     /**
@@ -92,7 +86,7 @@ public class PluginConfigReader {
      * 从开发环境目录中读取插件配置信息
      * <p>
      * 用于开发模式下读取插件配置，开发环境目录结构通常包含 classes 子目录。
-     * 配置文件位于：{pluginPath}/classes/plugin.yaml
+     * 配置文件位于：{pluginPath}/classes/extension.yaml 或 plugin.yaml
      * </p>
      *
      * @param pluginPath 开发环境插件根目录路径
@@ -114,38 +108,4 @@ public class PluginConfigReader {
         return readConfig(classesDir);
     }
 
-    /**
-     * 构建配置文件的完整路径
-     * <p>
-     * 配置文件固定位于资源目录下的 plugin.yaml
-     * </p>
-     *
-     * @param sourceDir 源目录
-     * @return 配置文件对象
-     */
-    private static File buildConfigFilePath(File sourceDir) {
-        String configPath = String.join(File.separator, sourceDir.getAbsolutePath(), CONFIG_FILE_NAME);
-        return new File(configPath);
-    }
-
-    /**
-     * 解析插件配置文件
-     * <p>
-     * 使用 SnakeYAML 解析 plugin.yaml 文件为 PluginConfig 对象
-     * </p>
-     *
-     * @param configFile 配置文件
-     * @return 解析后的配置对象，解析失败时返回 null
-     */
-    private static PluginConfig parseConfigFile(File configFile) {
-        try (InputStream input = new FileInputStream(configFile)) {
-            Yaml yaml = new Yaml();
-            PluginConfig config = yaml.loadAs(input, PluginConfig.class);
-            log.debug("Successfully parsed plugin configuration from: {}", configFile.getAbsolutePath());
-            return config;
-        } catch (Exception e) {
-            log.error("Failed to parse plugin configuration file: {}", configFile.getAbsolutePath(), e);
-            return null;
-        }
-    }
 }

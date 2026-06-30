@@ -21,7 +21,7 @@ const columns = defineModel<NaiveUI.TableColumnCheck[]>('columns', {
     <template #trigger>
       <NButton size="small">
         <template #icon>
-          <IconSetting class="text-icon" />
+          <IconSetting class="text-18px" />
         </template>
         {{ t('common.columnSetting') }}
       </NButton>
@@ -33,7 +33,7 @@ const columns = defineModel<NaiveUI.TableColumnCheck[]>('columns', {
         class="h-36px flex-y-center rd-4px px-8px hover:(bg-primary bg-opacity-20)"
         :class="{ hidden: item.visible === false }"
       >
-        <IconDrag class="mr-8px h-full cursor-move text-icon" />
+        <IconDrag class="mr-8px h-full cursor-move text-18px" />
         <NCheckbox v-model:checked="item.checked" class="none_draggable flex-1">
           <template v-if="typeof item.title === 'function'">
             <component :is="item.title" />

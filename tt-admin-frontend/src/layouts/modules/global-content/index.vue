@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineComponent, h, mergeProps } from 'vue';
+import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { LAYOUT_SCROLL_EL_ID } from '@sa/materials';
 import { useAppStore } from '@/store/modules/app';
@@ -28,24 +28,6 @@ const route = useRoute();
 const isPluginRoute = computed(() => Boolean(route.meta?.moduleName));
 const disableTransition = computed(() => Boolean(route.meta?.disableTransition));
 const transitionName = computed(() => (themeStore.page.animate && !disableTransition.value ? themeStore.page.animateMode : ''));
-const pluginWrapperCache = new WeakMap<object, any>();
-function wrapPluginComponent(component: any) {
-  if (!component || typeof component !== 'object') return component;
-  if (pluginWrapperCache.has(component)) return pluginWrapperCache.get(component);
-  const name = component.name || component.__name || 'PluginViewWrapper';
-  const wrapper = defineComponent({
-    name,
-    inheritAttrs: false,
-    setup(_props, { attrs }) {
-      return () =>
-        h('div', mergeProps(attrs, { class: 'plugin-view-wrapper flex flex-col flex-1 min-h-0 w-full' }), [
-          h('div', { class: 'plugin-view-root flex flex-col flex-1 min-h-0 w-full' }, [h(component)])
-        ]);
-    }
-  });
-  pluginWrapperCache.set(component, wrapper);
-  return wrapper;
-}
 
 function resetScroll() {
   const el = document.querySelector(`#${LAYOUT_SCROLL_EL_ID}`);
@@ -56,7 +38,26 @@ function resetScroll() {
 
 <template>
   <RouterView v-slot="{ Component, route }">
+    <component
+      v-if="isPluginRoute && Component && appStore.reloadFlag"
+      :is="Component"
+      :key="tabStore.getTabIdByRoute(route)"
+      :class="{ 'p-16px': showPadding }"
+      class="flex-grow bg-layout transition-300"
+    />
+
+    <KeepAlive v-else-if="disableTransition" :include="routeStore.cacheRoutes" :exclude="routeStore.excludeCacheRoutes">
+      <component
+        :is="Component"
+        v-if="appStore.reloadFlag"
+        :key="tabStore.getTabIdByRoute(route)"
+        :class="{ 'p-16px': showPadding }"
+        class="flex-grow bg-layout transition-300"
+      />
+    </KeepAlive>
+
     <Transition
+      v-else
       :name="transitionName"
       mode="out-in"
       @before-leave="appStore.setContentXScrollable(true)"

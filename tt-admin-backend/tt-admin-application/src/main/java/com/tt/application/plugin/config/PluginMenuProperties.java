@@ -10,6 +10,11 @@ import org.springframework.stereotype.Component;
 public class PluginMenuProperties {
 
     /**
+     * 是否把未声明父级的插件菜单收拢到统一插件根菜单
+     */
+    private Boolean rootEnabled = false;
+
+    /**
      * 插件根菜单名称
      */
     private String rootName = "Plugin";

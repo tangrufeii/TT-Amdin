@@ -251,9 +251,6 @@ export function getNaiveTheme(colors: App.Theme.ThemeColor, settings: App.Theme.
     Card: {
       paddingSmall: '12px'
     },
-    Button: {
-      paddingSmall: '0 8px'
-    },
     LoadingBar: {
       colorLoading
     },

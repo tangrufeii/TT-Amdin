@@ -1,16 +1,18 @@
 package com.tt.infrastructure.plugin.engine.handler;
 
 import com.tt.domain.plugin.BasePluginRegistryHandler;
+import com.tt.domain.extension.model.manifest.ExtensionManifest;
 import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.progress.PluginProgress;
 import com.tt.domain.plugin.progress.PluginProgressContext;
-import com.tt.infrastructure.plugin.engine.config.PluginConfigReader;
 import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolder;
 import com.tt.infrastructure.plugin.engine.holder.PluginHolder;
 import com.tt.infrastructure.plugin.engine.loader.PluginClassLoader;
 import com.tt.infrastructure.plugin.engine.scanner.PluginClassScanner;
 import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadataCache;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestCompatMapper;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestReader;
 import com.tt.infrastructure.plugin.engine.registry.ClassRegistry;
 import com.tt.infrastructure.plugin.engine.registry.ControllerRegistry;
 import com.tt.infrastructure.plugin.engine.registry.MapperRegistry;
@@ -88,27 +90,30 @@ public class PluginHandler implements ApplicationContextAware {
 
     public Plugin installPlugin(File pluginDir, String action) {
         String actionCode = action == null ? ACTION_INSTALL : action;
-        // Read plugin configuration
-        PluginConfig config = PluginConfigReader.readConfig(pluginDir);
-        if (config == null) {
-            throw new IllegalArgumentException("Failed to read plugin configuration from: " + pluginDir);
+        ExtensionManifest manifest = ExtensionManifestReader.readManifest(pluginDir)
+                .orElseThrow(() -> new IllegalArgumentException("Failed to read extension manifest from: " + pluginDir));
+        // 兼容层仍依赖 PluginConfig，因此这里保留一次投影。
+        PluginConfig config = ExtensionManifestCompatMapper.toPluginConfig(manifest);
+        if (config == null || config.getPlugin() == null) {
+            throw new IllegalArgumentException("Failed to project plugin configuration from manifest: " + pluginDir);
         }
+        String pluginId = manifest.getExtension().getId();
 
         // Create plugin classloader
-        reportProgress(actionCode, config.getPlugin().getId(), "create_classloader", 72, "Creating plugin classloader");
+        reportProgress(actionCode, pluginId, "create_classloader", 72, "Creating plugin classloader");
         PluginClassLoader pluginClassLoader = new PluginClassLoader(
-                config.getPlugin().getId(),
+                pluginId,
                 getClass().getClassLoader(),
                 getClass().getClassLoader()
         );
         pluginClassLoader.addFile(pluginDir);
 
         // Scan plugin classes
-        reportProgress(actionCode, config.getPlugin().getId(), "scan_classes", 75, "Scanning plugin classes");
+        reportProgress(actionCode, pluginId, "scan_classes", 75, "Scanning plugin classes");
         List<String> classNameList = PluginClassScanner.scanClassNames(
                 pluginDir,
                 pluginClassLoader,
-                config.getPlugin().getId(),
+                pluginId,
                 actionCode,
                 scanDetailEnabled,
                 scanIndexEnabled,
@@ -118,8 +123,10 @@ public class PluginHandler implements ApplicationContextAware {
         // Build runtime plugin model
         Plugin plugin = Plugin.builder()
                 .pluginConfig(config)
+                .extensionManifest(manifest)
                 .pluginPath(pluginDir.getAbsolutePath())
-                .pluginId(config.getPlugin().getId())
+                .runtimeCodeStamp(calculateRuntimeCodeStamp(pluginDir))
+                .pluginId(pluginId)
                 .pluginClassLoader(pluginClassLoader)
                 .classList(List.of())
                 .classNameList(classNameList)
@@ -129,7 +136,7 @@ public class PluginHandler implements ApplicationContextAware {
         PluginHolder.addPluginInfo(plugin.getPluginId(), plugin);
 
         // Create plugin ApplicationContext
-        reportProgress(actionCode, config.getPlugin().getId(), "create_context", 78, "Creating plugin context");
+        reportProgress(actionCode, pluginId, "create_context", 78, "Creating plugin context");
         AnnotationConfigApplicationContext pluginContext = new AnnotationConfigApplicationContext();
         pluginContext.setParent(applicationContext);
         pluginContext.setClassLoader(pluginClassLoader);
@@ -142,13 +149,13 @@ public class PluginHandler implements ApplicationContextAware {
         for (Map.Entry<String, BasePluginRegistryHandler> entry : registryHandlers.entrySet()) {
             try {
                 log.info("plugin handler init start: pluginId={}, handler={}, action={}",
-                        config.getPlugin().getId(), entry.getKey(), actionCode);
+                        pluginId, entry.getKey(), actionCode);
                 long handlerStartedAt = System.currentTimeMillis();
                 entry.getValue().initialize();
                 long handlerElapsedMs = System.currentTimeMillis() - handlerStartedAt;
                 initIndex++;
                 int progress = 82 + (int) Math.round((double) initIndex / Math.max(initTotal, 1) * 6);
-                reportProgress(actionCode, config.getPlugin().getId(), "init_handlers", progress, "Initializing registry handlers");
+                reportProgress(actionCode, pluginId, "init_handlers", progress, "Initializing registry handlers");
                 log.trace("Initialized registry handler: {}", entry.getKey());
                 log.info("plugin handler init: handler={}, elapsedMs={}", entry.getKey(), handlerElapsedMs);
             } catch (Exception e) {
@@ -326,6 +333,7 @@ public class PluginHandler implements ApplicationContextAware {
         // 5. Cleanup plugin metadata
         reportProgress(ACTION_UNINSTALL, pluginId, "cleanup", 90, "Cleaning plugin metadata");
         plugin.setPluginConfig(null);
+        plugin.setExtensionManifest(null);
         plugin.setClassList(null);
         plugin.setClassNameList(null);
         PluginClassMetadataCache.remove(pluginId);
@@ -377,5 +385,19 @@ public class PluginHandler implements ApplicationContextAware {
 
     private void reportProgress(String action, String pluginId, String stage, int progress, String message) {
         PluginProgressContext.report(new PluginProgress(pluginId, action, stage, progress, message));
+    }
+
+    private long calculateRuntimeCodeStamp(File pluginDir) {
+        File codeDir = new File(pluginDir, "code");
+        if (!codeDir.exists()) {
+            return 0L;
+        }
+        long latest = codeDir.lastModified();
+        List<File> files = cn.hutool.core.io.FileUtil.loopFiles(codeDir,
+                file -> file.isFile() && (file.getName().endsWith(".class") || file.getName().endsWith(".jar")));
+        for (File file : files) {
+            latest = Math.max(latest, file.lastModified());
+        }
+        return latest;
     }
 }

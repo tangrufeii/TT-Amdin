@@ -58,6 +58,7 @@ const model: FormModel = reactive(createDefaultModel());
 const builtinRouteNames = new Set(['403', '404', '500', 'login', 'iframe-page']);
 const PLUGIN_ROUTE_QUERY_KEY = 'pluginRouteName';
 const PLUGIN_ROUTE_BRIDGE_PAGE = 'plugin-root-empty';
+const PLUGIN_COMPONENT_PREFIX = 'plugin:';
 
 function createDefaultModel(): FormModel {
   return {
@@ -161,6 +162,10 @@ function isPluginRoutePage(value: string | null | undefined) {
   return pluginPageSet.value.has(value.trim());
 }
 
+function isNativePluginMenu() {
+  return props.operateType === 'edit' && model.component?.startsWith(PLUGIN_COMPONENT_PREFIX);
+}
+
 function getQueryValue(query: Api.SystemManage.MenuQuery[] | null | undefined, key: string) {
   return (query || []).find(item => item?.key === key)?.value?.trim() || '';
 }
@@ -191,7 +196,7 @@ const rules: Record<'name' | 'routeName' | 'routePath' | 'page', App.Global.Form
         if (model.type !== '2') return true;
         const routeName = value?.trim();
         if (!routeName) return true;
-        if (isPluginRoutePage(model.page) && routeName === model.page?.trim()) {
+        if (!isNativePluginMenu() && isPluginRoutePage(model.page) && routeName === model.page?.trim()) {
           return new Error('菜单路由名称不能与插件路由同名，请填写业务路由名');
         }
         return true;
@@ -256,7 +261,12 @@ function handleUpdateRouteByName() {
     model.i18nKey = `route.${model.routeName}`;
   }
 
-  if (model.type === '2' && routeName && (!model.page || !isSelectablePage(model.page)) && isSelectablePage(routeName)) {
+  if (
+    model.type === '2' &&
+    routeName &&
+    (!model.page || !isSelectablePage(model.page)) &&
+    isSelectablePage(routeName)
+  ) {
     model.page = routeName;
   }
 }
@@ -264,15 +274,16 @@ function handleUpdateRouteByName() {
 function getSubmitParams() {
   const { layout, page, pathParam, ...rest } = model;
   const isDirectory = model.type === '1';
+  const isNativePluginRoute = isNativePluginMenu();
   const targetPage = (page || '').trim();
-  const isPluginRoute = !isDirectory && isPluginRoutePage(targetPage);
-  const componentPage = isDirectory
-    ? ''
-    : isPluginRoute
-      ? PLUGIN_ROUTE_BRIDGE_PAGE
-      : (targetPage || model.routeName || '').trim();
+  const isPluginRoute = !isDirectory && !isNativePluginRoute && isPluginRoutePage(targetPage);
+  let componentPage = '';
 
-  const component = transformLayoutAndPageToComponent(layout, componentPage);
+  if (!isDirectory && !isNativePluginRoute) {
+    componentPage = isPluginRoute ? PLUGIN_ROUTE_BRIDGE_PAGE : (targetPage || model.routeName || '').trim();
+  }
+
+  const component = isNativePluginRoute ? model.component : transformLayoutAndPageToComponent(layout, componentPage);
   const routePath = getRoutePathWithParam(model.routePath, isDirectory ? '' : pathParam);
   const normalizedQuery = isPluginRoute
     ? mergePluginRouteQuery(rest.query, targetPage)

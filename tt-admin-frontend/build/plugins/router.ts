@@ -19,6 +19,18 @@ export function setupElegantRouter() {
         return `/login/:module(${moduleReg})?`;
       }
 
+      if (key === 'portal-theme-control') {
+        return '/theme-management/portal-themes';
+      }
+
+      if (key === 'portal-orchestration') {
+        return '/theme-management/portal-orchestration';
+      }
+
+      if (key === 'portal-preview') {
+        return '/theme-management/portal-preview';
+      }
+
       return routePath;
     },
     onRouteMetaGen(routeName) {

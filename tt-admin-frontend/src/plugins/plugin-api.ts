@@ -78,7 +78,7 @@ function createPluginRequest() {
         if (error?.code === BACKEND_ERROR_CODE && response) {
           const payload = await readJson(response);
           const responseCode = String(payload?.code || '');
-          const message = payload?.msg || error?.message || $t('common.error');
+          const message = payload?.message || payload?.msg || error?.message || $t('common.error');
           const authStore = useAuthStore();
 
           function handleLogout() {
@@ -152,7 +152,7 @@ function createPluginRequest() {
     } catch (err) {
       return { data: null, error: err, response: null };
     }
-  }) as typeof request;
+  }) as unknown as typeof request;
 
   pluginRequest.state = pluginRequestState;
   pluginRequest.cancelAllRequest = () => {};

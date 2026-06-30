@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.sql.SQLException;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -25,7 +26,7 @@ import java.util.List;
  * SQL文件命名规范：
  * <ul>
  *     <li>安装SQL：install.sql 或 install-{version}.sql</li>
- *     <li>更新SQL：update-{fromVersion}-{toVersion}.sql</li>
+ *     <li>更新SQL：update-{targetVersion}.sql 或 update-{fromVersion}-{targetVersion}.sql</li>
  *     <li>卸载SQL：uninstall.sql</li>
  * </ul>
  * </p>
@@ -112,7 +113,7 @@ public class PluginSqlExecutor {
      * @param oldVersion 旧版本号
      * @param newVersion 新版本号
      * @throws SQLException SQL执行失败时抛出
-     * @apiNote SQL文件命名格式：update-{fromVersion}-{toVersion}.sql
+     * @apiNote SQL文件命名格式：update-{targetVersion}.sql 或 update-{fromVersion}-{targetVersion}.sql
      * @see VersionUtil#isWithinVersionRange(File, String, String)
      */
     public static void executeUpdateSql(File pluginDir, String oldVersion, String newVersion) throws SQLException {
@@ -131,6 +132,10 @@ public class PluginSqlExecutor {
                 .stream()
                 .filter(PluginSqlExecutor::isUpdateSqlFile)
                 .filter(file -> VersionUtil.isWithinVersionRange(file, oldVersion, newVersion))
+                .sorted(Comparator
+                        .comparing((File file) -> VersionUtil.extractUpdateSqlTargetVersion(file.getName()),
+                                VersionUtil::compareVersion)
+                        .thenComparing(File::getName))
                 .toList();
 
         int executedCount = 0;

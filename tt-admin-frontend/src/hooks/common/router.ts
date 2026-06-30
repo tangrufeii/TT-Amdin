@@ -2,6 +2,8 @@ import { useRouter } from 'vue-router';
 import type { RouteLocationRaw } from 'vue-router';
 import type { RouteKey } from '@elegant-router/types';
 import { router as globalRouter } from '@/router';
+import { getRoutePath } from '@/router/elegant/transform';
+import { useRouteStore } from '@/store/modules/route';
 
 /**
  * Router push
@@ -51,7 +53,10 @@ export function useRouterPush(inSetup = true) {
   }
 
   async function toHome() {
-    return routerPushByKey('root');
+    const routeStore = useRouteStore();
+    const path = getRoutePath(routeStore.routeHome as RouteKey) || '/home';
+
+    return routerPush(path);
   }
 
   /**

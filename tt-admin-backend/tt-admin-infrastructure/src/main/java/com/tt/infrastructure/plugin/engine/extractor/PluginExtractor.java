@@ -2,13 +2,14 @@ package com.tt.infrastructure.plugin.engine.extractor;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.IdUtil;
-import cn.hutool.core.util.ZipUtil;
 import com.tt.domain.plugin.model.enums.PluginDirectory;
 import com.tt.domain.plugin.model.enums.PluginResourceDirectory;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -77,12 +78,31 @@ public class PluginExtractor {
         log.info("Extracting ZIP plugin: {} to: {}", pluginFile.getName(), tempDir.getAbsolutePath());
 
         // 解压ZIP文件
-        File unzipDir = ZipUtil.unzip(pluginFile, tempDir);
+        extractZipEntries(pluginFile, tempDir);
 
         // 处理代码目录中的内嵌JAR文件
         // 保留 code 里的 jar，避免解压导致耗时
 
-        return unzipDir;
+        return tempDir;
+    }
+
+    private static void extractZipEntries(File pluginFile, File destDir) throws IOException {
+        if (!destDir.exists()) {
+            FileUtil.mkdir(destDir);
+        }
+        try (ZipFile zipFile = new ZipFile(pluginFile)) {
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                File destFile = resolveSafeDestination(destDir, entry.getName());
+                if (entry.isDirectory()) {
+                    FileUtil.mkdir(destFile);
+                    continue;
+                }
+                ensureParentDirectoryExists(destFile);
+                copyStream(zipFile.getInputStream(entry), destFile);
+            }
+        }
     }
 
     /**
@@ -139,19 +159,31 @@ public class PluginExtractor {
      */
     private static void extractJarEntry(JarFile jarFile, JarEntry entry, File destDir) throws IOException {
         String entryName = entry.getName();
+        File destFile = resolveSafeDestination(destDir, entryName);
 
         // 目录条目 - 创建目录
         if (entryName.endsWith(PATH_SEPARATOR)) {
-            File dirFile = new File(destDir + File.separator + entryName);
-            FileUtil.mkdir(dirFile);
+            FileUtil.mkdir(destFile);
             return;
         }
 
         // 文件条目 - 写入文件内容
-        File destFile = new File(destDir + File.separator + entryName);
         ensureParentDirectoryExists(destFile);
 
         copyStream(jarFile.getInputStream(entry), destFile);
+    }
+
+    private static File resolveSafeDestination(File destDir, String entryName) throws IOException {
+        if (entryName == null || entryName.isBlank() || entryName.contains("\0")) {
+            throw new IOException("Invalid archive entry name: " + entryName);
+        }
+        File normalizedDestDir = destDir.getCanonicalFile();
+        File destFile = new File(normalizedDestDir, entryName).getCanonicalFile();
+        String destDirPath = normalizedDestDir.getPath() + File.separator;
+        if (!destFile.getPath().startsWith(destDirPath) && !destFile.equals(normalizedDestDir)) {
+            throw new IOException("Archive entry is outside target directory: " + entryName);
+        }
+        return destFile;
     }
 
     /**

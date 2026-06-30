@@ -46,7 +46,21 @@ const PLUGIN_FALLBACK_CONSTANT_ROUTES = [
   {
     name: 'plugin-root',
     path: '/plugin-root',
+    component: 'layout.base',
     redirect: '/plugin-root-empty',
+    children: [
+      {
+        name: 'plugin-root_fallback',
+        path: '',
+        component: 'view.plugin-root-empty',
+        meta: {
+          title: 'plugin-root-empty',
+          i18nKey: 'route.plugin-root-empty',
+          constant: true,
+          hideInMenu: true
+        }
+      }
+    ],
     meta: {
       title: 'pluginRoot',
       i18nKey: 'route.pluginRoot',
@@ -569,6 +583,11 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
    * @param routePath Route path
    */
   async function getIsAuthRouteExist(routePath: RouteMap[RouteKey]) {
+    const matchedRoutes = router.resolve(routePath).matched;
+    if (matchedRoutes.length) {
+      return true;
+    }
+
     const routeName = getRouteName(routePath);
 
     if (!routeName) {
@@ -647,7 +666,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
             }
           });
 
-          module.menus?.forEach(menu => {
+          sortPluginMenuConfigs(module.menus).forEach(menu => {
             const matchedRoute = routeMap.get(menu.routeName);
             const menuNode = createPluginMenuNode(matchedRoute, menu);
             if (menuNode) {
@@ -703,6 +722,17 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       .sort((a, b) => `${a.pluginId}|${a.moduleName}`.localeCompare(`${b.pluginId}|${b.moduleName}`));
 
     return JSON.stringify(normalized);
+  }
+
+  function sortPluginMenuConfigs(menuConfigs?: Api.Plugin.PluginFrontendMenu[]) {
+    return (menuConfigs || []).slice().sort((next, prev) => {
+      const nextOrder = Number(next.order) || 0;
+      const prevOrder = Number(prev.order) || 0;
+      if (nextOrder !== prevOrder) {
+        return nextOrder - prevOrder;
+      }
+      return (next.parent ? 1 : 0) - (prev.parent ? 1 : 0);
+    });
   }
 
   function buildPluginVersionToken(version?: string | null, cacheBuster = '') {
@@ -770,6 +800,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       path: '',
       meta: {
         ...routeRecord.meta,
+        disableTransition: true,
         layout: layoutKey
       }
     };
@@ -780,6 +811,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       component: layoutComponent,
       meta: {
         ...(routeRecord.meta || {}),
+        disableTransition: true,
         layout: layoutKey
       },
       children: [viewRoute]
@@ -834,22 +866,37 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     }));
   }
 
-  function updateMenuIcon(params: { routeName?: string; routePath?: string; icon?: string | null; iconType?: string | null }) {
-    const { routeName, routePath, icon, iconType } = params || {};
+  function updateMenuMeta(params: {
+    routeName?: string;
+    routePath?: string;
+    icon?: string | null;
+    iconType?: string | null;
+    order?: number | null;
+  }) {
+    const { routeName, routePath, icon, iconType, order } = params || {};
     if (!routeName && !routePath) return;
     const { SvgIconVNode } = useSvgIcon();
     const useLocalIcon = String(iconType) === '2';
-    const iconVNode = SvgIconVNode({
-      icon: useLocalIcon ? undefined : icon || undefined,
-      localIcon: useLocalIcon ? icon || undefined : undefined,
-      fontSize: 20
-    });
+    const shouldUpdateIcon = icon !== undefined || iconType !== undefined;
+    const shouldUpdateOrder = order !== undefined;
+    const iconVNode = shouldUpdateIcon
+      ? SvgIconVNode({
+          icon: useLocalIcon ? undefined : icon || undefined,
+          localIcon: useLocalIcon ? icon || undefined : undefined,
+          fontSize: 20
+        })
+      : undefined;
 
     function walk(list: App.Global.Menu[] | undefined) {
       if (!list || list.length === 0) return false;
       for (const item of list) {
         if ((routeName && item.key === routeName) || (routePath && item.routePath === routePath)) {
-          item.icon = iconVNode;
+          if (shouldUpdateIcon) {
+            item.icon = iconVNode;
+          }
+          if (shouldUpdateOrder) {
+            item.order = order;
+          }
           return true;
         }
         if (item.children?.length && walk(item.children)) {
@@ -864,6 +911,15 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     if (updatedBase || updatedPlugin) {
       syncMenus();
     }
+  }
+
+  function updateMenuIcon(params: {
+    routeName?: string;
+    routePath?: string;
+    icon?: string | null;
+    iconType?: string | null;
+  }) {
+    updateMenuMeta(params);
   }
 
   function insertMenuNode(tree: App.Global.Menu[], menuNode: App.Global.Menu) {
@@ -1122,6 +1178,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     isInitAuthRoute,
     setIsInitAuthRoute,
     refreshPluginRoutes,
+    updateMenuMeta,
     updateMenuIcon,
     getIsAuthRouteExist,
     getSelectedMenuKeyPath,

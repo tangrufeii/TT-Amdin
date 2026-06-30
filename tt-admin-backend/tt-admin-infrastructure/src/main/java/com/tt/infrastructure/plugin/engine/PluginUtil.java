@@ -134,8 +134,8 @@ public class PluginUtil {
      * @return 匹配的Mapper XML文件列表
      * @see PluginMapperScanner#scanMapperFiles(File, PluginConfig)
      */
-    public static List<File> getMapperXml(File pluginDir, PluginConfig pluginBaseConfig) {
-        return PluginMapperScanner.scanMapperFiles(pluginDir, pluginBaseConfig);
+    public static List<File> getMapperXml(File pluginDir, Plugin plugin) {
+        return PluginMapperScanner.scanMapperFiles(pluginDir, plugin);
     }
 
     /**
@@ -146,8 +146,8 @@ public class PluginUtil {
      * @return 匹配的Mapper XML文件绝对路径列表
      * @see PluginMapperScanner#scanMapperPaths(File, PluginConfig)
      */
-    public static List<String> getMapperXmlPath(File pluginDir, PluginConfig pluginBaseConfig) {
-        return PluginMapperScanner.scanMapperPaths(pluginDir, pluginBaseConfig);
+    public static List<String> getMapperXmlPath(File pluginDir, Plugin plugin) {
+        return PluginMapperScanner.scanMapperPaths(pluginDir, plugin);
     }
 
     // ==================== 文件拷贝相关方法 ====================

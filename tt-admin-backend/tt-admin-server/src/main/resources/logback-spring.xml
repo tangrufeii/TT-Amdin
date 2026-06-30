@@ -60,15 +60,19 @@
 
     <springProfile name="prod">
         <logger name="com.tt.infrastructure.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
             <appender-ref ref="PLUGIN_FILE"/>
         </logger>
         <logger name="com.tt.plugin" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
             <appender-ref ref="PLUGIN_FILE"/>
         </logger>
         <logger name="com.tt.server.websocket" level="${LOG_LEVEL_PLUGIN}" additivity="false">
+            <appender-ref ref="CONSOLE"/>
             <appender-ref ref="PLUGIN_FILE"/>
         </logger>
         <root level="${LOG_LEVEL_ROOT}">
+            <appender-ref ref="CONSOLE"/>
             <appender-ref ref="APP_FILE"/>
         </root>
     </springProfile>

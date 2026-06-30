@@ -12,16 +12,20 @@ import com.tt.application.plugin.dto.frontend.PluginFrontendRouteMetaDTO;
 import com.tt.common.api.ResultCode;
 import com.tt.common.domain.DomainEventPublisher;
 import com.tt.common.domain.DomainException;
+import com.tt.domain.extension.model.aggregate.ExtensionRecord;
+import com.tt.domain.extension.model.entity.ExtensionRecordInfo;
+import com.tt.domain.extension.model.enums.ExtensionType;
+import com.tt.domain.extension.model.manifest.ExtensionManifest;
+import com.tt.domain.extension.model.manifest.ExtensionRouteMeta;
+import com.tt.domain.extension.model.manifest.admin.AdminContributes;
+import com.tt.domain.extension.model.manifest.admin.AdminMenuContribution;
+import com.tt.domain.extension.model.manifest.admin.AdminRouteContribution;
+import com.tt.domain.extension.repository.ExtensionManifestRepository;
+import com.tt.domain.extension.repository.ExtensionRecordRepository;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.aggregate.PluginManagement;
-import com.tt.domain.plugin.model.frontend.PluginFrontendDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendMenuDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendModuleDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendRouteDefinition;
-import com.tt.domain.plugin.model.frontend.PluginFrontendRouteMeta;
 import com.tt.domain.plugin.model.enums.PluginDirectory;
 import com.tt.domain.plugin.model.valobj.PluginManagementStatus;
-import com.tt.domain.plugin.repository.PluginFrontendDefinitionRepository;
 import com.tt.domain.plugin.repository.PluginManagementRepository;
 import com.tt.domain.plugin.service.PluginDomainService;
 import com.tt.domain.plugin.service.PluginManagementDomainService;
@@ -42,11 +46,14 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -84,7 +91,8 @@ public class PluginManagementApplicationService {
     private final DomainEventPublisher domainEventPublisher;
     private final PluginDomainService pluginDomainService;
     private final PluginManager pluginManager;
-    private final PluginFrontendDefinitionRepository pluginFrontendDefinitionRepository;
+    private final ExtensionManifestRepository extensionManifestRepository;
+    private final ExtensionRecordRepository extensionRecordRepository;
     private final SystemMenuRepository systemMenuRepository;
     private final PluginMenuSyncService pluginMenuSyncService;
     private final Environment environment;
@@ -108,6 +116,7 @@ public class PluginManagementApplicationService {
         );
 
         pluginManagementRepository.save(plugin);
+        pluginDomainService.syncExtensionRecordFromPlugin(plugin);
 
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
@@ -134,6 +143,7 @@ public class PluginManagementApplicationService {
         plugin.updateDevConfig(devModeEnabled, frontDevAddress);
 
         pluginManagementRepository.save(plugin);
+        pluginDomainService.syncExtensionRecordFromPlugin(plugin);
 
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
@@ -180,6 +190,7 @@ public class PluginManagementApplicationService {
         pluginMenuSyncService.removePluginMenus(plugin.getPluginId());
         plugin.uninstall();
         pluginManagementRepository.deleteById(id);
+        pluginDomainService.deleteExtensionRecord(plugin.getPluginId());
 
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
@@ -210,6 +221,18 @@ public class PluginManagementApplicationService {
      * 分页查询插件列表
      */
     public IPage<PluginManagementDTO> page(PluginPageQueryCommand command) {
+        if (hasExtensionTypeFilter(command.getType(), command.getExcludeType())) {
+            try {
+                return pageByExtensionRecord(command);
+            } catch (Exception ex) {
+                log.warn("Fallback to legacy plugin page, extension record query failed: type={}, excludeType={}",
+                        command.getType(), command.getExcludeType(), ex);
+            }
+        }
+        return pageByPluginManagement(command);
+    }
+
+    private IPage<PluginManagementDTO> pageByPluginManagement(PluginPageQueryCommand command) {
         IPage<PluginManagement> page = pluginManagementRepository.findPage(
                 command,
                 command.getName(),
@@ -225,18 +248,24 @@ public class PluginManagementApplicationService {
     public void installPlugin(PluginInstallCommand command) {
         long startedAt = System.currentTimeMillis();
         String pluginId = null;
+        AtomicReference<String> progressPluginId = new AtomicReference<>();
         StageTracker stageTracker = new StageTracker();
-        PluginProgressContext.setReporter(progress -> publishLifecycle(
-                progress.getPluginId(),
-                progress.getAction(),
-                STATUS_PROCESSING,
-                progress.getMessage(),
-                progress.getStage(),
-                progress.getProgress(),
-                startedAt,
-                System.currentTimeMillis() - startedAt,
-                stageTracker.elapsed(progress.getStage())
-        ));
+        PluginProgressContext.setReporter(progress -> {
+            if (!isBlank(progress.getPluginId())) {
+                progressPluginId.set(progress.getPluginId());
+            }
+            publishLifecycle(
+                    progress.getPluginId(),
+                    progress.getAction(),
+                    STATUS_PROCESSING,
+                    progress.getMessage(),
+                    progress.getStage(),
+                    progress.getProgress(),
+                    startedAt,
+                    System.currentTimeMillis() - startedAt,
+                    stageTracker.elapsed(progress.getStage())
+            );
+        });
         try {
             // 1. 保存上传文件到临时目录
             File tempDir = new File(PluginDirectory.TEMP_DIRECTORY.getPath());
@@ -258,13 +287,21 @@ public class PluginManagementApplicationService {
             log.info("Plugin installed successfully: {}", pluginId);
 
         } catch (Exception e) {
-            String message = Optional.ofNullable(e.getMessage()).orElse("未知错误");
-            if (pluginId == null && message.contains("already installed")) {
+            String rawMessage = Optional.ofNullable(e.getMessage()).orElse("未知错误");
+            String message = normalizeInstallErrorMessage(rawMessage);
+            if (pluginId == null) {
+                pluginId = progressPluginId.get();
+            }
+            if (pluginId == null && rawMessage.contains("already installed")) {
                 pluginId = resolvePluginIdFromFilename(command.getFile());
             }
             publishLifecycle(pluginId, ACTION_INSTALL, STATUS_FAILED, "插件安装失败: " + message, "failed", 100, startedAt, System.currentTimeMillis() - startedAt, null);
-            log.error("Failed to install plugin", e);
-            throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "插件安装失败: " + message);
+            if (isDuplicateInstall(rawMessage)) {
+                log.warn("Plugin install skipped: {}", message);
+            } else {
+                log.error("Failed to install plugin", e);
+            }
+            throw new DomainException(ResultCode.BAD_REQUEST.toString(), "插件安装失败: " + message, e);
         } finally {
             PluginProgressContext.clear();
         }
@@ -273,7 +310,15 @@ public class PluginManagementApplicationService {
     /**
      * 查询所有插件列表
      */
-    public List<PluginManagementDTO> listAll() {
+    public List<PluginManagementDTO> listAll(String type, String excludeType) {
+        if (hasExtensionTypeFilter(type, excludeType)) {
+            try {
+                return convertExtensionRecordsToPluginDTOs(filterExtensionRecords(extensionRecordRepository.findAll(), null, type, excludeType));
+            } catch (Exception ex) {
+                log.warn("Fallback to legacy plugin list, extension record query failed: type={}, excludeType={}",
+                        type, excludeType, ex);
+            }
+        }
         return pluginManagementRepository.findAll().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
@@ -282,7 +327,15 @@ public class PluginManagementApplicationService {
     /**
      * 根据状态查询插件列表
      */
-    public List<PluginManagementDTO> listByStatus(Integer status) {
+    public List<PluginManagementDTO> listByStatus(Integer status, String type, String excludeType) {
+        if (hasExtensionTypeFilter(type, excludeType)) {
+            try {
+                return convertExtensionRecordsToPluginDTOs(filterExtensionRecords(extensionRecordRepository.findAll(), status, type, excludeType));
+            } catch (Exception ex) {
+                log.warn("Fallback to legacy plugin status list, extension record query failed: status={}, type={}, excludeType={}",
+                        status, type, excludeType, ex);
+            }
+        }
         return pluginManagementRepository.findByStatus(status).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
@@ -297,6 +350,9 @@ public class PluginManagementApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("插件不存在"));
 
         pluginManagementDomainService.validateStatusChange(plugin.getPluginId(), PluginManagementStatus.ENABLED);
+        if (isThemePlugin(plugin.getPluginId())) {
+            disableOtherEnabledThemes(plugin.getPluginId());
+        }
         plugin.enable();
 
         // 同步调用基础设施层启动插件
@@ -326,6 +382,7 @@ public class PluginManagementApplicationService {
 
         pluginMenuSyncService.syncPluginMenus(plugin);
         pluginManagementRepository.save(plugin);
+        pluginDomainService.syncExtensionRecordFromPlugin(plugin);
 
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
@@ -373,6 +430,7 @@ public class PluginManagementApplicationService {
 
         pluginMenuSyncService.disablePluginMenus(plugin.getPluginId());
         pluginManagementRepository.save(plugin);
+        pluginDomainService.syncExtensionRecordFromPlugin(plugin);
 
         domainEventPublisher.publishAll(plugin.getUncommittedEvents());
         plugin.clearEvents();
@@ -380,6 +438,46 @@ public class PluginManagementApplicationService {
         publishLifecycle(plugin.getPluginId(), ACTION_DISABLE, STATUS_SUCCESS, "插件已禁用", "complete", 100, startedAt, System.currentTimeMillis() - startedAt, null);
         log.info("Plugin disabled: pluginId={}", plugin.getPluginId());
         return convertToDTO(plugin);
+    }
+
+    /**
+     * 主题包必须单例运行。
+     * <p>
+     * 只要当前要启用的是主题，就先把其他已启用主题统一停掉，
+     * 避免后台操作、门户切换、安装 autoEnable 这些入口把状态表搞成“双主题同时启用”。
+     * </p>
+     *
+     * @param targetPluginId 目标主题 ID
+     */
+    private void disableOtherEnabledThemes(String targetPluginId) {
+        List<PluginManagement> enabledPlugins = pluginManagementRepository.findByStatus(PluginManagementStatus.ENABLED.getCode());
+        if (CollectionUtils.isEmpty(enabledPlugins)) {
+            return;
+        }
+
+        for (PluginManagement enabledPlugin : enabledPlugins) {
+            if (enabledPlugin == null || isBlank(enabledPlugin.getPluginId())) {
+                continue;
+            }
+            if (Objects.equals(enabledPlugin.getPluginId(), targetPluginId) || !isThemePlugin(enabledPlugin.getPluginId())) {
+                continue;
+            }
+
+            try {
+                pluginManager.stopPlugin(enabledPlugin.getPluginId());
+            } catch (Exception ex) {
+                log.error("Failed to stop active theme before switching: {}", enabledPlugin.getPluginId(), ex);
+                throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(), "旧主题停止失败: " + enabledPlugin.getPluginId());
+            }
+
+            pluginMenuSyncService.disablePluginMenus(enabledPlugin.getPluginId());
+            enabledPlugin.disable();
+            pluginManagementRepository.save(enabledPlugin);
+            pluginDomainService.syncExtensionRecordFromPlugin(enabledPlugin);
+            domainEventPublisher.publishAll(enabledPlugin.getUncommittedEvents());
+            enabledPlugin.clearEvents();
+            log.info("Theme auto-disabled due to singleton switch: pluginId={}", enabledPlugin.getPluginId());
+        }
     }
 
     /**
@@ -397,7 +495,25 @@ public class PluginManagementApplicationService {
     /**
      * 获取插件统计信息
      */
-    public PluginStatisticsDTO getStatistics() {
+    public PluginStatisticsDTO getStatistics(String type, String excludeType) {
+        if (hasExtensionTypeFilter(type, excludeType)) {
+            try {
+                List<ExtensionRecord> filtered = filterExtensionRecords(extensionRecordRepository.findAll(), null, type, excludeType);
+                long total = filtered.size();
+                long enabled = filtered.stream()
+                        .filter(Objects::nonNull)
+                        .filter(record -> record.getExtensionInfo() != null && Integer.valueOf(1).equals(record.getExtensionInfo().getStatus()))
+                        .count();
+                return PluginStatisticsDTO.builder()
+                        .total(total)
+                        .enabledCount(enabled)
+                        .disabledCount(Math.max(0L, total - enabled))
+                        .build();
+            } catch (Exception ex) {
+                log.warn("Fallback to legacy plugin statistics, extension record query failed: type={}, excludeType={}",
+                        type, excludeType, ex);
+            }
+        }
         long[] stats = pluginManagementDomainService.getPluginStatistics();
         return PluginStatisticsDTO.builder()
                 .total(stats[0])
@@ -419,17 +535,30 @@ public class PluginManagementApplicationService {
         for (PluginManagement plugin : enabledPlugins) {
             try {
                 if (!pluginManager.isPluginStarted(plugin.getPluginId())) {
-                    log.debug("Skip plugin frontend modules (not started): {}", plugin.getPluginId());
-                    continue;
+                    log.warn("Enabled plugin runtime is not started, trying to recover: {}", plugin.getPluginId());
+                    try {
+                        pluginManager.startPlugin(plugin.getPluginId());
+                    } catch (Exception startEx) {
+                        log.warn("Skip plugin frontend modules, runtime recover failed: {}", plugin.getPluginId(), startEx);
+                        continue;
+                    }
                 }
-                PluginFrontendDefinition definition = pluginFrontendDefinitionRepository
-                        .loadByPluginId(plugin.getPluginId())
+                ExtensionManifest manifest = extensionManifestRepository
+                        .loadInstalled(plugin.getPluginId())
                         .orElse(null);
-                if (definition == null || CollectionUtils.isEmpty(definition.getModules())) {
+                AdminContributes adminContributes = manifest != null && manifest.getContributes() != null
+                        ? manifest.getContributes().getAdmin()
+                        : null;
+                if (adminContributes == null || CollectionUtils.isEmpty(adminContributes.getRoutes())) {
                     continue;
                 }
-                for (PluginFrontendModuleDefinition moduleDefinition : definition.getModules()) {
-                    PluginFrontendModuleDTO moduleDTO = convertFrontendModule(plugin, moduleDefinition, definition);
+                for (Map.Entry<String, List<AdminRouteContribution>> moduleEntry : groupRoutesByModule(adminContributes.getRoutes()).entrySet()) {
+                    PluginFrontendModuleDTO moduleDTO = convertFrontendModule(
+                            plugin,
+                            moduleEntry.getKey(),
+                            moduleEntry.getValue(),
+                            adminContributes
+                    );
                     if (moduleDTO != null) {
                         modules.add(moduleDTO);
                     }
@@ -445,18 +574,42 @@ public class PluginManagementApplicationService {
      * 将插件聚合根转换为DTO
      */
     private PluginManagementDTO convertToDTO(PluginManagement plugin) {
-        if (plugin == null) {
+        ExtensionRecord extensionRecord = null;
+        if (plugin != null && !isBlank(plugin.getPluginId())) {
+            try {
+                extensionRecord = extensionRecordRepository.findByExtensionId(plugin.getPluginId()).orElse(null);
+            } catch (Exception ex) {
+                log.warn("Skip extension record snapshot, query failed: pluginId={}", plugin.getPluginId(), ex);
+            }
+        }
+        return convertToDTO(plugin, extensionRecord);
+    }
+
+    /**
+     * 将插件聚合和扩展记录快照组合成统一管理 DTO。
+     * <p>
+     * V2 阶段主题/模块/挂件类型以 sys_extension 为准，
+     * 这里统一补到管理端 DTO，避免前端再自己猜类型。
+     * </p>
+     */
+    private PluginManagementDTO convertToDTO(PluginManagement plugin, ExtensionRecord extensionRecord) {
+        if (plugin == null && extensionRecord == null) {
             return null;
         }
 
         PluginManagementDTO dto = new PluginManagementDTO();
-        dto.setId(plugin.getDbId());
-        dto.setPluginId(plugin.getId());
-        dto.setName(plugin.getName());
-        dto.setStatus(plugin.getStatus().getCode());
-        dto.setStatusDesc(plugin.getStatus().getDescription());
+        if (plugin != null) {
+            dto.setId(plugin.getDbId());
+            dto.setPluginId(plugin.getId());
+            dto.setName(plugin.getName());
+            dto.setStatus(plugin.getStatus().getCode());
+            dto.setStatusDesc(plugin.getStatus().getDescription());
+        } else {
+            dto.setPluginId(extensionRecord.getExtensionId());
+        }
+        applyExtensionRecordInfo(dto, extensionRecord);
 
-        if (plugin.getPluginInfo() != null) {
+        if (plugin != null && plugin.getPluginInfo() != null) {
             dto.setDescription(plugin.getPluginInfo().getDescription());
             dto.setVersion(plugin.getPluginInfo().getVersion());
             dto.setAuthor(plugin.getPluginInfo().getAuthor());
@@ -469,7 +622,7 @@ public class PluginManagementApplicationService {
             dto.setUpdateTime(plugin.getPluginInfo().getUpdateTime());
             dto.setCreateUserId(plugin.getPluginInfo().getCreateUserId());
             dto.setUpdateUserId(plugin.getPluginInfo().getUpdateUserId());
-        } else {
+        } else if (plugin != null) {
             dto.setCreateTime(plugin.getCreatedAt());
             dto.setUpdateTime(plugin.getUpdatedAt());
         }
@@ -477,14 +630,156 @@ public class PluginManagementApplicationService {
         return dto;
     }
 
+    /**
+     * 通过扩展记录做分页，解决“主题中心 / 插件中心”需要按类型分流的问题。
+     */
+    private IPage<PluginManagementDTO> pageByExtensionRecord(PluginPageQueryCommand command) {
+        IPage<ExtensionRecord> page = extensionRecordRepository.findPage(
+                command,
+                command.getName(),
+                command.getStatus(),
+                command.getType(),
+                command.getExcludeType()
+        );
+        Map<String, PluginManagement> pluginMap = loadPluginMap(page.getRecords());
+        return page.convert(record -> convertToDTO(pluginMap.get(record.getExtensionId()), record));
+    }
+
+    private Map<String, PluginManagement> loadPluginMap(List<ExtensionRecord> extensionRecords) {
+        Map<String, PluginManagement> pluginMap = new HashMap<>();
+        if (CollectionUtils.isEmpty(extensionRecords)) {
+            return pluginMap;
+        }
+        for (ExtensionRecord record : extensionRecords) {
+            if (record == null || isBlank(record.getExtensionId())) {
+                continue;
+            }
+            pluginManagementRepository.findByPluginId(record.getExtensionId())
+                    .ifPresent(plugin -> pluginMap.put(record.getExtensionId(), plugin));
+        }
+        return pluginMap;
+    }
+
+    private List<PluginManagementDTO> convertExtensionRecordsToPluginDTOs(List<ExtensionRecord> extensionRecords) {
+        if (CollectionUtils.isEmpty(extensionRecords)) {
+            return Collections.emptyList();
+        }
+        Map<String, PluginManagement> pluginMap = loadPluginMap(extensionRecords);
+        return extensionRecords.stream()
+                .map(record -> convertToDTO(pluginMap.get(record.getExtensionId()), record))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    private List<ExtensionRecord> filterExtensionRecords(List<ExtensionRecord> extensionRecords,
+                                                         Integer status,
+                                                         String type,
+                                                         String excludeType) {
+        if (CollectionUtils.isEmpty(extensionRecords)) {
+            return Collections.emptyList();
+        }
+        return extensionRecords.stream()
+                .filter(Objects::nonNull)
+                .filter(record -> matchExtensionStatus(record, status))
+                .filter(record -> matchExtensionType(record, type))
+                .filter(record -> !isExcludedExtensionType(record, excludeType))
+                .collect(Collectors.toList());
+    }
+
+    private boolean matchExtensionStatus(ExtensionRecord record, Integer status) {
+        if (status == null) {
+            return true;
+        }
+        return record != null
+                && record.getExtensionInfo() != null
+                && Objects.equals(record.getExtensionInfo().getStatus(), status);
+    }
+
+    private boolean matchExtensionType(ExtensionRecord record, String type) {
+        if (isBlank(type)) {
+            return true;
+        }
+        if (record == null || record.getExtensionInfo() == null || record.getExtensionInfo().getType() == null) {
+            return false;
+        }
+        return Objects.equals(record.getExtensionInfo().getType().getCode(), type.trim());
+    }
+
+    private boolean hasExtensionTypeFilter(String type, String excludeType) {
+        return !isBlank(type) || !isBlank(excludeType);
+    }
+
+    private boolean isExcludedExtensionType(ExtensionRecord record, String excludeType) {
+        if (isBlank(excludeType)) {
+            return false;
+        }
+        return matchExtensionType(record, excludeType);
+    }
+
+    private void applyExtensionRecordInfo(PluginManagementDTO dto, ExtensionRecord extensionRecord) {
+        if (dto == null || extensionRecord == null || extensionRecord.getExtensionInfo() == null) {
+            return;
+        }
+        ExtensionRecordInfo extensionInfo = extensionRecord.getExtensionInfo();
+        ExtensionType extensionType = extensionInfo.getType();
+        if (extensionType != null) {
+            dto.setType(extensionType.getCode());
+            dto.setTypeDesc(extensionType.getDescription());
+        }
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            dto.setName(extensionInfo.getName());
+        }
+        if (dto.getStatus() == null) {
+            dto.setStatus(extensionInfo.getStatus());
+            dto.setStatusDesc(Integer.valueOf(1).equals(extensionInfo.getStatus()) ? "启用" : "禁用");
+        }
+        if (!isBlank(extensionInfo.getDescription())) {
+            dto.setDescription(extensionInfo.getDescription());
+        }
+        if (!isBlank(extensionInfo.getVersion())) {
+            dto.setVersion(extensionInfo.getVersion());
+        }
+        dto.setAuthor(extensionInfo.getAuthor());
+        dto.setEmail(extensionInfo.getEmail());
+        dto.setWebsite(extensionInfo.getWebsite());
+        dto.setIsDev(Boolean.TRUE.equals(extensionInfo.getIsDev()));
+        dto.setFrontDevAddress(Boolean.TRUE.equals(extensionInfo.getIsDev()) ? extensionInfo.getFrontDevAddress() : "");
+        dto.setCreateTime(extensionInfo.getCreateTime());
+        dto.setUpdateTime(extensionInfo.getUpdateTime());
+        dto.setCreateUserId(extensionInfo.getCreateUserId());
+        dto.setUpdateUserId(extensionInfo.getUpdateUserId());
+    }
+
+    /**
+     * 按 module 字段对后台路由分组，兼容旧插件“模块”概念。
+     *
+     * @param routes 后台路由贡献
+     * @return module -> routes
+     */
+    private Map<String, List<AdminRouteContribution>> groupRoutesByModule(List<AdminRouteContribution> routes) {
+        if (CollectionUtils.isEmpty(routes)) {
+            return Collections.emptyMap();
+        }
+        Map<String, List<AdminRouteContribution>> groupedRoutes = new LinkedHashMap<>();
+        for (AdminRouteContribution route : routes) {
+            if (route == null || isBlank(route.getName())) {
+                continue;
+            }
+            String moduleName = isBlank(route.getModule()) ? "index" : route.getModule().trim();
+            groupedRoutes.computeIfAbsent(moduleName, key -> new ArrayList<>()).add(route);
+        }
+        return groupedRoutes;
+    }
+
     private PluginFrontendModuleDTO convertFrontendModule(PluginManagement plugin,
-                                                          PluginFrontendModuleDefinition moduleDefinition,
-                                                          PluginFrontendDefinition definition) {
-        if (plugin == null || moduleDefinition == null || CollectionUtils.isEmpty(moduleDefinition.getRoutes())) {
+                                                          String moduleName,
+                                                          List<AdminRouteContribution> routeDefinitions,
+                                                          AdminContributes adminContributes) {
+        if (plugin == null || isBlank(moduleName) || CollectionUtils.isEmpty(routeDefinitions)) {
             return null;
         }
 
-        List<PluginFrontendRouteDTO> routes = moduleDefinition.getRoutes().stream()
+        List<PluginFrontendRouteDTO> routes = routeDefinitions.stream()
                 .map(this::convertFrontendRoute)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -497,20 +792,20 @@ public class PluginManagementApplicationService {
         boolean pluginDevEnabled = isPluginDevModeAllowed()
                 && plugin.getPluginInfo() != null
                 && Boolean.TRUE.equals(plugin.getPluginInfo().getIsDev());
-        moduleDTO.setRenderer(definition != null ? definition.getRenderer() : null);
-        moduleDTO.setModuleName(moduleDefinition.getModuleName());
+        moduleDTO.setRenderer(adminContributes != null ? adminContributes.getRenderer() : null);
+        moduleDTO.setModuleName(moduleName);
         moduleDTO.setPluginId(plugin.getPluginId());
         moduleDTO.setPluginName(plugin.getName());
         moduleDTO.setPluginVersion(plugin.getPluginInfo() != null ? plugin.getPluginInfo().getVersion() : null);
         moduleDTO.setPluginIsDev(pluginDevEnabled);
         moduleDTO.setFrontDevAddress(pluginDevEnabled && plugin.getPluginInfo() != null ? plugin.getPluginInfo().getFrontDevAddress() : "");
         moduleDTO.setRoutes(routes);
-        moduleDTO.setMenus(resolveFrontendMenus(plugin.getPluginId(), definition, routes));
-        moduleDTO.setI18n(definition != null ? definition.getI18n() : null);
+        moduleDTO.setMenus(resolveFrontendMenus(plugin.getPluginId(), adminContributes, routes));
+        moduleDTO.setI18n(adminContributes != null ? adminContributes.getI18n() : null);
         return moduleDTO;
     }
 
-    private PluginFrontendRouteDTO convertFrontendRoute(PluginFrontendRouteDefinition routeDefinition) {
+    private PluginFrontendRouteDTO convertFrontendRoute(AdminRouteContribution routeDefinition) {
         if (routeDefinition == null
                 || isBlank(routeDefinition.getName())
                 || isBlank(routeDefinition.getPath())
@@ -527,7 +822,7 @@ public class PluginManagementApplicationService {
         return routeDTO;
     }
 
-    private PluginFrontendRouteMetaDTO convertRouteMeta(PluginFrontendRouteMeta meta, String fallbackTitle) {
+    private PluginFrontendRouteMetaDTO convertRouteMeta(ExtensionRouteMeta meta, String fallbackTitle) {
         PluginFrontendRouteMetaDTO metaDTO = new PluginFrontendRouteMetaDTO();
         if (meta != null) {
             metaDTO.setTitle(isBlank(meta.getTitle()) ? fallbackTitle : meta.getTitle());
@@ -545,7 +840,7 @@ public class PluginManagementApplicationService {
         return metaDTO;
     }
 
-    private List<PluginFrontendMenuDTO> filterMenusForRoutes(List<PluginFrontendMenuDefinition> menus,
+    private List<PluginFrontendMenuDTO> filterMenusForRoutes(List<AdminMenuContribution> menus,
                                                              List<PluginFrontendRouteDTO> routes) {
         if (CollectionUtils.isEmpty(menus) || CollectionUtils.isEmpty(routes)) {
             return Collections.emptyList();
@@ -568,13 +863,13 @@ public class PluginManagementApplicationService {
     }
 
     private List<PluginFrontendMenuDTO> resolveFrontendMenus(String pluginId,
-                                                             PluginFrontendDefinition definition,
+                                                             AdminContributes adminContributes,
                                                              List<PluginFrontendRouteDTO> routes) {
         List<PluginFrontendMenuDTO> menusFromSystem = loadMenusFromSystem(pluginId, routes);
         if (!menusFromSystem.isEmpty()) {
             return menusFromSystem;
         }
-        return filterMenusForRoutes(definition != null ? definition.getMenus() : null, routes);
+        return filterMenusForRoutes(adminContributes != null ? adminContributes.getMenus() : null, routes);
     }
 
     private List<PluginFrontendMenuDTO> loadMenusFromSystem(String pluginId, List<PluginFrontendRouteDTO> routes) {
@@ -619,6 +914,15 @@ public class PluginManagementApplicationService {
         return value == null || value.trim().isEmpty();
     }
 
+    private boolean isThemePlugin(String pluginId) {
+        if (isBlank(pluginId)) {
+            return false;
+        }
+        return extensionManifestRepository.loadInstalled(pluginId)
+                .map(ExtensionManifest::isThemeExtension)
+                .orElse(false);
+    }
+
     private String resolvePluginIdFromFilename(MultipartFile file) {
         if (file == null || file.getOriginalFilename() == null) {
             return null;
@@ -629,6 +933,31 @@ public class PluginManagementApplicationService {
         }
         int dotIndex = filename.lastIndexOf('.');
         return dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
+    }
+
+    private boolean isDuplicateInstall(String message) {
+        return message != null
+                && (message.contains("This version is already installed")
+                || message.contains("A higher version is already installed"));
+    }
+
+    private String normalizeInstallErrorMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return "未知错误";
+        }
+        if (message.contains("This version is already installed")) {
+            return "该插件版本已安装，无需重复安装";
+        }
+        if (message.contains("A higher version is already installed")) {
+            return "当前已安装更高版本，请提升插件包版本号后再安装";
+        }
+        if (message.contains("requires TT-Admin version")) {
+            return message.replace("Plugin installation failed: ", "");
+        }
+        if (message.contains("Cannot write uploaded file to disk")) {
+            return "上传文件写入临时目录失败，请检查 resources/temp 目录是否存在且可写";
+        }
+        return message.replace("Plugin installation failed: ", "");
     }
 
     private boolean isPluginDevModeAllowed() {

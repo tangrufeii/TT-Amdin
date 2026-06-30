@@ -52,7 +52,7 @@ spring:
         reset-enable: false
         # 需要账号密码才能访问控制台
         login-username: druid
-        login-password: BdRDfgraZCEF5
+        login-password: 123456
         # IP白名单
         allow: 127.0.0.1
         # IP黑名单（共同存在时，deny优先于allow）

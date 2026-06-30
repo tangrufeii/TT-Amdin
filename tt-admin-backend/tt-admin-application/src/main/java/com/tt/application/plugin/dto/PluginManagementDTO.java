@@ -29,6 +29,12 @@ public class PluginManagementDTO {
     @Schema(description = "插件描述")
     private String description;
 
+    @Schema(description = "扩展类型编码")
+    private String type;
+
+    @Schema(description = "扩展类型说明")
+    private String typeDesc;
+
     @Schema(description = "版本号")
     private String version;
 

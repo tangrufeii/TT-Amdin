@@ -1,16 +1,15 @@
 package com.tt.infrastructure.plugin.persistence.repository;
 
+import com.tt.domain.extension.model.manifest.ExtensionManifest;
 import com.tt.domain.plugin.model.enums.PluginDirectory;
-import com.tt.domain.plugin.model.enums.PluginResourceDirectory;
 import com.tt.domain.plugin.model.frontend.PluginFrontendDefinition;
 import com.tt.domain.plugin.repository.PluginFrontendDefinitionRepository;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestCompatMapper;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestReader;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.Optional;
 
 /**
@@ -32,19 +31,12 @@ public class PluginFrontendDefinitionRepositoryImpl implements PluginFrontendDef
             return Optional.empty();
         }
 
-        File configFile = new File(pluginDir, PluginResourceDirectory.FRONTEND_FILE.getPath());
-        if (!configFile.exists()) {
-            log.debug("Plugin frontend config file not found: {}", configFile.getAbsolutePath());
+        ExtensionManifest manifest = ExtensionManifestReader.readManifest(pluginDir).orElse(null);
+        if (manifest == null) {
+            log.debug("Plugin manifest not found when loading frontend definition: {}", pluginDir.getAbsolutePath());
             return Optional.empty();
         }
 
-        try (InputStream inputStream = new FileInputStream(configFile)) {
-            Yaml yaml = new Yaml();
-            PluginFrontendDefinition definition = yaml.loadAs(inputStream, PluginFrontendDefinition.class);
-            return Optional.ofNullable(definition);
-        } catch (Exception e) {
-            log.error("Failed to parse plugin frontend config: {}", configFile.getAbsolutePath(), e);
-            return Optional.empty();
-        }
+        return Optional.ofNullable(ExtensionManifestCompatMapper.toPluginFrontendDefinition(manifest));
     }
 }

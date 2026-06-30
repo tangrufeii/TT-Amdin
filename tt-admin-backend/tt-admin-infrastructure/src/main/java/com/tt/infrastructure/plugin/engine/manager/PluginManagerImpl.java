@@ -3,13 +3,14 @@ package com.tt.infrastructure.plugin.engine.manager;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import com.tt.common.utils.VersionUtil;
+import com.tt.domain.extension.model.manifest.ExtensionManifest;
 import com.tt.domain.plugin.PluginManager;
 import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.constant.PluginConstant;
+import com.tt.domain.plugin.model.enums.PluginDirectory;
 import com.tt.domain.plugin.progress.PluginProgress;
 import com.tt.domain.plugin.progress.PluginProgressContext;
-import com.tt.infrastructure.plugin.engine.config.PluginConfigReader;
 import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolder;
 import com.tt.infrastructure.plugin.engine.copier.PluginFileCopier;
 import com.tt.infrastructure.plugin.engine.extractor.PluginExtractor;
@@ -17,6 +18,8 @@ import com.tt.infrastructure.plugin.engine.handler.PluginHandler;
 import com.tt.infrastructure.plugin.engine.holder.PluginHolder;
 import com.tt.infrastructure.plugin.engine.installer.PluginSqlExecutor;
 import com.tt.infrastructure.plugin.engine.scanner.PluginClassMetadataCache;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestCompatMapper;
+import com.tt.infrastructure.extension.manifest.ExtensionManifestReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.plugin.PluginException;
@@ -24,7 +27,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.util.Optional;
 
@@ -58,30 +65,49 @@ public class PluginManagerImpl implements PluginManager {
         File pluginTempDir = PluginExtractor.extractZip(pluginFile);
         FileUtil.del(pluginFile);
 
-        reportProgress(ACTION_INSTALL, null, "read_config", 25, "Reading plugin configuration");
-        PluginConfig pluginConfig = PluginConfigReader.readConfig(pluginTempDir);
-        if (pluginConfig == null) {
+        reportProgress(ACTION_INSTALL, null, "read_manifest", 25, "Reading extension manifest");
+        ExtensionManifest manifest = ExtensionManifestReader.readManifest(pluginTempDir).orElse(null);
+        if (manifest == null) {
             FileUtil.del(pluginTempDir);
-            throw new PluginException("Failed to parse plugin.yaml!");
+            throw new PluginException("Failed to parse extension manifest!");
         }
-        String pluginId = pluginConfig.getPlugin().getId();
-        reportProgress(ACTION_INSTALL, pluginId, "read_config", 28, "Plugin configuration loaded");
-
-        reportProgress(ACTION_INSTALL, pluginId, "check_version", 35, "Checking version compatibility");
-        checkVersionCompatibility(pluginConfig, pluginTempDir);
-
-        boolean isUpdate = isPluginUpdate(pluginConfig);
-
-        if (isUpdate && PluginHolder.getPluginInfo(pluginId) != null) {
-            reportProgress(ACTION_INSTALL, pluginId, "stop_old", 45, "Stopping existing plugin");
-            pluginHandler.stopPlugin(pluginId);
-            reportProgress(ACTION_INSTALL, pluginId, "release_old", 50, "Releasing existing plugin runtime");
-            releasePluginRuntimeForUpdate(pluginId);
+        PluginConfig pluginConfig = ExtensionManifestCompatMapper.toPluginConfig(manifest);
+        if (pluginConfig == null || pluginConfig.getPlugin() == null) {
+            FileUtil.del(pluginTempDir);
+            throw new PluginException("Failed to project plugin config from extension manifest!");
         }
+        String pluginId = manifest.getExtension().getId();
+        reportProgress(ACTION_INSTALL, pluginId, "read_manifest", 28, "Extension manifest loaded");
 
+        ExtensionManifest installedManifest = null;
+        boolean isUpdate = false;
+        boolean oldRuntimeLoaded = false;
+        boolean oldRuntimeReleased = false;
+        boolean newRuntimeInstalled = false;
+        File backupDir = null;
         File pluginDir = null;
         try {
+            reportProgress(ACTION_INSTALL, pluginId, "check_version", 35, "Checking version compatibility");
+            checkVersionCompatibility(manifest, pluginTempDir);
+
+            installedManifest = ExtensionManifestReader.readInstalledManifest(pluginId).orElse(null);
+            isUpdate = isPluginUpdate(manifest, installedManifest);
+            oldRuntimeLoaded = isUpdate && PluginHolder.getPluginInfo(pluginId) != null;
+
+            if (isUpdate) {
+                backupDir = backupInstalledPlugin(pluginId);
+            }
+
+            if (oldRuntimeLoaded) {
+                reportProgress(ACTION_INSTALL, pluginId, "stop_old", 45, "Stopping existing plugin");
+                pluginHandler.stopPlugin(pluginId);
+                reportProgress(ACTION_INSTALL, pluginId, "release_old", 50, "Releasing existing plugin runtime");
+                releasePluginRuntime(pluginId);
+                oldRuntimeReleased = true;
+            }
+
             reportProgress(ACTION_INSTALL, pluginId, "copy_files", 55, "Copying plugin files");
+            preparePluginDirectoryForCopy(pluginId, isUpdate);
             pluginDir = copyPluginFilesWithRetry(pluginTempDir, pluginConfig, isUpdate);
             if (pluginDir == null) {
                 throw new PluginException("Failed to copy plugin files");
@@ -92,13 +118,14 @@ public class PluginManagerImpl implements PluginManager {
             if (!lazyInstall) {
                 reportProgress(ACTION_INSTALL, pluginId, "install_context", 70, "Installing plugin context");
                 pluginHandler.installPlugin(pluginDir);
+                newRuntimeInstalled = true;
             } else {
                 reportProgress(ACTION_INSTALL, pluginId, "defer_context", 70, "Deferring plugin context initialization");
             }
 
             if (isUpdate) {
                 reportProgress(ACTION_INSTALL, pluginId, "execute_sql", 85, "Executing update SQL");
-                handleUpdate(pluginDir, pluginConfig);
+                handleUpdate(pluginDir, pluginConfig, installedManifest);
             } else {
                 reportProgress(ACTION_INSTALL, pluginId, "execute_sql", 85, "Executing install SQL");
                 handleInstall(pluginDir, pluginConfig, !lazyInstall);
@@ -107,15 +134,25 @@ public class PluginManagerImpl implements PluginManager {
                 }
             }
         } catch (Exception ex) {
+            if (newRuntimeInstalled) {
+                releasePluginRuntime(pluginId);
+            }
+            if (isUpdate) {
+                restoreInstalledPlugin(pluginId, backupDir, oldRuntimeReleased);
+            }
             try {
-                pluginHandler.uninstallPlugin(pluginId);
+                FileUtil.del(pluginTempDir);
             } catch (Exception e) {
-                log.warn("Failed to cleanup plugin context after install error: {}", pluginId, e);
+                log.warn("Failed to cleanup plugin temp directory after install error: {}", pluginId, e);
             }
             if (!isUpdate && pluginDir != null) {
                 FileUtil.del(pluginDir);
             }
             throw ex;
+        } finally {
+            if (backupDir != null && backupDir.exists()) {
+                FileUtil.del(backupDir);
+            }
         }
 
         return pluginConfig;
@@ -153,10 +190,10 @@ public class PluginManagerImpl implements PluginManager {
     }
 
     /**
-     * Release old plugin runtime resources before update file replacement.
+     * Release plugin runtime resources before file replacement or after a failed install.
      * This avoids jar file lock on Windows and does not execute uninstall SQL.
      */
-    private void releasePluginRuntimeForUpdate(String pluginId) {
+    private void releasePluginRuntime(String pluginId) {
         Plugin plugin = PluginHolder.getPluginInfo(pluginId);
         if (plugin == null) {
             return;
@@ -167,8 +204,10 @@ public class PluginManagerImpl implements PluginManager {
         PluginHolder.removePluginInfo(pluginId);
         PluginClassMetadataCache.remove(pluginId);
         plugin.setPluginConfig(null);
+        plugin.setExtensionManifest(null);
         plugin.setClassList(null);
         plugin.setClassNameList(null);
+        plugin.setRuntimeCodeStamp(null);
         plugin.setPluginClassLoader(null);
 
         if (pluginClassLoader != null) {
@@ -184,10 +223,14 @@ public class PluginManagerImpl implements PluginManager {
     public void startPlugin(String pluginId) {
         try {
             reportProgress(ACTION_ENABLE, pluginId, "start", 10, "Starting plugin");
+            File pluginDir = getPluginDirById(pluginId)
+                    .orElseThrow(() -> new PluginException("Plugin directory not found: " + pluginId));
+            if (isRuntimeExpired(pluginId, pluginDir)) {
+                log.info("Plugin runtime expired, reloading plugin: {}", pluginId);
+                releasePluginRuntime(pluginId);
+            }
             if (!PluginHolder.containsPlugin(pluginId)) {
                 reportProgress(ACTION_ENABLE, pluginId, "install_context", 20, "Preparing plugin context");
-                File pluginDir = getPluginDirById(pluginId)
-                        .orElseThrow(() -> new PluginException("Plugin directory not found: " + pluginId));
                 pluginHandler.installPlugin(pluginDir, ACTION_ENABLE);
                 runPendingInstallLifecycle(pluginId);
             }
@@ -233,29 +276,36 @@ public class PluginManagerImpl implements PluginManager {
         log.info("Plugin uninstalled successfully: {}", pluginId);
     }
 
-    private void checkVersionCompatibility(PluginConfig pluginConfig, File pluginTempDir) {
-        String minimalVersion = pluginConfig.getPlugin().getMinimalVersion();
-        if (VersionUtil.versionToLong(minimalVersion) > VersionUtil.versionToLong(systemVersion)) {
+    private void checkVersionCompatibility(ExtensionManifest manifest, File pluginTempDir) {
+        String minimalVersion = manifest.getCompatibility() != null && manifest.getCompatibility().getHost() != null
+                ? manifest.getCompatibility().getHost().getMinVersion()
+                : null;
+        if (minimalVersion != null && VersionUtil.compareVersion(minimalVersion, systemVersion) > 0) {
             FileUtil.del(pluginTempDir);
             throw new PluginException("Plugin installation failed: This plugin requires TT-Admin version "
                     + minimalVersion + " or higher");
         }
     }
 
-    private boolean isPluginUpdate(PluginConfig pluginConfig) {
-        PluginConfig installedConfig = PluginConfigReader.readInstalledConfig(pluginConfig.getPlugin().getId());
-        if (installedConfig == null) {
+    private boolean isPluginUpdate(ExtensionManifest manifest, ExtensionManifest installedManifest) {
+        if (installedManifest == null) {
             return false;
         }
 
-        long oldVersion = VersionUtil.versionToLong(installedConfig.getPlugin().getVersion());
-        long newVersion = VersionUtil.versionToLong(pluginConfig.getPlugin().getVersion());
+        int versionCompare = VersionUtil.compareVersion(
+                installedManifest.getExtension().getVersion(),
+                manifest.getExtension().getVersion()
+        );
+        log.info("Plugin version check: pluginId={}, installedVersion={}, packageVersion={}",
+                manifest.getExtension().getId(),
+                installedManifest.getExtension().getVersion(),
+                manifest.getExtension().getVersion());
 
-        if (oldVersion == newVersion) {
+        if (versionCompare == 0) {
             throw new PluginException("Plugin installation failed: This version is already installed");
         }
 
-        if (oldVersion > newVersion) {
+        if (versionCompare > 0) {
             throw new PluginException("Plugin installation failed: A higher version is already installed");
         }
 
@@ -279,11 +329,13 @@ public class PluginManagerImpl implements PluginManager {
         log.info("Plugin installed: {}", pluginConfig.getPlugin().getId());
     }
 
-    private void handleUpdate(File pluginDir, PluginConfig pluginConfig) throws SQLException {
-        PluginConfig installedConfig = PluginConfigReader.readInstalledConfig(pluginConfig.getPlugin().getId());
+    private void handleUpdate(File pluginDir, PluginConfig pluginConfig, ExtensionManifest installedManifest) throws SQLException {
+        if (installedManifest == null || installedManifest.getExtension() == null) {
+            throw new PluginException("Installed manifest not found: " + pluginConfig.getPlugin().getId());
+        }
 
         PluginSqlExecutor.executeUpdateSql(pluginDir,
-                installedConfig.getPlugin().getVersion(),
+                installedManifest.getExtension().getVersion(),
                 pluginConfig.getPlugin().getVersion());
 
         reportProgress(ACTION_INSTALL, pluginConfig.getPlugin().getId(), "lifecycle", 95, "Running update lifecycle");
@@ -296,8 +348,71 @@ public class PluginManagerImpl implements PluginManager {
         pluginConfig.setStatus(PluginConstant.PLUGIN_STATUS_ENABLE);
         log.info("Plugin updated: {} from {} to {}",
                 pluginConfig.getPlugin().getId(),
-                installedConfig.getPlugin().getVersion(),
+                installedManifest.getExtension().getVersion(),
                 pluginConfig.getPlugin().getVersion());
+    }
+
+    private void preparePluginDirectoryForCopy(String pluginId, boolean isUpdate) {
+        if (!isUpdate) {
+            return;
+        }
+        getPluginDirById(pluginId)
+                .filter(File::exists)
+                .ifPresent(FileUtil::del);
+    }
+
+    private File backupInstalledPlugin(String pluginId) {
+        Optional<File> pluginDir = getPluginDirById(pluginId);
+        if (pluginDir.isEmpty()) {
+            return null;
+        }
+        File backupDir = new File(
+                PluginDirectory.TEMP_DIRECTORY.getPath(),
+                ".plugin-backup-" + pluginId + "-" + System.currentTimeMillis()
+        );
+        try {
+            copyDirectory(pluginDir.get().toPath(), backupDir.toPath());
+            return backupDir;
+        } catch (IOException ex) {
+            FileUtil.del(backupDir);
+            throw new PluginException("Failed to backup installed plugin before update: " + pluginId, ex);
+        }
+    }
+
+    private void restoreInstalledPlugin(String pluginId, File backupDir, boolean restoreRuntime) {
+        if (backupDir == null || !backupDir.exists()) {
+            return;
+        }
+        File pluginDir = new File(
+                PluginDirectory.PLUGIN_DIRECTORY.getPath()
+                        + File.separator + pluginId
+        );
+        try {
+            if (pluginDir.exists()) {
+                FileUtil.del(pluginDir);
+            }
+            copyDirectory(backupDir.toPath(), pluginDir.toPath());
+            if (restoreRuntime) {
+                pluginHandler.installPlugin(pluginDir);
+            }
+            log.warn("Plugin update failed, restored previous files: {}", pluginId);
+        } catch (Exception restoreEx) {
+            log.error("Failed to restore previous plugin after update failure: {}", pluginId, restoreEx);
+        }
+    }
+
+    private void copyDirectory(Path sourceDir, Path targetDir) throws IOException {
+        try (var paths = Files.walk(sourceDir)) {
+            for (Path source : paths.toList()) {
+                Path target = targetDir.resolve(sourceDir.relativize(source));
+                if (Files.isDirectory(source)) {
+                    Files.createDirectories(target);
+                } else {
+                    Files.createDirectories(target.getParent());
+                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 
     private Optional<File> getPluginDirById(String pluginId) {
@@ -307,6 +422,30 @@ public class PluginManagerImpl implements PluginManager {
         );
 
         return Optional.of(pluginDir).filter(File::exists);
+    }
+
+    private boolean isRuntimeExpired(String pluginId, File pluginDir) {
+        Plugin plugin = PluginHolder.getPluginInfo(pluginId);
+        if (plugin == null || pluginDir == null || !pluginDir.exists()) {
+            return false;
+        }
+        long currentStamp = calculateRuntimeCodeStamp(pluginDir);
+        Long runtimeStamp = plugin.getRuntimeCodeStamp();
+        return runtimeStamp == null || runtimeStamp.longValue() != currentStamp;
+    }
+
+    private long calculateRuntimeCodeStamp(File pluginDir) {
+        File codeDir = new File(pluginDir, "code");
+        if (!codeDir.exists()) {
+            return 0L;
+        }
+        long latest = codeDir.lastModified();
+        var files = FileUtil.loopFiles(codeDir,
+                file -> file.isFile() && (file.getName().endsWith(".class") || file.getName().endsWith(".jar")));
+        for (File file : files) {
+            latest = Math.max(latest, file.lastModified());
+        }
+        return latest;
     }
 
     private void createInstallPendingMarker(File pluginDir) {

@@ -100,7 +100,7 @@ function exportData() {
       <NSpace justify="start">
         <NButton v-if="showAdd" size="small" ghost type="primary" @click="add">
           <template #icon>
-            <IconPlus class="text-icon" />
+            <IconPlus class="text-18px" />
           </template>
           {{ t('common.add') }}
         </NButton>
@@ -108,7 +108,7 @@ function exportData() {
           <template #trigger>
             <NButton size="small" ghost type="error" :disabled="!hasCheck">
               <template #icon>
-                <IconDelete class="text-icon" />
+                <IconDelete class="text-18px" />
               </template>
               {{ t('common.batchDelete') }}
             </NButton>
@@ -121,12 +121,12 @@ function exportData() {
       <NSpace justify="end">
         <NButton v-if="showExport" size="small" quaternary @click="exportData">
           <template #icon>
-            <IconSave class="text-icon" />
+            <IconSave class="text-18px" />
           </template>
         </NButton>
         <NButton size="small" quaternary @click="refresh">
           <template #icon>
-            <IconRefresh class="text-icon" :class="{ 'animate-spin': loading }" />
+            <IconRefresh class="text-18px" :class="{ 'animate-spin': loading }" />
           </template>
         </NButton>
         <TableColumnSetting v-model:columns="columns" />

@@ -85,13 +85,14 @@ function recursiveTree(item: Api.SystemManage.MenuTreeData): MenuTreeModel {
   return result;
 }
 
-function updateMenuIconInMenus(detail: Api.SystemManage.MenuDetail | MenuTreeModel | null) {
+function updateMenuMetaInMenus(detail: Api.SystemManage.MenuDetail | MenuTreeModel | null) {
   if (!detail) return;
-  routeStore.updateMenuIcon({
+  routeStore.updateMenuMeta({
     routeName: detail.routeName,
     routePath: detail.routePath,
     icon: detail.icon,
-    iconType: detail.iconType
+    iconType: detail.iconType,
+    order: detail.sort
   });
 }
 
@@ -203,12 +204,12 @@ async function init(detail: Api.SystemManage.MenuDetail | null, refreshMenu = fa
     if (detail.id) {
       selectedId.value = String(detail.id);
     }
-    updateMenuIconInMenus(detail);
+    updateMenuMetaInMenus(detail);
   } else {
     const selectedNode = findMenuNode(selectedId.value, tree.value);
     if (selectedNode) {
       Object.assign(showData, selectedNode);
-      updateMenuIconInMenus(selectedNode);
+      updateMenuMetaInMenus(selectedNode);
     } else {
       selectedId.value = null;
     }

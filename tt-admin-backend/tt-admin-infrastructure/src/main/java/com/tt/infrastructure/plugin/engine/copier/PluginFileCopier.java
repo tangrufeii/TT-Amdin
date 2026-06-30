@@ -42,6 +42,7 @@ public class PluginFileCopier {
      * </p>
      */
     private static final PluginResourceDirectory[] ROOT_RESOURCES = {
+            PluginResourceDirectory.EXTENSION_FILE,
             PluginResourceDirectory.UI_DIR,
             PluginResourceDirectory.SQL_DIR,
             PluginResourceDirectory.SETTING_FILE

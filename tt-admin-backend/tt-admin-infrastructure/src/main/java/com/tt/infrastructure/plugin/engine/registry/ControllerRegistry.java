@@ -1,8 +1,5 @@
 package com.tt.infrastructure.plugin.engine.registry;
 
-import com.github.xiaoymin.knife4j.spring.configuration.Knife4jProperties;
-import com.github.xiaoymin.knife4j.spring.configuration.Knife4jSetting;
-import com.github.xiaoymin.knife4j.spring.extension.OpenApiExtensionResolver;
 import com.tt.domain.plugin.BasePluginRegistryHandler;
 import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.infrastructure.plugin.engine.context.PluginApplicationContextHolder;
@@ -16,13 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springdoc.api.AbstractOpenApiResource;
 import org.springdoc.core.properties.SpringDocConfigProperties;
 import org.springdoc.core.providers.SpringWebProvider;
-import org.springdoc.core.service.AbstractRequestService;
 import org.springdoc.core.service.OpenAPIService;
 import org.springdoc.core.service.OperationService;
 import org.springdoc.core.utils.SpringDocUtils;
-import org.springdoc.webmvc.api.MultipleOpenApiResource;
-import org.springdoc.webmvc.api.OpenApiResource;
-import org.springdoc.webmvc.core.providers.SpringWebMvcProvider;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.Order;
@@ -40,6 +33,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Registers plugin controllers into Spring MVC mappings.
@@ -56,13 +50,12 @@ public class ControllerRegistry implements BasePluginRegistryHandler {
 
     private Method getMappingForMethod;
 
-    private final Knife4jProperties knife4jProperties;
-    private final SpringDocConfigProperties properties;
-
     private final OpenAPIService openAPIService;
     private final SpringWebProvider springWebProvider;
     private final SpringDocConfigProperties springDocConfigProperties;
     private final OperationService operationService;
+    private final Map<String, Set<RequestMappingInfo>> pluginMappings = new ConcurrentHashMap<>();
+
     @Override
     public void initialize() throws Exception {
         requestMappingHandlerMapping = applicationContext.getBean(RequestMappingHandlerMapping.class);
@@ -80,6 +73,7 @@ public class ControllerRegistry implements BasePluginRegistryHandler {
     @Override
     public void registry(Plugin plugin) throws Exception {
         var pluginContext = PluginApplicationContextHolder.getApplicationContext(plugin.getPluginId());
+        Set<RequestMappingInfo> registeredMappings = ConcurrentHashMap.newKeySet();
 //        // 1. 获取 cachedOpenAPI 字段（私有）
 //        Field cachedOpenAPIField = OpenAPIService.class.getDeclaredField("cachedOpenAPI");
 //
@@ -107,15 +101,18 @@ public class ControllerRegistry implements BasePluginRegistryHandler {
                     RequestMappingInfo requestMappingInfo = (RequestMappingInfo)
                             getMappingForMethod.invoke(requestMappingHandlerMapping, method, clazz);
 
-                    // 如果已存在映射，先注销
                     Map<RequestMappingInfo, HandlerMethod> handlerMethods =
                             requestMappingHandlerMapping.getHandlerMethods();
                     if (handlerMethods.containsKey(requestMappingInfo)) {
-                        requestMappingHandlerMapping.unregisterMapping(requestMappingInfo);
+                        HandlerMethod existingHandler = handlerMethods.get(requestMappingInfo);
+                        log.warn("Skip plugin controller endpoint because mapping already exists: pluginId={}, mapping={}, existing={}",
+                                plugin.getPluginId(), requestMappingInfo, existingHandler);
+                        continue;
                     }
 
                     // 注册新映射
                     requestMappingHandlerMapping.registerMapping(requestMappingInfo, bean, method);
+                    registeredMappings.add(requestMappingInfo);
                     log.info("Registered controller endpoint: {} -> {}.{}",
                             requestMappingInfo, clazz.getSimpleName(), method.getName());
 
@@ -134,28 +131,21 @@ public class ControllerRegistry implements BasePluginRegistryHandler {
 
             log.info("添加成功----");
         }
+        pluginMappings.put(plugin.getPluginId(), registeredMappings);
         clearSpringDocCache();
     }
 
     @Override
     public void unRegistry(Plugin plugin) throws Exception {
-        for (Class<?> clazz : resolveControllerClasses(plugin)) {
-            Controller controller = clazz.getAnnotation(Controller.class);
-            RestController restController = clazz.getAnnotation(RestController.class);
-
-            if (controller == null && restController == null) {
-                continue;
-            }
-
-            Method[] methods = clazz.getMethods();
-            for (Method method : methods) {
-                if (hasMappingAnnotation(method)) {
-                    RequestMappingInfo requestMappingInfo = (RequestMappingInfo)
-                            getMappingForMethod.invoke(requestMappingHandlerMapping, method, clazz);
-                    requestMappingHandlerMapping.unregisterMapping(requestMappingInfo);
-                    log.debug("Unregistered controller endpoint: {}.{}", clazz.getSimpleName(), method.getName());
-                }
-            }
+        Set<RequestMappingInfo> mappings = pluginMappings.remove(plugin.getPluginId());
+        if (mappings == null || mappings.isEmpty()) {
+            log.debug("No registered controller endpoint found for plugin: {}", plugin.getPluginId());
+            clearSpringDocCache();
+            return;
+        }
+        for (RequestMappingInfo requestMappingInfo : mappings) {
+            requestMappingHandlerMapping.unregisterMapping(requestMappingInfo);
+            log.debug("Unregistered controller endpoint: pluginId={}, mapping={}", plugin.getPluginId(), requestMappingInfo);
         }
         clearSpringDocCache();
     }

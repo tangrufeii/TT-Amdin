@@ -1,5 +1,4 @@
 import type { Component } from 'vue';
-import { BACKEND_ERROR_CODE, createAlovaRequest } from '@sa/alova';
 
 export interface PluginModuleHooks {
   onLoad?: () => void | Promise<void>;
@@ -49,7 +48,7 @@ export type PluginRequestConfig = {
   credentials?: RequestCredentials;
 };
 
-export type PluginRequestResult<T> = { data: T; error: any; response?: Response };
+export type PluginRequestResult<T> = { data: T; error: any; response?: Response | null };
 
 export type PluginApi = {
   request?: <T>(config: PluginRequestConfig) => Promise<PluginRequestResult<T>>;
@@ -89,26 +88,10 @@ type PluginWindow = typeof window & {
   __TT_PLUGIN_API_BASE__?: string;
 };
 
-const jsonCache = new WeakMap<Response, any>();
-
 export function getPluginApi() {
   if (typeof window === 'undefined') return undefined;
   // eslint-disable-next-line no-underscore-dangle
   return (window as PluginWindow).__TT_PLUGIN_API__;
-}
-
-async function readJson(response: Response) {
-  if (jsonCache.has(response)) {
-    return jsonCache.get(response);
-  }
-  let payload: any = null;
-  try {
-    payload = await response.clone().json();
-  } catch {
-    payload = null;
-  }
-  jsonCache.set(response, payload);
-  return payload;
 }
 
 export function getPluginBaseURL() {
@@ -143,7 +126,9 @@ export function resolveToken() {
   const raw = localStorage.getItem(tokenKey);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'string') return parsed;
+    return parsed?.token || parsed?.accessToken || parsed?.access_token || raw;
   } catch {
     return raw;
   }
@@ -185,71 +170,126 @@ export function withQuery(url: string, params?: Record<string, any>) {
 
 let localRequest: (<T>(config: PluginRequestConfig) => Promise<PluginRequestResult<T>>) | null = null;
 
-function createLocalRequest() {
-  const baseURL = getPluginBaseURL();
-  const successCode = (import.meta.env as any).VITE_SERVICE_SUCCESS_CODE || '200';
+function resolveSuccessCode() {
+  const env = import.meta?.env as unknown as {
+    VITE_SERVICE_SUCCESS_CODE?: string;
+  };
+  return String(env.VITE_SERVICE_SUCCESS_CODE || '200');
+}
 
-  const alova = createAlovaRequest(
-    {
-      baseURL
-    },
-    {
-      onRequest: method => {
-        const token = resolveToken();
-        method.config = method.config || {};
-        method.config.headers = {
-          ...(method.config.headers || {}),
-          ...(token ? { Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` } : {})
-        };
-      },
-      isBackendSuccess: async response => {
-        const payload = await readJson(response);
-        return String(payload?.code) === String(successCode);
-      },
-      transformBackendResponse: async response => {
-        const payload = await readJson(response);
-        return payload?.data ?? payload;
-      },
-      onError: async (error, response) => {
-        if (error?.code === BACKEND_ERROR_CODE && response) {
-          const payload = await readJson(response);
-          const message = payload?.message || payload?.msg || error?.message || 'request failed';
-          if (typeof window !== 'undefined') {
-            (window as any).$message?.error(message);
-          }
-          return;
-        }
-        const message = error?.message || 'request failed';
-        if (typeof window !== 'undefined') {
-          (window as any).$message?.error(message);
-        }
-      }
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Object.prototype.toString.call(value) === '[object Object]';
+}
+
+async function readResponsePayload(response: Response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await response.json();
+    } catch {
+      return null;
     }
-  );
+  }
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function normalizeRequestHeaders(headers?: Record<string, any>, hasBody?: boolean) {
+  const token = resolveToken();
+  const authorization = token ? String(token) : '';
+  const normalized: Record<string, any> = {
+    ...(headers || {}),
+    ...(authorization ? { Authorization: authorization.startsWith('Bearer ') ? authorization : `Bearer ${authorization}` } : {})
+  };
+
+  if (hasBody && !Object.keys(normalized).some(key => key.toLowerCase() === 'content-type')) {
+    normalized['Content-Type'] = 'application/json';
+  }
+
+  return normalized;
+}
+
+function normalizeRequestBody(data: any, headers: Record<string, any>) {
+  if (data === undefined || data === null) return undefined;
+  if (typeof FormData !== 'undefined' && data instanceof FormData) {
+    delete headers['Content-Type'];
+    return data;
+  }
+  if (typeof URLSearchParams !== 'undefined' && data instanceof URLSearchParams) {
+    return data;
+  }
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    return data;
+  }
+  if (typeof data === 'string') {
+    return data;
+  }
+  return JSON.stringify(data);
+}
+
+function resolveBackendData<T>(payload: any, successCode: string): T {
+  if (isPlainObject(payload) && 'code' in payload) {
+    if (String(payload.code) !== successCode) {
+      const message = payload.message || payload.msg || 'request failed';
+      throw new Error(message);
+    }
+    return (payload.data ?? payload) as T;
+  }
+  return payload as T;
+}
+
+function notifyRequestError(error: any) {
+  const message = error?.message || 'request failed';
+  if (typeof window !== 'undefined') {
+    (window as any).$message?.error(message);
+  }
+}
+
+function joinURL(baseURL: string, url: string) {
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+  if (!baseURL) {
+    return url;
+  }
+  return `${baseURL.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
+}
+
+function createLocalRequest(): <T>(config: PluginRequestConfig) => Promise<PluginRequestResult<T>> {
+  const baseURL = getPluginBaseURL();
+  const successCode = resolveSuccessCode();
 
   return async function localRequest<T>(config: PluginRequestConfig): Promise<PluginRequestResult<T>> {
     const method = (config.method || 'GET').toString().toUpperCase();
-    const url = config.url || '';
     const params = normalizeParams(config.params);
-    const headers = config.headers as Record<string, any> | undefined;
+    const url = withQuery(joinURL(baseURL, config.url || ''), params);
     const credentials = config.credentials ?? 'include';
-    const options = { params, headers, credentials } as any;
-
-    let alovaMethod: any;
-    if (method === 'POST') {
-      alovaMethod = alova.Post(url, config.data ?? {}, options);
-    } else if (method === 'PUT') {
-      alovaMethod = alova.Put(url, config.data ?? {}, options);
-    } else if (method === 'DELETE') {
-      alovaMethod = alova.Delete(url, config.data ?? {}, options);
-    } else {
-      alovaMethod = alova.Get(url, options);
-    }
+    const hasBody = method !== 'GET' && method !== 'HEAD' && config.data !== undefined;
+    const headers = normalizeRequestHeaders(config.headers, hasBody);
+    const body = hasBody ? normalizeRequestBody(config.data, headers) : undefined;
 
     try {
-      const payload = await alovaMethod.send();
-      return { data: payload as T, error: null, response: null };
+      const response = await fetch(url, {
+        method,
+        headers,
+        body,
+        credentials
+      });
+      const payload = await readResponsePayload(response);
+
+      if (!response.ok) {
+        const message = isPlainObject(payload) ? payload.message || payload.msg : null;
+        throw new Error(message || response.statusText || 'request failed');
+      }
+
+      return { data: resolveBackendData<T>(payload, successCode), error: null, response };
     } catch (err) {
+      notifyRequestError(err);
       return { data: null as T, error: err, response: null };
     }
   };

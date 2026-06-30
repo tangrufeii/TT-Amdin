@@ -25,6 +25,8 @@ import java.util.Optional;
 @Service
 public class UserDomainService extends DomainService {
 
+    private static final String LOGIN_FAILED_MESSAGE = "账号或密码错误，请重新输入";
+
     private final UserRepository userRepository;
 
     public UserDomainService(UserRepository userRepository, DomainEventPublisher domainEventPublisher) {
@@ -70,7 +72,7 @@ public class UserDomainService extends DomainService {
             domainEventPublisher.publish(
                 new UserLoginFailedEvent(username, "用户不存在")
             );
-            throw new IllegalArgumentException("用户名或密码错误");
+            throw new DomainException(ResultCode.BAD_REQUEST.toString(), LOGIN_FAILED_MESSAGE);
         }
 
         User user = userOpt.get();
@@ -88,7 +90,7 @@ public class UserDomainService extends DomainService {
             domainEventPublisher.publish(
                 new UserLoginFailedEvent(username, "密码错误")
             );
-            throw new DomainException(ResultCode.INTERNAL_SERVER_ERROR.toString(),"密码错误");
+            throw new DomainException(ResultCode.BAD_REQUEST.toString(), LOGIN_FAILED_MESSAGE);
         }
 
         validatePostcondition("authenticate");

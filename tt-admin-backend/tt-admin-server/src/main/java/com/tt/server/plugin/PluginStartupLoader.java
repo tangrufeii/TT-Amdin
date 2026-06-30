@@ -2,6 +2,8 @@ package com.tt.server.plugin;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
+import com.tt.domain.extension.model.aggregate.ExtensionRecord;
+import com.tt.domain.extension.repository.ExtensionRecordRepository;
 import com.tt.domain.plugin.PluginManager;
 import com.tt.domain.plugin.model.aggregate.PluginManagement;
 import com.tt.application.plugin.service.PluginMenuSyncService;
@@ -12,6 +14,7 @@ import com.tt.domain.plugin.event.PluginLifecycleEvent;
 import com.tt.domain.plugin.model.enums.PluginDirectory;
 import com.tt.domain.plugin.model.valobj.PluginManagementStatus;
 import com.tt.domain.plugin.repository.PluginManagementRepository;
+import com.tt.domain.plugin.service.PluginDomainService;
 import com.tt.common.domain.DomainEventPublisher;
 import com.tt.infrastructure.plugin.engine.handler.PluginHandler;
 import com.tt.infrastructure.plugin.engine.holder.PluginHolder;
@@ -33,7 +36,7 @@ import java.util.Optional;
 import java.util.Properties;
 
 /**
- * Loads plugins on application startup.
+ *在应用程序启动时加载插件。
  */
 @Slf4j
 @Component
@@ -46,6 +49,8 @@ public class PluginStartupLoader {
     private static final String ACTION_SYSTEM_READY = "SYSTEM_READY";
 
     private final PluginManagementRepository pluginManagementRepository;
+    private final ExtensionRecordRepository extensionRecordRepository;
+    private final PluginDomainService pluginDomainService;
     private final PluginHandler pluginHandler;
     private final PluginManager pluginManager;
     private final DomainEventPublisher domainEventPublisher;
@@ -62,70 +67,140 @@ public class PluginStartupLoader {
 
     @EventListener(ApplicationReadyEvent.class)
     public void loadPluginsOnStartup() {
-        if (autoRegisterDevPlugins || shouldFallbackDevSync()) {
-            syncPluginsFromSource();
-        }
-        syncPluginRecordsFromDir();
-        List<PluginManagement> plugins = pluginManagementRepository.findAll();
-        if (CollectionUtils.isEmpty(plugins)) {
-            publishSystemReadyEvent();
-            return;
-        }
-
-        for (PluginManagement plugin : plugins) {
-            String pluginId = plugin.getPluginId();
-            if (pluginId == null || pluginId.isBlank()) {
-                continue;
+        try {
+            if (autoRegisterDevPlugins || shouldFallbackDevSync()) {
+                syncPluginsFromSource();
+            }
+            syncPluginRecordsFromDir();
+            List<PluginRuntimeRecord> plugins = loadStartupRecords();
+            if (CollectionUtils.isEmpty(plugins)) {
+                return;
             }
 
-            // 已加载过则跳过，避免重复安装
-            if (PluginHolder.containsPlugin(pluginId)) {
-                if (plugin.isEnabled()) {
-                    pluginMenuSyncService.syncPluginMenus(plugin);
+            for (PluginRuntimeRecord runtimeRecord : plugins) {
+                String pluginId = runtimeRecord.pluginId();
+                if (pluginId == null || pluginId.isBlank()) {
+                    continue;
                 }
-                continue;
-            }
+                boolean pluginEnabled = runtimeRecord.enabled();
+                PluginManagement plugin = runtimeRecord.plugin();
+                ExtensionRecord extensionRecord = runtimeRecord.extensionRecord();
 
-            File pluginDir = new File(PluginDirectory.PLUGIN_DIRECTORY.getPath(), pluginId);
-            if (!pluginDir.exists()) {
-                // 目录不存在时，自动将启用状态下的插件标记为禁用，避免前端出现“启用但不可用”
-                if (plugin.isEnabled()) {
-                    plugin.disable();
-                    pluginManagementRepository.save(plugin);
-                    log.warn("Plugin directory missing, auto disabled: {}", pluginId);
-                } else {
-                    log.warn("Plugin directory missing: {}", pluginId);
-                }
-                continue;
-            }
-
-            long startedAt = System.currentTimeMillis();
-            try {
-                // 目录存在但插件在DB中为禁用，则清理目录，避免垃圾资源堆积
-                if (!plugin.isEnabled()) {
-                    if (!isDevSourcePluginDir(pluginDir)) {
-                        FileUtil.del(pluginDir);
-                        log.info("Plugin directory removed (disabled): {}", pluginId);
-                    } else {
-                        log.info("Plugin directory retained (dev source): {}", pluginId);
+                // 已加载过则跳过，避免重复安装
+                if (PluginHolder.containsPlugin(pluginId)) {
+                    if (pluginEnabled && plugin != null) {
+                        pluginMenuSyncService.syncPluginMenus(plugin);
                     }
                     continue;
                 }
 
-                // 先安装（注册上下文、类加载器、元数据）
-                pluginHandler.installPlugin(pluginDir);
+                File pluginDir = new File(PluginDirectory.PLUGIN_DIRECTORY.getPath(), pluginId);
+                if (!pluginDir.exists()) {
+                    // 目录不存在时，自动将启用状态下的插件标记为禁用，避免前端出现“启用但不可用”
+                    if (pluginEnabled) {
+                        if (plugin != null) {
+                            plugin.disable();
+                            pluginManagementRepository.save(plugin);
+                        }
+                        if (extensionRecord != null && extensionRecord.isEnabled()) {
+                            extensionRecord.disable();
+                            extensionRecordRepository.save(extensionRecord);
+                        }
+                        log.warn("Plugin directory missing, auto disabled: {}", pluginId);
+                    } else {
+                        log.warn("Plugin directory missing: {}", pluginId);
+                    }
+                    continue;
+                }
 
-                // 启用状态才启动（注册路由、菜单等）
-                pluginManager.startPlugin(pluginId);
-                pluginMenuSyncService.syncPluginMenus(plugin);
-                publishStartupEvent(pluginId, startedAt);
-                log.info("Plugin loaded on startup: {}", pluginId);
-            } catch (Exception ex) {
-                log.error("Failed to load plugin on startup: {}", pluginId, ex);
+                long startedAt = System.currentTimeMillis();
+                try {
+                    // 禁用只是不参与当前运行时，不代表包应该被删。
+                    // 主题互斥切换尤其依赖“禁用但已安装”这一状态，不能每次启动都把候选主题目录扬了。
+                    if (!pluginEnabled) {
+                        log.info("Plugin directory retained (disabled): {}", pluginId);
+                        continue;
+                    }
+
+                    // 先安装（注册上下文、类加载器、元数据）
+                    pluginHandler.installPlugin(pluginDir);
+
+                    // 启用状态才启动（注册路由、菜单等）
+                    pluginManager.startPlugin(pluginId);
+                    if (plugin != null) {
+                        pluginMenuSyncService.syncPluginMenus(plugin);
+                    }
+                    publishStartupEvent(pluginId, startedAt);
+                    log.info("Plugin loaded on startup: {}", pluginId);
+                } catch (Exception ex) {
+                    log.error("Failed to load plugin on startup: {}", pluginId, ex);
+                }
             }
+        } catch (Exception ex) {
+            log.error("Plugin startup recovery failed, continue application startup.", ex);
+        } finally {
+            publishSystemReadyEvent();
+        }
+    }
+
+    /**
+     * 读取启动恢复清单：
+     * 1. 优先使用 sys_extension（V2 主表）；
+     * 2. 若主表为空，回退使用 sys_plugin；
+     * 3. 兼容期内，如果 extension 已有数据但 plugin 仍有遗漏记录，补位并同步到主表。
+     */
+    private List<PluginRuntimeRecord> loadStartupRecords() {
+        List<PluginManagement> pluginRecords = pluginManagementRepository.findAll();
+        List<ExtensionRecord> extensionRecords;
+        try {
+            extensionRecords = extensionRecordRepository.findAll();
+        } catch (Exception ex) {
+            log.warn("Failed to load sys_extension records, fallback to sys_plugin.", ex);
+            extensionRecords = List.of();
         }
 
-        publishSystemReadyEvent();
+        if (CollectionUtils.isEmpty(extensionRecords)) {
+            if (CollectionUtils.isEmpty(pluginRecords)) {
+                return List.of();
+            }
+            List<PluginRuntimeRecord> fallbackRecords = new ArrayList<>();
+            for (PluginManagement plugin : pluginRecords) {
+                if (plugin == null || plugin.getPluginId() == null || plugin.getPluginId().isBlank()) {
+                    continue;
+                }
+                fallbackRecords.add(new PluginRuntimeRecord(plugin.getPluginId(), plugin.isEnabled(), plugin, null));
+            }
+            log.info("Startup loader fallback to sys_plugin, size={}", fallbackRecords.size());
+            return fallbackRecords;
+        }
+
+        List<PluginRuntimeRecord> runtimeRecords = new ArrayList<>();
+        List<PluginManagement> pluginCandidates = new ArrayList<>(pluginRecords);
+        for (ExtensionRecord extensionRecord : extensionRecords) {
+            if (extensionRecord == null || extensionRecord.getExtensionId() == null || extensionRecord.getExtensionId().isBlank()) {
+                continue;
+            }
+            String pluginId = extensionRecord.getExtensionId();
+            PluginManagement matchedPlugin = pluginCandidates.stream()
+                    .filter(plugin -> plugin != null && pluginId.equals(plugin.getPluginId()))
+                    .findFirst()
+                    .orElse(null);
+            if (matchedPlugin != null) {
+                pluginCandidates.remove(matchedPlugin);
+            }
+            runtimeRecords.add(new PluginRuntimeRecord(pluginId, extensionRecord.isEnabled(), matchedPlugin, extensionRecord));
+        }
+
+        // 兼容补位：主表存在时也接住遗留 plugin 记录，避免迁移窗口期漏启动。
+        for (PluginManagement plugin : pluginCandidates) {
+            if (plugin == null || plugin.getPluginId() == null || plugin.getPluginId().isBlank()) {
+                continue;
+            }
+            pluginDomainService.syncExtensionRecordFromPlugin(plugin);
+            runtimeRecords.add(new PluginRuntimeRecord(plugin.getPluginId(), plugin.isEnabled(), plugin, null));
+        }
+
+        return runtimeRecords;
     }
 
     /**
@@ -153,7 +228,10 @@ public class PluginStartupLoader {
             }
 
             String pluginId = pluginInfo.getId();
-            if (pluginManagementRepository.findByPluginId(pluginId).isPresent()) {
+            Optional<PluginManagement> existingPlugin = pluginManagementRepository.findByPluginId(pluginId);
+            if (existingPlugin.isPresent()) {
+                // 启动扫描时顺手补齐 extension 主表，避免后续切换读取源时数据缺失。
+                pluginDomainService.syncExtensionRecordFromPlugin(existingPlugin.get());
                 continue;
             }
 
@@ -178,6 +256,7 @@ public class PluginStartupLoader {
             }
 
             pluginManagementRepository.save(plugin);
+            pluginDomainService.syncExtensionRecordFromPlugin(plugin);
             log.info("Plugin record synced from directory: {}", pluginId);
         }
     }
@@ -200,8 +279,9 @@ public class PluginStartupLoader {
         int skipped = 0;
         for (File moduleDir : moduleDirs) {
             File resourceDir = new File(moduleDir, "src/main/resources");
+            File extensionYaml = new File(resourceDir, "extension.yaml");
             File pluginYaml = new File(resourceDir, "plugin.yaml");
-            if (!pluginYaml.exists()) {
+            if (!extensionYaml.exists() && !pluginYaml.exists()) {
                 skipped++;
                 continue;
             }
@@ -215,6 +295,11 @@ public class PluginStartupLoader {
             File targetClasses = new File(moduleDir, "target/classes");
             if (!targetClasses.exists()) {
                 log.warn("Dev plugin skipped (missing target/classes): {}", moduleDir.getAbsolutePath());
+                skipped++;
+                continue;
+            }
+            if (!hasRuntimeClasses(targetClasses)) {
+                log.warn("Dev plugin skipped (target/classes has no runtime classes): {}", moduleDir.getAbsolutePath());
                 skipped++;
                 continue;
             }
@@ -238,6 +323,7 @@ public class PluginStartupLoader {
             long libTs = lastModifiedOfDir(new File(moduleDir, "target/lib"));
             long uiTs = lastModifiedOfDir(new File(resourceDir, "ui"));
             long sqlTs = lastModifiedOfDir(new File(resourceDir, "sql"));
+            long extensionYamlTs = lastModifiedOf(extensionYaml);
             long pluginYamlTs = lastModifiedOf(new File(resourceDir, "plugin.yaml"));
             long frontendYamlTs = lastModifiedOf(new File(resourceDir, "frontend.yaml"));
             long settingTs = lastModifiedOf(new File(resourceDir, "setting.json"));
@@ -246,13 +332,15 @@ public class PluginStartupLoader {
             boolean libChanged = !equalsTimestamp(markerProps, "libTs", libTs);
             boolean uiChanged = !equalsTimestamp(markerProps, "uiTs", uiTs);
             boolean sqlChanged = !equalsTimestamp(markerProps, "sqlTs", sqlTs);
+            boolean extensionYamlChanged = !equalsTimestamp(markerProps, "extensionYamlTs", extensionYamlTs);
             boolean pluginYamlChanged = !equalsTimestamp(markerProps, "pluginYamlTs", pluginYamlTs);
             boolean frontendYamlChanged = !equalsTimestamp(markerProps, "frontendYamlTs", frontendYamlTs);
             boolean settingChanged = !equalsTimestamp(markerProps, "settingTs", settingTs);
 
             if (pluginDirExists && devMarkerExists
                     && !classesChanged && !libChanged && !uiChanged && !sqlChanged
-                    && !pluginYamlChanged && !frontendYamlChanged && !settingChanged) {
+                    && !extensionYamlChanged && !pluginYamlChanged
+                    && !frontendYamlChanged && !settingChanged) {
                 log.debug("Dev plugin up-to-date, skip copy: {}", pluginId);
                 synced++;
                 continue;
@@ -261,8 +349,8 @@ public class PluginStartupLoader {
             FileUtil.mkdir(pluginDir);
             syncDevPluginFiles(resourceDir, targetClasses, moduleDir, pluginDir,
                     classesChanged, libChanged, uiChanged, sqlChanged,
-                    pluginYamlChanged, frontendYamlChanged, settingChanged,
-                    classesTs, libTs, uiTs, sqlTs, pluginYamlTs, frontendYamlTs, settingTs);
+                    extensionYamlChanged, pluginYamlChanged, frontendYamlChanged, settingChanged,
+                    classesTs, libTs, uiTs, sqlTs, extensionYamlTs, pluginYamlTs, frontendYamlTs, settingTs);
             log.info("Dev plugin synced from source: {}", pluginId);
             synced++;
         }
@@ -326,6 +414,7 @@ public class PluginStartupLoader {
                                     boolean libChanged,
                                     boolean uiChanged,
                                     boolean sqlChanged,
+                                    boolean extensionYamlChanged,
                                     boolean pluginYamlChanged,
                                     boolean frontendYamlChanged,
                                     boolean settingChanged,
@@ -333,12 +422,17 @@ public class PluginStartupLoader {
                                     long libTs,
                                     long uiTs,
                                     long sqlTs,
+                                    long extensionYamlTs,
                                     long pluginYamlTs,
                                     long frontendYamlTs,
                                     long settingTs) {
+        File extensionYaml = new File(resourceDir, "extension.yaml");
         File pluginYaml = new File(resourceDir, "plugin.yaml");
         File frontendYaml = new File(resourceDir, "frontend.yaml");
         File settingJson = new File(resourceDir, "setting.json");
+        if (extensionYamlChanged || !new File(pluginDir, "extension.yaml").exists()) {
+            copyIfExists(extensionYaml, new File(pluginDir, "extension.yaml"));
+        }
         if (pluginYamlChanged || !new File(pluginDir, "plugin.yaml").exists()) {
             copyIfExists(pluginYaml, new File(pluginDir, "plugin.yaml"));
         }
@@ -361,18 +455,22 @@ public class PluginStartupLoader {
 
         if (classesChanged) {
             File codeDir = new File(pluginDir, "code");
-            FileUtil.del(codeDir);
-            FileUtil.mkdir(codeDir);
-            File[] classEntries = targetClasses.listFiles();
-            if (classEntries != null) {
-                for (File entry : classEntries) {
-                    FileUtil.copy(entry, codeDir, true);
+            if (!hasRuntimeClasses(targetClasses)) {
+                log.warn("Skip dev plugin code sync, target/classes has no runtime classes: {}", targetClasses.getAbsolutePath());
+            } else {
+                FileUtil.del(codeDir);
+                FileUtil.mkdir(codeDir);
+                File[] classEntries = targetClasses.listFiles();
+                if (classEntries != null) {
+                    for (File entry : classEntries) {
+                        FileUtil.copy(entry, codeDir, true);
+                    }
                 }
             }
         }
 
         writeDevMarker(pluginDir, moduleDir, resourceDir, moduleDir,
-                classesTs, libTs, uiTs, sqlTs, pluginYamlTs, frontendYamlTs, settingTs);
+                classesTs, libTs, uiTs, sqlTs, extensionYamlTs, pluginYamlTs, frontendYamlTs, settingTs);
     }
 
     private void copyIfExists(File source, File target) {
@@ -419,6 +517,7 @@ public class PluginStartupLoader {
                                 long libTs,
                                 long uiTs,
                                 long sqlTs,
+                                long extensionYamlTs,
                                 long pluginYamlTs,
                                 long frontendYamlTs,
                                 long settingTs) {
@@ -429,6 +528,7 @@ public class PluginStartupLoader {
                 "libTs=" + libTs,
                 "uiTs=" + uiTs,
                 "sqlTs=" + sqlTs,
+                "extensionYamlTs=" + extensionYamlTs,
                 "pluginYamlTs=" + pluginYamlTs,
                 "frontendYamlTs=" + frontendYamlTs,
                 "settingTs=" + settingTs
@@ -455,6 +555,7 @@ public class PluginStartupLoader {
                 && equalsTimestamp(props, "libTs", lastModifiedOfDir(new File(moduleDir, "target/lib")))
                 && equalsTimestamp(props, "uiTs", lastModifiedOfDir(new File(resourceDir, "ui")))
                 && equalsTimestamp(props, "sqlTs", lastModifiedOfDir(new File(resourceDir, "sql")))
+                && equalsTimestamp(props, "extensionYamlTs", lastModifiedOf(new File(resourceDir, "extension.yaml")))
                 && equalsTimestamp(props, "pluginYamlTs", lastModifiedOf(new File(resourceDir, "plugin.yaml")))
                 && equalsTimestamp(props, "frontendYamlTs", lastModifiedOf(new File(resourceDir, "frontend.yaml")))
                 && equalsTimestamp(props, "settingTs", lastModifiedOf(new File(resourceDir, "setting.json")));
@@ -501,6 +602,14 @@ public class PluginStartupLoader {
             latest = Math.max(latest, file.lastModified());
         }
         return latest;
+    }
+
+    private boolean hasRuntimeClasses(File dir) {
+        if (dir == null || !dir.exists()) {
+            return false;
+        }
+        return FileUtil.loopFiles(dir, file -> file.isFile() && file.getName().endsWith(".class")).stream()
+                .anyMatch(file -> !file.getAbsolutePath().contains(File.separator + "META-INF" + File.separator));
     }
 
     private void publishStartupEvent(String pluginId, long startedAt) {
@@ -557,5 +666,21 @@ public class PluginStartupLoader {
 
         log.info("No plugin directories found, fallback to dev source sync.");
         return true;
+    }
+
+    /**
+     * 插件运行时恢复记录
+     *
+     * @param pluginId        插件ID
+     * @param enabled         启用状态
+     * @param plugin          plugin 记录（兼容老链路，可能为空）
+     * @param extensionRecord extension 记录（主链路，回退时可能为空）
+     */
+    private record PluginRuntimeRecord(
+            String pluginId,
+            boolean enabled,
+            PluginManagement plugin,
+            ExtensionRecord extensionRecord
+    ) {
     }
 }

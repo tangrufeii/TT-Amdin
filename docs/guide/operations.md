@@ -67,5 +67,11 @@ docker compose up -d --build
 
 ### 说明
 
-- 前端 Nginx 将 `/api` 和 `/ws` 代理至后端
-- 插件静态资源走后端 `/api/plugin-static`，已包含在 `/api` 代理内
+- 前端 Nginx 是公网入口，例如 `duck.vin` 这类域名请求会先到 Nginx，不会直接进入后端 8080。
+- 当前 `tt-admin-frontend` 仍按根路径 SPA 部署，`VITE_BASE_URL=/`，不要把后台 base 强行改成 `/admin/`。
+- `/api` 和 `/ws` 由 Nginx 代理至后端。
+- 插件和主题静态资源走后端 `/api/plugin-static`，已包含在 `/api` 代理内。
+- 门户公网入口应单独部署静态壳 `tt-admin-portal-shell`，再由它调用 `/api/portal/theme/runtime` 加载当前启用主题。
+- 如果走文件化主题渲染，可以让 Nginx 将门户域名 `/` 代理到后端 `/portal/render`，主题资源走 `/portal/theme-assets/{themeKey}/...`。
+- 如果同一个域名既要后台又要门户，必须在 Nginx 层明确拆分路径或子域名；后端 MVC 转发处理不了公网根路径。
+- 主题前端请求运行态接口时应使用 `/api/portal/theme/runtime`，而不是直接请求后端内部路径 `/portal/theme/runtime`。

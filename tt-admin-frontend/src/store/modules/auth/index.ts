@@ -103,32 +103,35 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   async function login(userName: string, password: string, redirect = true) {
     startLoading();
 
-    const { data: loginToken, error } = await fetchLogin(userName, password);
-    if (!error) {
-      const pass = await loginByToken(loginToken);
+    try {
+      const { data: loginToken, error } = await fetchLogin(userName, password);
+      if (!error) {
+        const pass = await loginByToken(loginToken);
 
-      if (pass) {
-        // Check if the tab needs to be cleared
-        const isClear = checkTabClear();
-        let needRedirect = redirect;
+        if (pass) {
+          // Check if the tab needs to be cleared
+          const isClear = checkTabClear();
+          let needRedirect = redirect;
 
-        if (isClear) {
-          // If the tab needs to be cleared,it means we don't need to redirect.
-          needRedirect = false;
+          if (isClear) {
+            // If the tab needs to be cleared,it means we don't need to redirect.
+            needRedirect = false;
+          }
+          await ensureAuthRouteReady();
+          await redirectFromLogin(needRedirect);
+
+          window.$notification?.success({
+            title: $t('page.login.common.loginSuccess'),
+            content: $t('page.login.common.welcomeBack', { userName: userInfo.userName }),
+            duration: 4500
+          });
         }
-        await redirectFromLogin(needRedirect);
-
-        window.$notification?.success({
-          title: $t('page.login.common.loginSuccess'),
-          content: $t('page.login.common.welcomeBack', { userName: userInfo.userName }),
-          duration: 4500
-        });
+      } else {
+        await resetStore();
       }
-    } else {
-      resetStore();
+    } finally {
+      endLoading();
     }
-
-    endLoading();
   }
 
   async function loginByToken(loginToken: Api.Auth.LoginToken) {
@@ -145,7 +148,14 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
       return true;
     }
 
+    clearAuthStorage();
     return false;
+  }
+
+  async function ensureAuthRouteReady() {
+    if (!routeStore.isInitAuthRoute) {
+      await routeStore.initAuthRoute();
+    }
   }
 
   async function getUserInfo() {

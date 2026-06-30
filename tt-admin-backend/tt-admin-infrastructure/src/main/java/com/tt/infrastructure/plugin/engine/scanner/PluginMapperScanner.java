@@ -1,6 +1,8 @@
 package com.tt.infrastructure.plugin.engine.scanner;
 
 import cn.hutool.core.io.FileUtil;
+import com.tt.domain.extension.model.manifest.ExtensionManifest;
+import com.tt.domain.plugin.model.aggregate.Plugin;
 import com.tt.domain.plugin.model.aggregate.PluginConfig;
 import com.tt.domain.plugin.model.enums.PluginResourceDirectory;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,12 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 public class PluginMapperScanner {
+
+    /**
+     * 新 Manifest 在未显式提供 mapperLocation 时的兼容默认值。
+     * 先约定扫描 code/mapper 下的 XML，避免把所有 XML 都一锅端。
+     */
+    private static final String DEFAULT_MAPPER_LOCATION = "mapper/**/*.xml";
 
     /**
      * XML文件扩展名
@@ -84,11 +92,10 @@ public class PluginMapperScanner {
      * @apiNote mapperLocation示例：mapper\/**\/*.xml 表示mapper目录及其子目录下的所有XML文件
      */
     public static List<File> scanMapperFiles(File pluginDir, PluginConfig config) {
-        if (!isMapperLocationConfigured(config)) {
+        String locationPattern = resolveMapperLocation(config, null);
+        if (StringUtils.isBlank(locationPattern)) {
             return new ArrayList<>();
         }
-
-        String locationPattern = config.getPlugin().getMapperLocation();
         Pattern regexPattern = buildLocationPattern(locationPattern);
 
         File codeDir = getCodeDirectory(pluginDir);
@@ -102,6 +109,39 @@ public class PluginMapperScanner {
         }
 
         log.debug("Found {} mapper XML files for plugin", mapperFiles.size());
+        return mapperFiles;
+    }
+
+    /**
+     * 基于运行时插件对象扫描 Mapper XML。
+     * 统一优先级：
+     * 1. 旧 plugin.yaml 的 mapperLocation
+     * 2. 新 Manifest 存在服务端产物时使用默认 mapper 目录约定
+     *
+     * @param pluginDir 插件根目录
+     * @param plugin    运行时插件对象
+     * @return Mapper XML 文件列表
+     */
+    public static List<File> scanMapperFiles(File pluginDir, Plugin plugin) {
+        if (plugin == null) {
+            return new ArrayList<>();
+        }
+        String locationPattern = resolveMapperLocation(plugin.getPluginConfig(), plugin.getExtensionManifest());
+        if (StringUtils.isBlank(locationPattern)) {
+            return new ArrayList<>();
+        }
+        Pattern regexPattern = buildLocationPattern(locationPattern);
+        File codeDir = getCodeDirectory(pluginDir);
+        List<File> mapperFiles = new ArrayList<>();
+
+        List<File> allFiles = FileUtil.loopFiles(codeDir);
+        for (File file : allFiles) {
+            if (isMapperXmlFile(file, codeDir, regexPattern)) {
+                mapperFiles.add(file);
+            }
+        }
+
+        log.debug("Found {} mapper XML files for plugin {}", mapperFiles.size(), plugin.getPluginId());
         return mapperFiles;
     }
 
@@ -128,6 +168,22 @@ public class PluginMapperScanner {
     }
 
     /**
+     * 基于运行时插件对象扫描 Mapper XML 路径
+     *
+     * @param pluginDir 插件根目录
+     * @param plugin    运行时插件对象
+     * @return Mapper XML 路径列表
+     */
+    public static List<String> scanMapperPaths(File pluginDir, Plugin plugin) {
+        List<File> mapperFiles = scanMapperFiles(pluginDir, plugin);
+        List<String> mapperPaths = new ArrayList<>(mapperFiles.size());
+        for (File file : mapperFiles) {
+            mapperPaths.add(file.getAbsolutePath());
+        }
+        return mapperPaths;
+    }
+
+    /**
      * 检查是否配置了Mapper位置
      *
      * @param config 插件配置对象
@@ -138,6 +194,16 @@ public class PluginMapperScanner {
                 && config.getPlugin() != null
                 && config.getPlugin().getMapperLocation() != null
                 && StringUtils.isNotBlank(config.getPlugin().getMapperLocation());
+    }
+
+    private static String resolveMapperLocation(PluginConfig config, ExtensionManifest manifest) {
+        if (isMapperLocationConfigured(config)) {
+            return config.getPlugin().getMapperLocation();
+        }
+        if (manifest != null && manifest.getArtifacts() != null && StringUtils.isNotBlank(manifest.getArtifacts().getServerJar())) {
+            return DEFAULT_MAPPER_LOCATION;
+        }
+        return null;
     }
 
     /**
