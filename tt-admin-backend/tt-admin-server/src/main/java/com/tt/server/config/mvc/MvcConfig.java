@@ -35,6 +35,7 @@ public class MvcConfig implements WebMvcConfigurer {
                         "/portal/render",
                         "/portal/theme-assets/**",
                         "/api/plugin-static/**",
+                        "/plugin-static/**",
                         "/static/**",
                         "/api/static/**",
                         "/assets/**",
