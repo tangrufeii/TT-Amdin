@@ -246,11 +246,7 @@ importers:
         specifier: 0.9.1
         version: 0.9.1
 
-  packages/plugin-sdk:
-    dependencies:
-      '@sa/alova':
-        specifier: file:../alova
-        version: link:../alova
+  packages/plugin-sdk: {}
 
   packages/plugin-ui:
     dependencies:
